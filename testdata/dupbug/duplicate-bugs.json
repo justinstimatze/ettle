@@ -1,0 +1,33 @@
+{
+  "name": "duplicate-bugs",
+  "inputs": [
+    "testdata/dupbug/dana.md",
+    "testdata/dupbug/evan.md",
+    "testdata/dupbug/kira.md",
+    "testdata/dupbug/luca.md",
+    "testdata/dupbug/mara.md"
+  ],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["dana", "evan"],
+      "about": "duplicate report — macOS system print dialog fails to produce a PDF in Firefox 152",
+      "keywords": ["system print dialog", "pdf", "152", "save as pdf", "printer"],
+      "real": true
+    },
+    {
+      "id": "K2",
+      "parties": ["kira", "luca"],
+      "about": "duplicate report — Wayland tab drag-and-drop re-order is broken",
+      "keywords": ["wayland", "drag", "re-order", "rearrange tabs", "tab"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["mara"],
+      "about": "macOS print-dialog header/footer spacing is a cosmetic UI nit, not a duplicate of the print-to-PDF breakage",
+      "keywords": ["header", "footer", "spacing", "page headers", "tightly spaced"],
+      "real": false
+    }
+  ]
+}

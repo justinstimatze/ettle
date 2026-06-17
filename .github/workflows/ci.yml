@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)
+      - name: build / vet / test (default)
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+      - name: build / vet / test (nats)
+        run: |
+          go build -tags nats ./...
+          go vet -tags nats ./...
+          go test -tags nats ./...

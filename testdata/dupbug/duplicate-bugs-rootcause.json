@@ -1,0 +1,34 @@
+{
+  "name": "duplicate-bugs-rootcause",
+  "inputs": [
+    "testdata/dupbug/noor.md",
+    "testdata/dupbug/petra.md",
+    "testdata/dupbug/rhys.md",
+    "testdata/dupbug/sol.md",
+    "testdata/dupbug/tess.md",
+    "testdata/dupbug/umi.md"
+  ],
+  "expected_knots": [
+    {
+      "id": "W1",
+      "parties": ["noor", "petra"],
+      "about": "duplicate — Firefox crashes rendering certain web fonts after the fontconfig 2.18.0 upgrade",
+      "keywords": ["fontconfig", "font", "crash", "webfont", "tab"],
+      "real": true
+    },
+    {
+      "id": "W2",
+      "parties": ["rhys", "sol"],
+      "about": "duplicate — settings button label corrupts when localization updates after a language switch",
+      "keywords": ["button label", "language", "localiz", "corrupt", "label"],
+      "real": true
+    },
+    {
+      "id": "W3",
+      "parties": ["tess", "umi"],
+      "about": "duplicate — Enter no longer triggers the GTK save dialog default action",
+      "keywords": ["save dialog", "enter", "file picker", "ctrl+s", "default action"],
+      "real": true
+    }
+  ]
+}

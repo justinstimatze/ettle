@@ -1,0 +1,34 @@
+{
+  "name": "duplicate-bugs-closeworded",
+  "inputs": [
+    "testdata/dupbug/vik.md",
+    "testdata/dupbug/wren.md",
+    "testdata/dupbug/xan.md",
+    "testdata/dupbug/yara.md",
+    "testdata/dupbug/zane.md",
+    "testdata/dupbug/ora.md"
+  ],
+  "expected_knots": [
+    {
+      "id": "Y1",
+      "parties": ["vik", "wren"],
+      "about": "duplicate — YouTube ignores Firefox's autoplay setting and plays video on its own",
+      "keywords": ["youtube", "autoplay", "video", "playback", "setting"],
+      "real": true
+    },
+    {
+      "id": "Y2",
+      "parties": ["xan", "yara"],
+      "about": "duplicate — restoring a single entry from Session Restore via double/middle-click opens a blank tab",
+      "keywords": ["session restore", "blank tab", "middle click", "restore", "tab"],
+      "real": true
+    },
+    {
+      "id": "Y3",
+      "parties": ["zane", "ora"],
+      "about": "duplicate — settings search highlight indicators point to the wrong/nonsensical places",
+      "keywords": ["settings search", "tooltip", "misplaced", "arrow", "indicator"],
+      "real": true
+    }
+  ]
+}

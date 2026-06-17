@@ -1,0 +1,27 @@
+{
+  "name": "auth-migration",
+  "inputs": ["testdata/sessions/kit.jsonl", "testdata/sessions/sol.jsonl"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["kit", "sol"],
+      "about": "cookie-auth removal vs mobile cookie dependence",
+      "keywords": ["cookie", "login", "auth", "session"],
+      "real": true
+    },
+    {
+      "id": "K2",
+      "parties": ["kit", "sol"],
+      "about": "who decides the auth migration timeline and sequencing",
+      "keywords": ["timeline", "sequencing", "deprecation", "decision"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["kit"],
+      "about": "JWT signing-key and refresh-token rotation — kit's internal implementation detail, sol is uninvolved",
+      "keywords": ["signing keys", "refresh-token rotation", "token issuer", "short-lived"],
+      "real": false
+    }
+  ]
+}

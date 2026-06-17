@@ -1,0 +1,7 @@
+{"type":"user","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"user","content":"I'm migrating our auth from session cookies to JWT this week. Starting with the token issuer service — new signing keys, short-lived access tokens, refresh-token rotation."}}
+{"type":"assistant","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"assistant","content":[{"type":"text","text":"I'll scaffold the issuer."},{"type":"tool_use","name":"Write","input":{"file_path":"internal/auth/jwt.go"}}]}}
+{"type":"assistant","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"go test ./internal/auth/..."}}]}}
+{"type":"user","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"user","content":"Once the issuer is solid I'm going to remove the old cookie-session path entirely — it's been a maintenance drag and I want one auth model, not two. Planning to delete it next sprint."}}
+{"type":"assistant","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"internal/auth/middleware.go"}}]}}
+{"type":"user","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"user","content":"I need the issuer shipped by Thursday so the rest of the rollout has time to bake before the release."}}
+{"type":"assistant","isSidechain":false,"gitBranch":"auth-jwt","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"git commit -m 'jwt issuer scaffold'"}}]}}
