@@ -51,7 +51,7 @@ The aim is not "frictionless." It is **friction in the right spots**: remove it 
 
 ## Status
 
-What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the knots (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is not yet broadly validated — but it's now *inspectable*: `ettle eval testdata/eval/*.json` scores precision/recall against a committed synthetic corpus you can read, and `--ab` runs the honest single-shot-vs-voting comparison with a McNemar test (which, at this corpus size, correctly declines to claim voting helps).
+What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the knots (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is **not validated** — but it's *inspectable*: `ettle eval testdata/eval/*.json` is a small, readable **smoke test** (run the detector against a committed synthetic corpus, see where it hits and misses). It is a sanity check, **not** a precision/recall measurement — the corpus is tiny and has only a handful of labels, and the `--ab` voting comparison ships a McNemar test that on this corpus never reaches the sample size to claim anything (the machinery is there, waiting for a corpus big enough to feed it).
 
 The opening paragraphs above describe the **design**; what's **deliberately unbuilt** is the part that needs the most care — the L2 directed-model mesh, the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector (the fast people-modeling half) runs; the correction half does not yet, so any safety claim that leans on calibration is, for now, borrowing against unbuilt code — see [CONCEPT.md](docs/CONCEPT.md). Concept demos exist as local simulations on cheap models (agents standing in for the humans) to show the payoff shape; those are illustrations, not the product.
 
@@ -145,8 +145,9 @@ before the meeting:
         ↳ as ivo frames it / as the other parties frame it
 ```
 
-Three things to notice: the **collision is caught before the standup** that
-would otherwise have surfaced it; the simple conflicts are **FYI'd** while the
+Three things to notice: the **collision is caught before the standup** — across
+four sessions nobody had read, which is the point (reach and timing, not that a
+human couldn't eventually have spotted it); the simple conflicts are **FYI'd** while the
 genuine values choice (the freeze timeline) is **routed to a crux** and
 pre-staged as an either/or — friction in the right spot, not everywhere; and
 it's **useful at N=1** too — `ettle standup testdata/solo/dana.md` catches one

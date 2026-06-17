@@ -2,7 +2,7 @@
 
 Motto: **no meetings** (honestly: the sync meeting dies, the decision meeting gets shorter — not literal abolition; see [CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)). This is the multiplayer payoff made visible — three humans, each with an agent, the agents coordinating *ahead* of the humans so the friction never lands. The intended feel is the Culture-Minds bright pole (SF_LINEAGE.md): everything just comes together and nobody had to plan. It runs locally, on cheap Haiku, with agents standing in for the humans: a local sim.
 
-This is downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's worth simulating now to see whether the end-state actually *feels* like the pitch. It does.
+This is downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's worth simulating now to see what the end-state would *feel* like. Caveat up front: the sim is built with the frictions planted, so it shows the intended *shape* of the payoff — it is not evidence the detection works on real, un-seeded team state (see the honesty note below).
 
 ## What it shows, mapped onto L1/L2/L3
 

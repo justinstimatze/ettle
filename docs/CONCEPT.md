@@ -21,11 +21,11 @@ The structure comes from the interpersonal-perception literature: in a dyad ther
 
 ## Surprise is metaperception error
 
-The payoff of the layering is that "minimize surprise" becomes precisely definable:
+The payoff of the layering is that "minimize surprise" gets a definable *shape* (though not yet a measured quantity):
 
 > Surprise = the divergence between each person's L2 model-of-another and that other person's L1 model-of-self.
 
-Alice is surprised exactly when her model of Bob has drifted from what Bob actually is. Minimizing surprise is minimizing that divergence across the team. Two things fall out for free:
+This is a type signature, not a metric: the divergence function over typed atoms (and the threshold on it) is unbuilt, and naming it "surprise" borrows a word from active inference without yet borrowing the math. It tells you what to measure, not how. Alice is surprised exactly when her model of Bob has drifted from what Bob actually is. Minimizing surprise is minimizing that divergence across the team. Two things fall out for free:
 
 **A principled emit rule.** A session should not broadcast its whole self-model. It should emit exactly the self-deltas that would otherwise leave others' L2 models of it stale — the corrections that keep everyone else's model-of-me accurate. The emit gate stops being a heuristic: emit what, if unsaid, makes someone's model of you wrong.
 
