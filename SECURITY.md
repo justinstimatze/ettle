@@ -25,9 +25,12 @@ ettle is pre-production. Two surfaces matter most:
   typed atoms cross") is enforced by a model *instruction*, not by code. An atom's
   content is free-form text the model writes from the raw note; a sensitive
   sentence can be distilled into a coordination-relevant atom and published. Treat
-  the atom contents — not the raw note — as the privacy surface. (Roadmap: a
-  `--show-atoms` preview before publish and structural caps on atom shape move
-  this from trust toward enforcement.)
+  the atom contents — not the raw note — as the privacy surface. Two mitigations
+  ship today: `ettle standup --show-atoms` prints exactly what would cross before
+  surfacing anything, and atoms are **structurally capped** (subject ≤ 80 chars,
+  content ≤ ~220 chars, whitespace collapsed to a single clause) so a verbose or
+  injection-coaxed distillation is bounded in how much it can carry. Deeper
+  redaction (a second-pass PII/secret filter) remains roadmap.
 
 - **Participant notes are untrusted input to an LLM, including cross-principal.**
   A note is distilled by a model into atoms that *other people's* agents and gemot

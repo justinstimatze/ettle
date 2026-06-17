@@ -4,6 +4,14 @@
 
 First runnable cut of the multiplayer coordination PoC.
 
+- **Boundary transparency + structural caps** — `ettle standup --show-atoms`
+  prints exactly the typed atoms that cross (the privacy surface) before
+  surfacing knots; atoms are now structurally capped (subject/content length,
+  whitespace collapsed to one clause) so the boundary is partly enforced, not
+  only trusted. Per-person distillation runs in parallel (latency is the "no
+  meeting" competitor), and the Anthropic client retries 429/5xx (SDK-native,
+  `WithMaxRetries(4)`) so a transient rate-limit doesn't abort a whole run.
+
 - **Calibration harness** (`internal/eval`, `ettle eval`) — scores the detector's
   precision/recall against a **committed synthetic corpus** (`testdata/eval/*.json`)
   so the accuracy claim is inspectable, not gitignored. `--ab` runs single-shot

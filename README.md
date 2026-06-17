@@ -56,6 +56,7 @@ go run ./cmd/ettle standup --me alice testdata/standup/*.md
 # the L1 layer that distills what each person actually reasoned about and did
 go run ./cmd/ettle standup testdata/sessions/*.jsonl
 go run ./cmd/ettle capture testdata/sessions/kit.jsonl   # preview what a session distills to
+go run ./cmd/ettle standup --show-atoms testdata/sessions/*.jsonl   # see exactly what crosses the boundary
 
 # useful at N=1 too: one person's own stale self-assumption
 go run ./cmd/ettle standup testdata/solo/dana.md

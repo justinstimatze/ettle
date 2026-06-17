@@ -71,6 +71,30 @@ func SamePerson(a, b string) bool {
 	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
+// Structural caps on what a single atom can carry across the boundary. The
+// privacy boundary is enforced partly by these (not only by trusting the model
+// to be terse): an atom is a short subject + a one-clause content, so a runaway
+// or injection-coaxed verbose distillation is bounded in how much it can leak.
+// Whitespace is collapsed so content stays a single clause, not pasted prose.
+const (
+	maxSubjectLen = 80
+	maxContentLen = 220
+)
+
+// clip trims, collapses internal whitespace to single spaces (no multi-line
+// prose), and truncates to n runes at a word boundary where possible.
+func clip(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= n {
+		return s
+	}
+	cut := s[:n]
+	if i := strings.LastIndex(cut, " "); i > n/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimSpace(cut)
+}
+
 // Atom is a typed coordination delta — the only thing that crosses the privacy
 // boundary. Confidence is 1.0 when the human stated it outright and <1.0 when
 // the agent inferred it; inferred atoms stay visibly correctable (the
@@ -189,7 +213,7 @@ func (d *Detector) Distill(ctx context.Context, from, role, text string) ([]Atom
 		default:
 			continue
 		}
-		subject, content := strings.TrimSpace(a.Subject), strings.TrimSpace(a.Content)
+		subject, content := clip(a.Subject, maxSubjectLen), clip(a.Content, maxContentLen)
 		if subject == "" || content == "" {
 			continue
 		}
@@ -217,7 +241,7 @@ func (d *Detector) InferImplicit(ctx context.Context, from, role, text string) (
 		return nil, nil, err
 	}
 	for _, in := range p.Inferences {
-		subject, content := strings.TrimSpace(in.Subject), strings.TrimSpace(in.Content)
+		subject, content := clip(in.Subject, maxSubjectLen), clip(in.Content, maxContentLen)
 		if subject == "" || content == "" {
 			continue
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -127,6 +128,22 @@ func TestCallToolPropagatesError(t *testing.T) {
 	_, err := detWith(m).Distill(context.Background(), "alice", "r", "note")
 	if err == nil {
 		t.Fatal("expected the client error to propagate")
+	}
+}
+
+func TestClip(t *testing.T) {
+	// collapses whitespace/newlines to single spaces (no multi-line prose).
+	if got := clip("  a\n\nb   c ", 80); got != "a b c" {
+		t.Errorf("clip whitespace = %q, want %q", got, "a b c")
+	}
+	// truncates past the cap, at a word boundary, bounding how much can leak.
+	long := "this is a deliberately long content string that should be clipped at a word boundary well before its natural end so the boundary stays a clause"
+	got := clip(long, 40)
+	if len(got) > 40 {
+		t.Errorf("clip len = %d, want <= 40", len(got))
+	}
+	if strings.HasSuffix(got, " ") || strings.Contains(got, "  ") {
+		t.Errorf("clip should trim trailing space / collapse: %q", got)
 	}
 }
 

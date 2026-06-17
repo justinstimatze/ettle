@@ -29,6 +29,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/justinstimatze/ettle/internal/capture"
 	"github.com/justinstimatze/ettle/internal/crux"
@@ -73,9 +74,10 @@ func main() {
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 1, "run the reconcile passes N times and keep only knots that recur across a majority (stabilizes the stochastic detector; costs N× the reconcile calls)")
+	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
 	_ = fs.Parse(os.Args[2:])
 
-	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, paths: fs.Args()}
+	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
 		os.Exit(1)
@@ -89,6 +91,7 @@ type participant struct {
 type runConfig struct {
 	me, model, gemotURL, transport string
 	insecureLocal                  bool
+	showAtoms                      bool
 	gemotTimeout                   time.Duration
 	samples                        int
 	paths                          []string
@@ -117,7 +120,10 @@ func run(cfg runConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	client := anthropic.NewClient(option.WithAPIKey(key))
+	// WithMaxRetries: the SDK retries 429/5xx with backoff + Retry-After natively;
+	// bump it above the default 2 so a transient rate-limit doesn't abort a whole
+	// multi-person run (and re-bill every prior call).
+	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, cfg.model)
 
 	bus, err := busFor(cfg.transport, cfg.insecureLocal)
@@ -126,21 +132,21 @@ func run(cfg runConfig) error {
 	}
 	defer bus.Close()
 
-	// 1+2: distill each person and publish their atoms over the seam.
+	// 1: distill every person in parallel (independent calls — latency is the
+	// "no meeting" competitor, so don't serialize N people).
+	results, err := distillAll(ctx, det, people)
+	if err != nil {
+		return err
+	}
+	if cfg.showAtoms {
+		printAtoms(results)
+	}
+	// 2: publish each person's atoms over the seam.
 	var allQuestions []string
-	for _, p := range people {
-		atoms, err := det.Distill(ctx, p.Name, p.Role, p.Notes)
-		if err != nil {
-			return fmt.Errorf("distill %s: %w", p.Name, err)
-		}
-		inferred, qs, err := det.InferImplicit(ctx, p.Name, p.Role, p.Notes)
-		if err != nil {
-			return fmt.Errorf("infer %s: %w", p.Name, err)
-		}
-		atoms = append(atoms, inferred...)
-		allQuestions = append(allQuestions, qs...)
-		if err := bus.Publish(ctx, transport.Envelope{Participant: p.Name, Role: p.Role, Atoms: atoms}); err != nil {
-			return fmt.Errorf("publish %s: %w", p.Name, err)
+	for _, r := range results {
+		allQuestions = append(allQuestions, r.questions...)
+		if err := bus.Publish(ctx, transport.Envelope{Participant: r.name, Role: r.role, Atoms: r.atoms}); err != nil {
+			return fmt.Errorf("publish %s: %w", r.name, err)
 		}
 	}
 
@@ -329,22 +335,75 @@ func distinctParticipants(envs []transport.Envelope) int {
 	return len(seen)
 }
 
+// personResult is one participant's distilled atoms + the questions the
+// inference step couldn't answer confidently.
+type personResult struct {
+	name, role string
+	atoms      []ettlemesh.Atom
+	questions  []string
+}
+
+// distillAll distills every participant in parallel (Distill + InferImplicit are
+// independent per person). Results are index-aligned to `people`, so there's no
+// shared-append race. Concurrency is capped so a big team doesn't fan out into a
+// rate-limit wall.
+func distillAll(ctx context.Context, det *ettlemesh.Detector, people []participant) ([]personResult, error) {
+	results := make([]personResult, len(people))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(4)
+	for i, p := range people {
+		i, p := i, p
+		g.Go(func() error {
+			a, err := det.Distill(gctx, p.Name, p.Role, p.Notes)
+			if err != nil {
+				return fmt.Errorf("distill %s: %w", p.Name, err)
+			}
+			inf, qs, err := det.InferImplicit(gctx, p.Name, p.Role, p.Notes)
+			if err != nil {
+				return fmt.Errorf("infer %s: %w", p.Name, err)
+			}
+			results[i] = personResult{name: p.Name, role: p.Role, atoms: append(a, inf...), questions: qs}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// printAtoms shows exactly what crosses the boundary — the privacy surface. This
+// is the honest answer to "what leaves my machine": only these typed atoms, not
+// the raw note or session.
+func printAtoms(results []personResult) {
+	fmt.Printf("\n  atoms crossing the boundary (this is ALL that leaves each machine):\n")
+	for _, r := range results {
+		fmt.Printf("    %s:\n", r.name)
+		if len(r.atoms) == 0 {
+			fmt.Println("      (none)")
+		}
+		for _, a := range r.atoms {
+			tag := "stated"
+			if a.Inferred {
+				tag = fmt.Sprintf("inferred %.1f", a.Confidence)
+			}
+			fmt.Printf("      • [%s] %s — %s  (%s)\n", a.Typ, a.Subject, a.Content, tag)
+		}
+	}
+}
+
 // detectFor runs the detector over participants and returns FIRM + soft knots.
 // samples>1 routes the cross-person passes through majority voting. Self-knots
 // are deduped against the cross-person set. (No transport — eval reconciles
 // directly, the bus is only for the distributed standup.)
 func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participant, samples int) (firm, soft []ettlemesh.Knot, err error) {
+	results, err := distillAll(ctx, det, people)
+	if err != nil {
+		return nil, nil, err
+	}
 	var atoms []ettlemesh.Atom
-	for _, p := range people {
-		a, err := det.Distill(ctx, p.Name, p.Role, p.Notes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("distill %s: %w", p.Name, err)
-		}
-		inf, _, err := det.InferImplicit(ctx, p.Name, p.Role, p.Notes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("infer %s: %w", p.Name, err)
-		}
-		atoms = append(atoms, append(a, inf...)...)
+	for _, r := range results {
+		atoms = append(atoms, r.atoms...)
 	}
 	knots, err := det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {
@@ -383,7 +442,7 @@ func runEval(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	client := anthropic.NewClient(option.WithAPIKey(key))
+	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, *model)
 
 	for _, path := range fs.Args() {
