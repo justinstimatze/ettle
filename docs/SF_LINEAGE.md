@@ -25,4 +25,4 @@ Plus the human-facing rule: people remain the deciders, not merely the modeled.
 
 Drop any of these and the sublime curdles into the shadow: frictionless, effective, and quietly stripping its members of the ability to know what is being decided on their behalf. The design discipline is not a tax on the dream. It is the only thing that keeps the dream from being the nightmare wearing its face.
 
-`ettle` is the humble seed of the bright version. The seed becomes Banks or Watts depending entirely on whether it keeps these invariants — which is why they are written down as non-negotiable in HANDOFF.md.
+`ettle` is the humble seed of the bright version. The seed becomes Banks or Watts depending entirely on whether it keeps these invariants — which is why they are written down as non-negotiable in [CONCEPT.md](CONCEPT.md#design-invariants-non-negotiable).

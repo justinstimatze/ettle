@@ -123,6 +123,6 @@ the bus.**
   the reconcile prompt is already cache-marked; the cost is printed in usage; L3
   already emits only knots, never atoms (firewall 2 holds in the code now).
 - **Required before the live loop ships:** firewalls 1, 3, 4, 5, 6, 7, 8. None
-  is built yet. The live "production hook path" in [HANDOFF.md](../HANDOFF.md) is
-  explicitly gated on them — calibration-before-speed means a runaway-safe emit
+  is built yet. The live "production hook path" (the deliberately-unbuilt
+  continuous loop) is explicitly gated on them — calibration-before-speed means a runaway-safe emit
   loop *before* anything emits continuously.

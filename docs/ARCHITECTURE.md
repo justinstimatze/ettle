@@ -47,5 +47,6 @@ The PoC (`cmd/ettle`) implements the solid path: distill → atoms → reconcile
 (pairwise + team-wide) → FIRM/SOFT routing → contested knots to a resolver
 (gemot, or an inline either/or) → surface to `--me`. The NATS bus and the gemot
 crux are wired behind seams; the in-process + inline fallbacks let it run with no
-infrastructure at all. See [HANDOFF.md](../HANDOFF.md) for what is built vs
-planned.
+infrastructure at all. See the [README status](../README.md#status) for what is
+built vs deliberately unbuilt, and [CONCEPT.md](CONCEPT.md) for the model and the
+design invariants.

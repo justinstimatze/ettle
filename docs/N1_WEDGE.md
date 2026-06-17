@@ -1,6 +1,6 @@
 # ettle — the N=1 wedge
 
-The critical path (HANDOFF.md) is the one thing the single-user predecessor never did even for a single user: **act on the model, and check whether the action was right.** This document specs that — one behavior, its trigger, its outcome signal, and its offline criterion — concretely enough to build. Everything multiplayer (L2 directed models, L3 knot-detection) reuses this object; the spec calls out the reuse seam at each step.
+The critical path ([CONCEPT.md](CONCEPT.md)) is the one thing a single-user agent layer never did even for a single user: **act on the model, and check whether the action was right.** This document specs that — one behavior, its trigger, its outcome signal, and its offline criterion — concretely enough to build. Everything multiplayer (L2 directed models, L3 knot-detection) reuses this object; the spec calls out the reuse seam at each step.
 
 > **Scope note.** This N=1 wedge is a *spec*, not built here — it builds on a private predecessor agent's hooks (its closed-decision cells) that are **not in this repo**. The runnable thing in this repo is the multiplayer PoC ([`cmd/ettle`](../cmd/ettle)), which is **standalone** and does not depend on that layer. This document is the design lineage for the calibration loop the multiplayer tier reuses.
 
@@ -8,13 +8,13 @@ The critical path (HANDOFF.md) is the one thing the single-user predecessor neve
 
 > When the live turn is about to **re-open something the user previously closed**, the session surfaces that once — as a question, before proceeding — instead of silently complying.
 
-The predecessor already stores `user-closed` cells (its injected state block shows entries like `user closed: rabbit-hole, drop-it, artifacts-tooling`). Today they are telemetry: injected, read, acted on by nobody. The wedge makes the session *do something* with one: name the reopen and let the human decide, rather than re-walking a path the human already decided against.
+Such a layer already stores `user-closed` cells (an injected state block with entries like `user closed: rabbit-hole, drop-it, artifacts-tooling`). Today they are telemetry: injected, read, acted on by nobody. The wedge makes the session *do something* with one: name the reopen and let the human decide, rather than re-walking a path the human already decided against.
 
 This is the lowest-stakes form of "act on a model of the person." It emits words, not file edits — but a wrongly-fired guard still spends the user's attention, and attention is the scarce resource, so it genuinely exercises act-then-check. The correction loop matters even when the only action is a question. That is the point of starting here.
 
 ### Why this one, over the other two candidates
 
-HANDOFF.md listed three. Scored against the invariants (useful at N=1; models the *person* not the task; clean did-it-help; safe/reversible; generalizes to L2):
+Three candidates were considered. Scored against the invariants (useful at N=1; models the *person* not the task; clean did-it-help; safe/reversible; generalizes to L2):
 
 | Candidate | Useful at N=1 | Models person | Clean signal | Generalizes |
 |---|---|---|---|---|
@@ -87,7 +87,7 @@ precision = helped / (helped + false_interrupt)
 
 **False-interrupt guard (absolute, hard):** borrowed directly from the predecessor's false-positive guard. If the per-window `false_interrupt` rate exceeds a small absolute bound, the wedge is downgraded regardless of precision and the firing threshold `θ` is raised before anything else proceeds. A guard that interrupts wrongly is the failure mode that makes users turn the category off.
 
-This is the **N=1 instance of the L2-vs-L1 divergence metric** from CONCEPT.md. At N=1 the "other's L1" is simply the user's actual next reply; the agent's belief "you still consider this closed" is its L2-of-its-own-user, checked against reality every fire. Accumulated `helped`/`false_interrupt`/`overridden` rates over time *are* the longitudinal calibration-metric store object, prefigured for one user. Nothing new is needed at the swarm tier except a second author. This resolves open question #3 (did-it-help at N=1) and prefigures #4 (L3 conflict-detection = the same divergence, cross-author).
+This is the **N=1 instance of the L2-vs-L1 divergence metric** from CONCEPT.md. At N=1 the "other's L1" is simply the user's actual next reply; the agent's belief "you still consider this closed" is its L2-of-its-own-user, checked against reality every fire. Accumulated `helped`/`false_interrupt`/`overridden` rates over time *are* the longitudinal calibration-metric store object, prefigured for one user. Nothing new is needed at the team tier except a second author. This resolves open question #3 (did-it-help at N=1) and prefigures #4 (L3 conflict-detection = the same divergence, cross-author).
 
 ## Scrappy simulation — running now, agents standing in for the human
 

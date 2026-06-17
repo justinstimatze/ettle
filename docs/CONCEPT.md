@@ -1,10 +1,19 @@
 # ettle — the concept
 
+## The premise: which parts of a meeting actually die
+
+The bottleneck in a high-trust team where everyone already works through their reasoning with an AI agent is humans telling other humans things their agents already know. But a meeting does several jobs, and only one is information sync:
+
+1. **Information sync** — "here's what I changed / am blocked on / you should know." This is the redundant part; agents can collapse it to near-zero.
+2. **Preference aggregation, commitment, conflict surfacing** — whose priority wins, who is now on the hook, where a latent disagreement becomes visible. This is not information transfer; it is politics among people with divergent interests, and it does not vanish because the agents are well-informed.
+
+So the honest claim is not "no meetings." It is: the sync meeting dies, and the decision meeting gets shorter and sharper because nobody arrives uninformed. The bottleneck relocates to intent not yet expressed in any artifact, and to commitment, which is a speech-act rather than an inference. ettle shrinks both but does not abolish them.
+
 ## The three-layer model
 
 The structure comes from the interpersonal-perception literature: in a dyad there is each person's relation to themselves, each person's relation to the other from their own vantage, and the relation of the pairing itself. Mapped onto a team of agents, ettle is three layers, not one flat shared pool.
 
-**L1 — self-models.** Each session's model of its own user: what they are working on, assuming, leaning toward; what they have corrected or closed before. This is the single-user layer (supplied by a private predecessor project), one model per person — N of them. Private. (The internal working model of self, in attachment terms.)
+**L1 — self-models.** Each session's model of its own user: what they are working on, assuming, leaning toward; what they have corrected or closed before. This is the single-user layer, one model per person — N of them. Private. (The internal working model of self, in attachment terms.) ettle ships a minimal version of this layer — `internal/capture` distills a live Claude Code session — and a richer per-person model can feed it from outside this repo.
 
 **L2 — directed dyadic models.** Alice's session's model *of Bob*. Asymmetric, and there are N×(N−1) of them: Alice-of-Bob is not Bob-of-Alice. This is the metaperspective — what I believe you are assuming, leaning toward, about to do. It is Alice's belief about Bob, not Bob's actual state. A single-user model has no analogue here, because it has only one author.
 
@@ -34,14 +43,14 @@ Laing's spiral is infinite — my view of your view of my view, and so on — an
 
 ## The critical insight: act, then check
 
-The single-user layer today is telemetry, not action. The injected shared-model block is a readout the agent reads; nothing acts on it. The actionable layer — the agent doing something different *because of* its model, unprompted — is unbuilt even for one user. The swarm is N copies of a thing that does not yet act at N=1.
+A self-model on its own is telemetry, not action: a readout the agent could display, but nothing acts on it. The actionable layer — the agent doing something different *because of* its model, unprompted — is the unbuilt part, even for one user. The multiplayer system is N copies of a thing that has to first act usefully at N=1.
 
 So the build order is N=1 first:
 
 1. One actionable behavior a session performs unprompted because of its model of its single human.
 2. A did-it-help signal, because an actionable layer without a correction loop is a machine for fast, confident, wrong action.
 3. Only then multiplayer (L2 + L3 over the NATS atom bus, gemot for cruxes).
-4. Calibration loop mandatory at the swarm tier.
+4. Calibration loop mandatory at the team tier.
 
 ## Friction in the right spots: bind vs surface
 
@@ -50,10 +59,26 @@ So the build order is N=1 first:
 - **Bindable coordination** (positive-sum: sequencing, an interface contract, an ownership handoff) — the agents settle it among themselves and hand each human the outcome as an FYI. This is the information-sync job a meeting did; it collapses to near-zero. The toil is gone.
 - **A values/priority crux** (zero-sum: whose external deadline wins, accepting a risk someone would refuse, who loses ownership) — the agents *must not* decide it. They pre-stage the branches and hand the human a clean either/or. This is the preference-aggregation / commitment / conflict job a meeting did; it is a speech-act, and it stays with the person.
 
-This is the same split the premise drew (HANDOFF.md) — info-sync dies, politics doesn't — now made operational: the emit/act layer asks, for each knot, *is this ours to settle or theirs to decide?* The mechanism that finds the boundary is crux-detection (gemot's primitive). The discipline is conservatism: default to bindable; surface only a genuine zero-sum values choice, and surface it pre-staged so it costs the human seconds, not a meeting. The felt result is the whole point — empowered and free of bullshit meetings, but still receiving the benefit of having had a great meeting, because the mesh held it on everyone's behalf.
+This is the same split the premise drew above — info-sync dies, politics doesn't — now made operational: the emit/act layer asks, for each knot, *is this ours to settle or theirs to decide?* The mechanism that finds the boundary is crux-detection (gemot's primitive). The discipline is conservatism: default to bindable; surface only a genuine zero-sum values choice, and surface it pre-staged so it costs the human seconds, not a meeting. The felt result is the whole point — empowered and free of bullshit meetings, but still receiving the benefit of having had a great meeting, because the mesh held it on everyone's behalf.
 
-There is also prior art for the routing itself, not just the pieces: "process the uncontroversial efficiently, deliberate the contested" is a published multi-agent protocol shape (Deliberative Curation; Perplexity's Model Council; Polis). ettle *applies* it to people-modeling rather than inventing it — consistent with riding mature planners fed dynamically (PRIOR_ART.md §4).
+The controversy-tiered routing itself is ettle's; what's prior art is the deliberation organ it routes the contested branch *to* — agent negotiation (Learning-to-Negotiate), divergence-surfacing (Perplexity's Model Council, Polis), reputation-and-sanctions governance (Deliberative Curation). ettle *applies* that mature machinery to people-modeling rather than inventing it — consistent with riding mature planners fed dynamically (PRIOR_ART.md §4).
 
 ## Why "ahead at high speed" is the real leverage — and the real danger
 
 Agent-time is much shorter than human-time. The collective model can roll the team's state forward and act before the humans arrive there — a forward model / model-predictive-control over the group. That speed differential is what lets the system *lead* rather than merely record. It is also what makes miscalibration dangerous: a fast, autonomous collective modeling its humans ahead, without a tight correction loop, does not converge — it confidently drifts. The calibration loop is therefore not polish. It is the thing that decides whether speed is an asset or a hazard.
+
+Stated plainly: **this loop is not built yet.** The fast people-modeling half (the detector) runs today; the correction half does not — so until it exists and is shown to fail loud on divergence, every safety claim that leans on calibration is borrowing against unbuilt code. The `ettle eval` adjudication harness is the first running piece of it.
+
+## Design invariants (non-negotiable)
+
+These are the constraints that separate the good version from the bad one (SF_LINEAGE.md). Trading any of them away gives you the same frictionless surface with no one home.
+
+- **Calibration before speed.** A model of a person must stay correctable by that person.
+- **Contextual privacy boundary.** Each person controls what crosses their boundary; distilling typed atoms rather than streaming transcripts is the cheap form of this (confidential computing / TEEs are the substrate at larger scale).
+- **Humans remain the deciders, not just the modeled.**
+- **Friction in the right spots.** Remove it from coordination / information-sync; keep it at the genuine values choices a person should own — pre-staged as a clean either/or, never auto-decided by the mesh.
+- **The coordination commons is governed, not assumed.** Coordinated quality without wasted time is a common-pool resource with a real overgrazing failure mode (every agent over-emitting); Ostrom's principles govern it, with gemot reputation as the graduated sanction ([COMMONS.md](COMMONS.md)).
+- **No machine-speed feedback loop.** The system runs at the speed of human decisions, not the bus: L3 emits knots not atoms, emit is surprise-gated, reconcile is O(1) and shared ([SCALING.md](SCALING.md)).
+- **Consent-first, anti-viral adoption.** The unit of adoption is a team that opts in together; never represent or contact a non-participant ([ADOPTION.md](ADOPTION.md)).
+- **Useful at N=1.** Value must not be hostage to network effects, or adoption pressure becomes coercive.
+- **Truncate the recursion.** Model self + model-of-other (depth 2), selective depth 3 for a few high-stakes pairs; no infinite metaperspective regress.

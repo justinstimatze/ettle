@@ -1,6 +1,6 @@
 # ettle — the team simulation (the "no meetings" demo)
 
-Motto: **no meetings** (honestly: the sync meeting dies, the decision meeting gets shorter — not literal abolition; see HANDOFF.md). This is the multiplayer payoff made visible — three humans, each with an agent, the agents coordinating *ahead* of the humans so the friction never lands. The intended feel is the Culture-Minds bright pole (SF_LINEAGE.md): everything just comes together and nobody had to plan. It runs locally, on cheap Haiku, with agents standing in for the humans: a local sim.
+Motto: **no meetings** (honestly: the sync meeting dies, the decision meeting gets shorter — not literal abolition; see [CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)). This is the multiplayer payoff made visible — three humans, each with an agent, the agents coordinating *ahead* of the humans so the friction never lands. The intended feel is the Culture-Minds bright pole (SF_LINEAGE.md): everything just comes together and nobody had to plan. It runs locally, on cheap Haiku, with agents standing in for the humans: a local sim.
 
 This is downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's worth simulating now to see whether the end-state actually *feels* like the pitch. It does.
 
@@ -23,7 +23,7 @@ The motto isn't "frictionless." Bogdana (Bobbi) Rakova's work is the corrective:
 - **Remove** friction from coordination/information-sync — the bullshit-meeting parts. This is the toil; it collapses to zero.
 - **Keep** (even manufacture) friction at the **cruxes** — the genuine values choices where a person should stay the decider. The agents pre-stage the branches so it's a clean choice, not a 40-minute meeting, but the choice stays the human's.
 
-This is exactly HANDOFF.md's original split — information-sync dies; preference-aggregation/commitment/conflict is a speech-act that stays — now with **gemot's crux-detection as the mechanism that finds the boundary** (the felt result is the README's pitch: the mesh held the meeting for you, on everyone's behalf).
+This is exactly the premise's split ([CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)) — information-sync dies; preference-aggregation/commitment/conflict is a speech-act that stays — now with **gemot's crux-detection as the mechanism that finds the boundary** (the felt result is the README's pitch: the mesh held the meeting for you, on everyone's behalf).
 
 ### gemot (the real deliberation organ) — now wired, not just modeled
 

@@ -41,7 +41,11 @@ The aim is not "frictionless." It is **friction in the right spots**: remove it 
 
 **What this repo is:** a runnable proof-of-concept (`cmd/ettle` — see [Quickstart](#quickstart)) *and* the design reasoning behind the larger system it's the first wedge into (the `docs/`). The CLI is what runs today; the essays are the thinking, marked clearly where they extrapolate ([HORIZON.md](docs/HORIZON.md) is explicitly the speculative end-state). If you want the tool, start with the Quickstart and [the example run](docs/EXAMPLE_RUN.md); if you want the ideas, start with [ARCHITECTURE](docs/ARCHITECTURE.md) and [CONCEPT](docs/CONCEPT.md).
 
-Status: the coordination **engine** is built and runs — it distills typed atoms from each person's working notes, reconciles them across the team, and surfaces only the knots (collisions, duplicated work, stale assumptions, decision-rights gaps). Accuracy is not yet broadly validated — but it's now *inspectable*: `ettle eval testdata/eval/*.json` scores precision/recall against a committed synthetic corpus you can read, and `--ab` runs the honest single-shot-vs-voting comparison with a McNemar test (which, at this corpus size, correctly declines to claim voting helps). See [HANDOFF.md](HANDOFF.md). A slim, runnable **multiplayer PoC** built on that engine — something a small real team can run during an actual workday and get value from, no meeting — is the current build. Concept demos exist as local simulations on cheap models (agents standing in for the humans) to show the payoff shape; those are illustrations, not the product. The spine is [HANDOFF.md](HANDOFF.md).
+## Status
+
+What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the knots (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is not yet broadly validated — but it's now *inspectable*: `ettle eval testdata/eval/*.json` scores precision/recall against a committed synthetic corpus you can read, and `--ab` runs the honest single-shot-vs-voting comparison with a McNemar test (which, at this corpus size, correctly declines to claim voting helps).
+
+The opening paragraphs above describe the **design**; what's **deliberately unbuilt** is the part that needs the most care — the L2 directed-model mesh, the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector (the fast people-modeling half) runs; the correction half does not yet, so any safety claim that leans on calibration is, for now, borrowing against unbuilt code — see [CONCEPT.md](docs/CONCEPT.md). Concept demos exist as local simulations on cheap models (agents standing in for the humans) to show the payoff shape; those are illustrations, not the product.
 
 ## Quickstart
 
@@ -157,8 +161,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **start here:** a diagram of the whole flow and the three things that make it unintuitive.
 - [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) — real output on the bundled fixture (no key needed to read).
-- [HANDOFF.md](HANDOFF.md) — where this stands, the critical path, next steps.
-- [docs/CONCEPT.md](docs/CONCEPT.md) — the three-layer model, surprise as metaperception error, the N=1 wedge.
+- [docs/CONCEPT.md](docs/CONCEPT.md) — **the spine:** the premise, the three-layer model, surprise as metaperception error, the critical path, and the non-negotiable design invariants.
 - [docs/N1_WEDGE.md](docs/N1_WEDGE.md) — the first buildable behavior (the prior-decision guard) and its did-it-help signal.
 - [docs/TEAM_SIM.md](docs/TEAM_SIM.md) — the multiplayer payoff: agents negotiate, bind the toil, surface the cruxes. Friction in the right spots.
 - [docs/HORIZON.md](docs/HORIZON.md) — the extrapolated end-state (the vision and its shadow).
@@ -171,7 +174,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 ## Relationship to sibling projects
 
-- **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer private predecessor supplies a fuller per-person model (deeper L1 telemetry); ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that the single-user layer never had.
+- **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer per-person model (deeper L1 telemetry) can feed this layer from outside this repo; ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that a single-user layer never had.
 - **the atom bus** — a [NATS](https://nats.io) bus moves typed atoms between participants' machines (TLS + auth, pub/sub, replay). Behind a transport seam, so a zero-infra in-process adapter covers local testing and other rails (Slack, Matrix, A2A) can drop in later.
 - **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant knot back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.
