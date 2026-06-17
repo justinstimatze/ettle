@@ -3,8 +3,8 @@
 // Package transport — NATS adapter. Compiled only with `-tags nats` so the
 // default build needs no external bus and stays infra-free.
 //
-// First fetch the dep:  go get github.com/nats-io/nats.go
-// Then build/run:        go build -tags nats ./...   /   go run -tags nats ./cmd/ettle ...
+// The nats.go dep is already in go.mod; the tag just gates compilation:
+//	go build -tags nats ./...    /    go run -tags nats ./cmd/ettle ...
 //
 // Security: NATS is secure-by-default for this use when you point it at a
 // `tls://` URL (encrypted in transit) and supply credentials. Both are wired
@@ -24,11 +24,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	neturl "net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/justinstimatze/ettle/internal/loopback"
 	"github.com/nats-io/nats.go"
 )
 
@@ -73,9 +73,10 @@ func DialNATS(cfg NATSConfig) (*NATSBus, error) {
 		cfg.GatherFor = 8 * time.Second
 	}
 
-	// InsecureTCP (plaintext, no auth) is allowed ONLY against localhost — keying
-	// on the URL host, not a bare flag, so a remote URL can't be run unauthed.
-	if cfg.InsecureTCP && !isLocalNATS(cfg.URL) {
+	// InsecureTCP (plaintext, no auth) is allowed ONLY against loopback —
+	// resolving the host (not a bare flag, not a string match), so a remote URL,
+	// or a non-loopback name dressed up as local, can't be run unauthed.
+	if cfg.InsecureTCP && !loopback.IsURL(cfg.URL) {
 		return nil, fmt.Errorf("transport/nats: InsecureTCP is localhost-only; %s is not local — use TLS + NATS_CREDS", cfg.URL)
 	}
 
@@ -179,20 +180,6 @@ func mapValues(m map[string]Envelope) []Envelope {
 		out = append(out, v)
 	}
 	return out
-}
-
-// isLocalNATS reports whether a NATS URL points at loopback (so the plaintext
-// InsecureTCP path can't be aimed off-box).
-func isLocalNATS(rawURL string) bool {
-	u, err := neturl.Parse(rawURL)
-	if err != nil {
-		return false
-	}
-	switch u.Hostname() {
-	case "localhost", "127.0.0.1", "::1":
-		return true
-	}
-	return false
 }
 
 // sanitizeTeam makes a team name safe for a JetStream stream/subject token

@@ -4,6 +4,19 @@
 
 First runnable cut of the multiplayer coordination PoC.
 
+- **Transport hardening** — the dev-only `--insecure-local` (plaintext/tokenless)
+  gate now **resolves** the host and requires every address to be loopback
+  (`internal/loopback`), instead of string-matching the hostname — a non-loopback
+  name dressed up as local is rejected. The gemot client refuses to send a bearer
+  token over plaintext `http://` off-box (a token in the clear is a leak), and
+  after connecting with a token it verifies the session isn't gemot's anonymous
+  sandbox (a bad/expired token that silently degraded), failing loud rather than
+  routing cruxes into a shared sandbox while believing it's authenticated. Honest
+  limit documented: loopback resolution can't see a deliberate off-box port-forward
+  from a loopback bind. README now states the Go ≥ 1.25 requirement; the local
+  stack docs (`deploy/`) and the gemot client doc no longer contradict on demo
+  mode vs Postgres.
+
 - **Boundary transparency + structural caps** — `ettle standup --show-atoms`
   prints exactly the typed atoms that cross (the privacy surface) before
   surfacing knots; atoms are now structurally capped (subject/content length,

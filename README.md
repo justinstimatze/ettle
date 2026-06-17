@@ -45,6 +45,8 @@ Status: the coordination **engine** is built and runs — it distills typed atom
 
 ## Quickstart
 
+Requires **Go ≥ 1.25** and one Anthropic API key.
+
 ```sh
 # one Anthropic API key in .env (see .env.example)
 cp .env.example .env && $EDITOR .env

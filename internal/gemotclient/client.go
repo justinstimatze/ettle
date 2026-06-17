@@ -1,15 +1,14 @@
-// Package gemotclient is a thin MCP client for a local gemot deliberation
-// service (github.com/justinstimatze/gemot). It drives the deliberation
-// primitive ettle's collective layer needs: agents submit positions, gemot
-// extracts cruxes with a controversy score, and proposes a binding compromise.
-// (gemot also exposes EigenTrust reputation; ettle doesn't consume it yet.)
+// Package gemotclient is a thin MCP client for a gemot deliberation service
+// (github.com/justinstimatze/gemot). It drives the deliberation primitive
+// ettle's collective layer needs: agents submit positions, gemot extracts
+// cruxes with a controversy score, and proposes a binding compromise. (gemot
+// also exposes EigenTrust reputation; ettle doesn't consume it yet.)
 //
-// Bring up a local gemot first (in-memory docker Postgres + an Anthropic key):
-//
-//	docker run -d --name gemot-pg -e POSTGRES_USER=gemot -e POSTGRES_PASSWORD=gemot \
-//	  -e POSTGRES_DB=gemot -p 127.0.0.1:5432:5432 --tmpfs /var/lib/postgresql/data postgres:17-alpine
-//	DATABASE_URL=postgres://gemot:gemot@localhost:5432/gemot?sslmode=disable \
-//	  ANTHROPIC_API_KEY=$(sed -n 's/^ANTHROPIC_API_KEY=//p' .env) gemot http --addr :8080
+// Bring up a local gemot with the one-command dev stack in deploy/ (NATS + gemot
+// in demo mode — in-memory, no Postgres, no auth) and run ettle against it with
+// --insecure-local. See deploy/README.md. A persistent, authenticated gemot
+// (Postgres + GEMOT_REQUIRE_AUTH=1 + a per-agent bearer token) is the real
+// deployment shape — see SECURITY.md and gemot's docs/private-deployment.md.
 package gemotclient
 
 import (
@@ -21,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/justinstimatze/ettle/internal/loopback"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,23 +30,34 @@ type Client struct {
 	s   *mcp.ClientSession
 }
 
-// Connect dials gemot's MCP endpoint. A bearer token is REQUIRED, and the
-// endpoint should be https:// (TLS terminated at gemot or a proxy) — the crux is
-// the most sensitive payload on the wire, and gemot degrades unauthed requests
-// to an anonymous sandbox rather than rejecting them. The token is sent as
-// `Authorization: Bearer` on every call. The only tokenless path is explicit:
-// insecureLocal=true AND a localhost endpoint, for dev against the local
-// sandbox. Note isLocal keys on the URL hostname, so do NOT point a "localhost"
-// URL at a tunnel that forwards off-box — that would skip the token check.
+// Connect dials gemot's MCP endpoint. A bearer token is REQUIRED off localhost,
+// and the endpoint must be https:// when a token is sent (TLS terminated at gemot
+// or a proxy) — the crux is the most sensitive payload on the wire and a bearer
+// over plaintext leaks. The token is sent as `Authorization: Bearer` on every
+// call. The only tokenless path is explicit: insecureLocal=true AND a loopback
+// endpoint, for dev against gemot's anonymous sandbox.
+//
+// "loopback" is resolved, not string-matched (see internal/loopback): a hostname
+// that resolves off-box is rejected even if it's named to look local. After
+// connecting with a token, the session is checked to be non-anonymous (gemot
+// degrades a bad/expired token to an anonymous sandbox rather than rejecting it
+// unless GEMOT_REQUIRE_AUTH=1) — a detected anonymous session is a loud error,
+// not a silent plaintext-grade run.
 func Connect(ctx context.Context, endpoint, token string, insecureLocal bool) (*Client, error) {
+	local := loopback.IsURL(endpoint)
 	if token == "" {
-		if !isLocal(endpoint) {
+		if !local {
 			return nil, fmt.Errorf("gemotclient: refusing to connect to %s without a bearer token (set ETTLE_GEMOT_TOKEN) — anonymous gemot access is sandbox-only", endpoint)
 		}
 		if !insecureLocal {
-			return nil, fmt.Errorf("gemotclient: %s is localhost but no token given; pass --insecure-local to use gemot's anonymous sandbox (dev only), or set ETTLE_GEMOT_TOKEN", endpoint)
+			return nil, fmt.Errorf("gemotclient: %s is local but no token given; pass --insecure-local to use gemot's anonymous sandbox (dev only), or set ETTLE_GEMOT_TOKEN", endpoint)
 		}
+	} else if u, _ := neturl.Parse(endpoint); u != nil && u.Scheme != "https" && !local {
+		// A bearer token over plaintext off-box is a credential leak. Refuse it
+		// rather than send the key in the clear.
+		return nil, fmt.Errorf("gemotclient: refusing to send a bearer token to %s over %q — use https:// (TLS at gemot or a proxy)", endpoint, u.Scheme)
 	}
+
 	httpClient := http.DefaultClient
 	if token != "" {
 		httpClient = &http.Client{Transport: &bearerRoundTripper{token: token, base: http.DefaultTransport}}
@@ -56,7 +67,33 @@ func Connect(ctx context.Context, endpoint, token string, insecureLocal bool) (*
 	if err != nil {
 		return nil, err
 	}
-	return &Client{ctx: ctx, s: s}, nil
+	cl := &Client{ctx: ctx, s: s}
+	// With a token we expect an authenticated session. If gemot still reports an
+	// anonymous/sandbox session, the token didn't take (wrong/expired, or
+	// GEMOT_REQUIRE_AUTH is off) — fail loud rather than route cruxes into a
+	// shared anonymous sandbox believing we're authenticated.
+	if token != "" && cl.sessionIsAnonymous() {
+		s.Close()
+		return nil, fmt.Errorf("gemotclient: connected to %s but the session is anonymous — the bearer token was not accepted (check the key and that gemot runs with GEMOT_REQUIRE_AUTH=1)", endpoint)
+	}
+	return cl, nil
+}
+
+// sessionIsAnonymous best-effort detects a degraded (unauthenticated) session
+// from gemot's MCP initialize result — its server instructions/info name the
+// anonymous sandbox when no valid credential was presented. Absent any such
+// marker it returns false (don't block a session we can't prove is anonymous —
+// the off-box token+https guards above are the hard gate).
+func (c *Client) sessionIsAnonymous() bool {
+	init := c.s.InitializeResult()
+	if init == nil {
+		return false
+	}
+	hay := strings.ToLower(init.Instructions)
+	if init.ServerInfo != nil {
+		hay += " " + strings.ToLower(init.ServerInfo.Name)
+	}
+	return strings.Contains(hay, "anonymous") || strings.Contains(hay, "sandbox mode") || strings.Contains(hay, "unauthenticated")
 }
 
 // bearerRoundTripper attaches the gemot API key to every request.
@@ -69,18 +106,6 @@ func (b *bearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+b.token)
 	return b.base.RoundTrip(req)
-}
-
-func isLocal(endpoint string) bool {
-	u, err := neturl.Parse(endpoint)
-	if err != nil {
-		return false
-	}
-	switch u.Hostname() {
-	case "localhost", "127.0.0.1", "::1":
-		return true
-	}
-	return false
 }
 
 func (c *Client) Close() {
