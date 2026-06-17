@@ -1,74 +1,149 @@
 package ettlemesh
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
 
-func TestParseConf(t *testing.T) {
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+)
+
+// fakeMessager is the canned model boundary: it returns a pre-baked tool_use
+// response (or an error / a no-tool response) so every model-calling path is
+// unit-testable without a network call or an API key.
+type fakeMessager struct {
+	resp  *anthropic.Message
+	err   error
+	calls int
+}
+
+func (f *fakeMessager) New(ctx context.Context, body anthropic.MessageNewParams, opts ...option.RequestOption) (*anthropic.Message, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.resp, nil
+}
+
+func toolResp(input string) *anthropic.Message {
+	return &anthropic.Message{
+		StopReason: "tool_use",
+		Content:    []anthropic.ContentBlockUnion{{Type: "tool_use", Input: json.RawMessage(input)}},
+	}
+}
+
+func detWith(m messager) *Detector { return &Detector{msgs: m, Model: "test"} }
+
+func TestDistillStructured(t *testing.T) {
+	// valid intent kept; bogus type dropped; empty content dropped.
+	m := &fakeMessager{resp: toolResp(`{"atoms":[
+		{"type":"intent","subject":"rename","content":"renaming GetUser"},
+		{"type":"bogus","subject":"x","content":"y"},
+		{"type":"dependency","subject":"cache","content":""}
+	]}`)}
+	atoms, err := detWith(m).Distill(context.Background(), "alice", "backend", "some note")
+	if err != nil {
+		t.Fatalf("Distill error: %v", err)
+	}
+	if len(atoms) != 1 {
+		t.Fatalf("got %d atoms, want 1 (bogus type + empty content dropped): %+v", len(atoms), atoms)
+	}
+	if atoms[0].Typ != Intent || atoms[0].From != "alice" || atoms[0].Confidence != 1.0 {
+		t.Errorf("atom = %+v, want intent/alice/1.0", atoms[0])
+	}
+}
+
+func TestReconcileGateAndConfidence(t *testing.T) {
+	atoms := []Atom{{From: "alice", Confidence: 1.0}, {From: "bob", Confidence: 1.0}}
+	// a collision at 0.9 (model-reported, trusted) plus a teamwide-divergence the
+	// pairwise gate must reject.
+	m := &fakeMessager{resp: toolResp(`{"knots":[
+		{"kind":"collision","parties":["alice","bob"],"about":"the rename","explanation":"they collide","confidence":0.9},
+		{"kind":"teamwide-divergence","parties":["alice","bob"],"about":"deadline","explanation":"x","confidence":0.9}
+	]}`)}
+	knots, err := detWith(m).Reconcile(context.Background(), atoms)
+	if err != nil {
+		t.Fatalf("Reconcile error: %v", err)
+	}
+	if len(knots) != 1 || knots[0].Kind != KindCollision {
+		t.Fatalf("got %+v, want only the collision (teamwide gated out)", knots)
+	}
+	// model confidence is the designed "min over depended atoms" signal — trusted.
+	if knots[0].Confidence != 0.9 || !knots[0].Firm() {
+		t.Errorf("conf = %v firm=%v, want 0.9 / firm (model confidence trusted)", knots[0].Confidence, knots[0].Firm())
+	}
+}
+
+func TestBuildKnotsConfidenceFallback(t *testing.T) {
+	atoms := []Atom{{From: "alice", Confidence: 1.0}, {From: "bob", Confidence: 0.4}}
+	// confidence omitted (0) → fall back to party-atom minimum (bob 0.4).
+	p := knotsPayload{}
+	_ = json.Unmarshal([]byte(`{"knots":[{"kind":"collision","parties":["alice","bob"],"about":"x","explanation":"y","confidence":0}]}`), &p)
+	got := buildKnots(p, atoms, pairwiseKinds, false)
+	if len(got) != 1 || got[0].Confidence != 0.4 {
+		t.Fatalf("fallback conf = %+v, want 0.4 (party-atom min)", got)
+	}
+	// confidence omitted + no matching party atoms → low 0.3 fallback (unanchored).
+	p2 := knotsPayload{}
+	_ = json.Unmarshal([]byte(`{"knots":[{"kind":"collision","parties":["ghost","phantom"],"about":"x","explanation":"y","confidence":0}]}`), &p2)
+	got2 := buildKnots(p2, atoms, pairwiseKinds, false)
+	if len(got2) != 1 || got2[0].Confidence != 0.3 {
+		t.Fatalf("unanchored fallback conf = %+v, want 0.3", got2)
+	}
+}
+
+func TestReconcileSelfRejectsTwoParties(t *testing.T) {
+	atoms := []Atom{{From: "dana", Confidence: 1.0}}
+	m := &fakeMessager{resp: toolResp(`{"knots":[
+		{"kind":"stale-assumption","parties":["dana"],"about":"retry logic","explanation":"x","confidence":1.0},
+		{"kind":"stale-assumption","parties":["dana","sam"],"about":"other","explanation":"y","confidence":1.0}
+	]}`)}
+	knots, err := detWith(m).ReconcileSelf(context.Background(), atoms)
+	if err != nil {
+		t.Fatalf("ReconcileSelf error: %v", err)
+	}
+	if len(knots) != 1 || !singleAuthor(knots[0].Parties) {
+		t.Fatalf("got %+v, want only the single-author self-knot", knots)
+	}
+}
+
+func TestCallToolNoToolUseIsLoud(t *testing.T) {
+	// model produced only prose (no tool_use block) — must be a loud error, NOT a
+	// silent empty/all-clear.
+	m := &fakeMessager{resp: &anthropic.Message{
+		StopReason: "end_turn",
+		Content:    []anthropic.ContentBlockUnion{{Type: "text", Text: "I'm not sure."}},
+	}}
+	_, err := detWith(m).Reconcile(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected a loud error when the model returns no tool_use block")
+	}
+}
+
+func TestCallToolPropagatesError(t *testing.T) {
+	m := &fakeMessager{err: errors.New("429 rate limited")}
+	_, err := detWith(m).Distill(context.Background(), "alice", "r", "note")
+	if err == nil {
+		t.Fatal("expected the client error to propagate")
+	}
+}
+
+func TestConfFromWord(t *testing.T) {
 	cases := []struct {
 		in     string
 		want   float64
 		wantOK bool
 	}{
-		{"high", 0.9, true},
-		{"medium", 0.5, true},
-		{"low", 0.3, true},
-		{" HIGH ", 0.9, true},
-		{"- high", 0.9, true},
-		{"0.7", 0.7, true},
-		{"1.0", 1.0, true},
-		{"0", 0, true},
-		{"1.5", 0, false}, // out of range high
-		{"banana", 0, false},
-		{"", 0, false},
+		{"high", 0.6, true}, {"HIGH", 0.6, true}, {"medium", 0.4, true},
+		{"low", 0, false}, {"", 0, false}, {"banana", 0, false},
 	}
 	for _, c := range cases {
-		got, ok := parseConf(c.in)
+		got, ok := confFromWord(c.in)
 		if ok != c.wantOK || (ok && got != c.want) {
-			t.Errorf("parseConf(%q) = (%v, %v), want (%v, %v)", c.in, got, ok, c.want, c.wantOK)
+			t.Errorf("confFromWord(%q) = (%v,%v), want (%v,%v)", c.in, got, ok, c.want, c.wantOK)
 		}
-	}
-}
-
-func TestParseKnots(t *testing.T) {
-	atoms := []Atom{
-		{From: "alice", Confidence: 1.0},
-		{From: "bob", Confidence: 0.4, Inferred: true}, // an inferred atom drags a knot soft
-	}
-	out := `collision | alice, bob | the rename | they collide on GetUser | 0.9
-duplication | alice, carol | caches | both build a cache | high
-NONE
-not-a-kind | alice, bob | x | y | 0.9
-ragged line with no pipes
-stale-assumption | alice, bob | window | conflict | `
-
-	knots := parseKnots(out, atoms, pairwiseKinds)
-	if len(knots) != 3 {
-		t.Fatalf("got %d knots, want 3 (collision, duplication, stale-assumption); disallowed+ragged dropped", len(knots))
-	}
-	if knots[0].Kind != KindCollision || knots[0].About != "the rename" || knots[0].Confidence != 0.9 {
-		t.Errorf("knot[0] = %+v", knots[0])
-	}
-	if len(knots[0].Parties) != 2 || knots[0].Parties[0] != "alice" || knots[0].Parties[1] != "bob" {
-		t.Errorf("knot[0] parties = %v, want [alice bob] trimmed", knots[0].Parties)
-	}
-	// "high" word-form confidence is parsed.
-	if knots[1].Confidence != 0.9 {
-		t.Errorf("knot[1] conf = %v, want 0.9 from 'high'", knots[1].Confidence)
-	}
-	// No CONF field (trailing empty) → fallback to minConfForParties: bob's
-	// inferred 0.4 drags it below the FIRM threshold.
-	if knots[2].Confidence != 0.4 || knots[2].Firm() {
-		t.Errorf("knot[2] conf = %v firm=%v, want 0.4 fallback / soft", knots[2].Confidence, knots[2].Firm())
-	}
-}
-
-func TestParseKnotsTeamwideGate(t *testing.T) {
-	out := "collision | a, b | x | y | 0.9\nteamwide-divergence | a, b, c | deadline | they diverge | 0.8"
-	// pairwise gate rejects teamwide; teamwide gate rejects collision.
-	if got := parseKnots(out, nil, pairwiseKinds); len(got) != 1 || got[0].Kind != KindCollision {
-		t.Errorf("pairwise gate = %+v, want only collision", got)
-	}
-	if got := parseKnots(out, nil, teamwideKinds); len(got) != 1 || got[0].Kind != KindTeamwideDivergence {
-		t.Errorf("teamwide gate = %+v, want only teamwide-divergence", got)
 	}
 }
 
@@ -110,8 +185,10 @@ func TestMinConfForParties(t *testing.T) {
 	if got := minConfForParties(atoms, []string{"alice"}); got != 1.0 {
 		t.Errorf("got %v, want 1.0", got)
 	}
-	if got := minConfForParties(atoms, []string{"nobody"}); got != 1.0 {
-		t.Errorf("got %v, want 1.0 fallback when no party matches", got)
+	// no party matches → LOW (0.3), so an unanchored/hallucinated-party knot is a
+	// question, not asserted (previously this returned 1.0).
+	if got := minConfForParties(atoms, []string{"nobody"}); got != 0.3 {
+		t.Errorf("got %v, want 0.3 low fallback when no party matches", got)
 	}
 }
 
@@ -122,14 +199,9 @@ func TestSameKnot(t *testing.T) {
 		b    Knot
 		want bool
 	}{
-		// shared party + shared salient keyword, even with the Kind relabeled and
-		// the parties reshuffled — this is the case voting must catch.
 		{"relabeled + reordered", Knot{Kind: KindDecisionRights, Parties: []string{"bob", "alice"}, About: "rename of GetUser"}, true},
-		// party overlaps but subjects share no salient keyword.
 		{"same parties, different subject", Knot{Parties: []string{"alice", "bob"}, About: "cache invalidation"}, false},
-		// subject overlaps but no shared party.
 		{"shared subject, no party", Knot{Parties: []string{"carol", "dave"}, About: "the GetUser rename"}, false},
-		// stopwords + short words alone must not count as overlap.
 		{"only stopwords overlap", Knot{Parties: []string{"alice"}, About: "the will of the"}, false},
 	}
 	for _, c := range cases {
@@ -160,7 +232,6 @@ func TestDedupeSelf(t *testing.T) {
 		{Kind: KindStaleAssumption, Parties: []string{"bob"}, About: "cache ownership"},
 	}
 	cross := []Knot{
-		// a team-wide knot already covering alice's launch-deadline drift.
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob", "carol"}, About: "launch deadline"},
 	}
 	got := DedupeSelf(self, cross)
@@ -170,8 +241,6 @@ func TestDedupeSelf(t *testing.T) {
 }
 
 func TestVoteKnots(t *testing.T) {
-	// Three runs. The rename knot recurs in all three (relabeled/reworded each
-	// time); a one-off hallucination appears in a single run and must be dropped.
 	runs := [][]Knot{
 		{
 			{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename", Confidence: 0.9},
@@ -186,13 +255,12 @@ func TestVoteKnots(t *testing.T) {
 	}
 	got := voteKnots(runs)
 	if len(got) != 1 {
-		t.Fatalf("voteKnots kept %d knots, want 1 (the one-off dropped by majority): %+v", len(got), got)
+		t.Fatalf("voteKnots kept %d, want 1 (one-off dropped by majority): %+v", len(got), got)
 	}
 	k := got[0]
 	if k.Votes != 3 || k.Samples != 3 {
 		t.Errorf("votes/samples = %d/%d, want 3/3", k.Votes, k.Samples)
 	}
-	// representative is the highest-confidence member (1.0); confidence is the mean.
 	if k.Confidence < 0.89 || k.Confidence > 0.91 {
 		t.Errorf("voted confidence = %v, want mean ~0.9", k.Confidence)
 	}

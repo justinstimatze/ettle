@@ -102,7 +102,7 @@ func run(cfg runConfig) error {
 	defer cancel()
 
 	client := anthropic.NewClient(option.WithAPIKey(key))
-	det := &ettlemesh.Detector{Client: &client, Model: cfg.model}
+	det := ettlemesh.NewDetector(&client, cfg.model)
 
 	bus, err := busFor(cfg.transport, cfg.insecureLocal)
 	if err != nil {
