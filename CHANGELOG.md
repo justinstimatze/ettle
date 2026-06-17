@@ -4,6 +4,15 @@
 
 First runnable cut of the multiplayer coordination PoC.
 
+- **Calibration harness** (`internal/eval`, `ettle eval`) — scores the detector's
+  precision/recall against a **committed synthetic corpus** (`testdata/eval/*.json`)
+  so the accuracy claim is inspectable, not gitignored. `--ab` runs single-shot
+  vs multi-sample voting with a McNemar significance test; on the current corpora
+  it finds no significant gain from voting (and says so rather than overclaiming).
+  Fixed the voting clustering it exercises: `SameKnot` uses a Jaccard threshold
+  (was: any one shared keyword) and `voteKnots` uses order-invariant union-find
+  (was: order-dependent first-match).
+
 - **L1 live-session capture** (`internal/capture`, `ettle capture`) — distills a
   person's real Claude Code session transcript (their stated intent from prompts
   + the work they committed via Edit/Write/Bash; exploration like Read/Grep and

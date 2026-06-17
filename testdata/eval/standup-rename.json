@@ -1,0 +1,27 @@
+{
+  "name": "standup-rename",
+  "inputs": ["testdata/standup/alice.md", "testdata/standup/bob.md", "testdata/standup/carol.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["alice", "bob"],
+      "about": "GetUser breaking signature change vs Bob's dependency",
+      "keywords": ["getuser", "fetchuser", "signature", "rename", "breaking"],
+      "real": true
+    },
+    {
+      "id": "K2",
+      "parties": ["alice", "carol"],
+      "about": "duplicate user-lookup cache in two repos",
+      "keywords": ["cache", "user-lookup", "duplicate"],
+      "real": true
+    },
+    {
+      "id": "K3",
+      "parties": ["alice", "bob", "carol"],
+      "about": "Friday launch deadline read differently across the team",
+      "keywords": ["friday", "launch", "deadline", "timeline"],
+      "real": true
+    }
+  ]
+}

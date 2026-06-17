@@ -33,6 +33,7 @@ import (
 	"github.com/justinstimatze/ettle/internal/capture"
 	"github.com/justinstimatze/ettle/internal/crux"
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
+	"github.com/justinstimatze/ettle/internal/eval"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -44,6 +45,12 @@ func main() {
 			return
 		case "capture":
 			if err := runCapture(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
+		case "eval":
+			if err := runEval(os.Args[2:]); err != nil {
 				fmt.Fprintln(os.Stderr, "ettle:", err)
 				os.Exit(1)
 			}
@@ -320,6 +327,129 @@ func distinctParticipants(envs []transport.Envelope) int {
 		seen[strings.ToLower(strings.TrimSpace(e.Participant))] = true
 	}
 	return len(seen)
+}
+
+// detectFor runs the detector over participants and returns FIRM + soft knots.
+// samples>1 routes the cross-person passes through majority voting. Self-knots
+// are deduped against the cross-person set. (No transport — eval reconciles
+// directly, the bus is only for the distributed standup.)
+func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participant, samples int) (firm, soft []ettlemesh.Knot, err error) {
+	var atoms []ettlemesh.Atom
+	for _, p := range people {
+		a, err := det.Distill(ctx, p.Name, p.Role, p.Notes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("distill %s: %w", p.Name, err)
+		}
+		inf, _, err := det.InferImplicit(ctx, p.Name, p.Role, p.Notes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("infer %s: %w", p.Name, err)
+		}
+		atoms = append(atoms, append(a, inf...)...)
+	}
+	knots, err := det.ReconcileVoted(ctx, atoms, samples)
+	if err != nil {
+		return nil, nil, err
+	}
+	self, err := det.ReconcileSelf(ctx, atoms)
+	if err != nil {
+		return nil, nil, err
+	}
+	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
+	for _, k := range knots {
+		if k.Firm() {
+			firm = append(firm, k)
+		} else {
+			soft = append(soft, k)
+		}
+	}
+	return firm, soft, nil
+}
+
+// runEval scores the detector against committed synthetic corpora: precision /
+// recall over FIRM knots vs the curated ground truth, and (with --ab) the honest
+// single-shot-vs-voted comparison with a McNemar significance test.
+func runEval(args []string) error {
+	fs := flag.NewFlagSet("eval", flag.ExitOnError)
+	model := fs.String("model", "claude-haiku-4-5", "model id")
+	samples := fs.Int("samples", 3, "voting samples for the --ab voted condition")
+	ab := fs.Bool("ab", false, "also run the voted condition and compare with McNemar")
+	_ = fs.Parse(args)
+	if len(fs.Args()) == 0 {
+		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...")
+	}
+	key := apiKey()
+	if key == "" {
+		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file)")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	client := anthropic.NewClient(option.WithAPIKey(key))
+	det := ettlemesh.NewDetector(&client, *model)
+
+	for _, path := range fs.Args() {
+		c, err := eval.LoadCorpus(path)
+		if err != nil {
+			return fmt.Errorf("load corpus %s: %w", path, err)
+		}
+		people, err := loadParticipants(c.Inputs)
+		if err != nil {
+			return fmt.Errorf("corpus %s inputs: %w", c.Name, err)
+		}
+		fmt.Printf("\n  ══ %s ══ (%d inputs, %d curated knots)\n", c.Name, len(c.Inputs), len(c.Expected))
+
+		firm, soft, err := detectFor(ctx, det, people, 1)
+		if err != nil {
+			return err
+		}
+		s := eval.Adjudicate(firm, soft, c.Expected)
+		printScore("single-shot", s)
+
+		if *ab {
+			fv, sv, err := detectFor(ctx, det, people, *samples)
+			if err != nil {
+				return err
+			}
+			sV := eval.Adjudicate(fv, sv, c.Expected)
+			printScore(fmt.Sprintf("voted (%d samples)", *samples), sV)
+			// Paired McNemar over the real labels' recovery under each condition.
+			var b, cc int
+			for _, l := range c.Expected {
+				if !l.Real {
+					continue
+				}
+				if s.Recovered[l.ID] && !sV.Recovered[l.ID] {
+					b++
+				}
+				if !s.Recovered[l.ID] && sV.Recovered[l.ID] {
+					cc++
+				}
+			}
+			p := eval.McNemarTwoTailed(b, cc)
+			fmt.Printf("    A/B (recall): discordant single-only=%d voted-only=%d → McNemar p=%.3f %s\n",
+				b, cc, p, abVerdict(p, b, cc))
+			fmt.Printf("    A/B (precision): single FP=%d, voted FP=%d (descriptive — not a paired test)\n", s.FP, sV.FP)
+		}
+	}
+	return nil
+}
+
+func printScore(label string, s eval.Score) {
+	fmt.Printf("    %-22s precision %d/%d=%.2f · recall %d/%d=%.2f · would-ask %d",
+		label, s.TP, s.TP+s.FP, s.Precision(), s.RecallHits, s.RecallTotal, s.Recall(), s.WouldAsk)
+	if len(s.Missed) > 0 {
+		fmt.Printf(" · missed %s", strings.Join(s.Missed, ","))
+	}
+	fmt.Println()
+}
+
+func abVerdict(p float64, b, c int) string {
+	if b+c < 6 {
+		return "(too few discordant to test — no claim)"
+	}
+	if p < 0.05 {
+		return "(significant)"
+	}
+	return "(not significant)"
 }
 
 // runCapture previews the L1 digest a session transcript distills to — what

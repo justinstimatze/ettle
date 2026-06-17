@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -489,10 +490,21 @@ func minConfForParties(atoms []Atom, parties []string) float64 {
 // salient keyword. Deliberately NOT keyed on Kind: the detector re-labels the
 // same underlying problem run to run.
 
-// SameKnot reports whether two knots name the same coordination problem.
+// SameKnot reports whether two knots name the same coordination problem: they
+// share a party AND their subject+explanation token sets overlap past a Jaccard
+// threshold. The Jaccard test (vs the old "share any one >=4-char keyword")
+// stops the over-merge the adversarial review flagged — a hub person plus one
+// common domain noun ("cache", "deadline") no longer collapses two unrelated
+// knots — while still tolerating the paraphrase the stochastic detector
+// produces run to run.
 func SameKnot(a, b Knot) bool {
-	return partiesOverlap(a.Parties, b.Parties) && aboutOverlap(a.About, b.About)
+	if !partiesOverlap(a.Parties, b.Parties) {
+		return false
+	}
+	return jaccard(tokenSet(a.About+" "+a.Explanation), tokenSet(b.About+" "+b.Explanation)) >= knotJaccardMin
 }
+
+const knotJaccardMin = 0.18 // inkling's threadeval threshold, tuned on real knots
 
 func partiesOverlap(a, b []string) bool {
 	for _, x := range a {
@@ -505,30 +517,38 @@ func partiesOverlap(a, b []string) bool {
 	return false
 }
 
-// aboutOverlap reports whether two subjects share a salient (>=4 char, non-stop)
-// keyword. Cheap, deterministic, no model call.
-func aboutOverlap(a, b string) bool {
-	ka := keywords(a)
-	for w := range keywords(b) {
-		if ka[w] {
-			return true
+func jaccard(a, b map[string]bool) float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return 0
+	}
+	inter := 0
+	for k := range a {
+		if b[k] {
+			inter++
 		}
 	}
-	return false
+	union := len(a) + len(b) - inter
+	if union == 0 {
+		return 0
+	}
+	return float64(inter) / float64(union)
 }
 
 var knotStop = map[string]bool{
 	"the": true, "and": true, "for": true, "with": true, "that": true, "this": true,
 	"from": true, "into": true, "over": true, "whose": true, "about": true,
 	"their": true, "them": true, "they": true, "between": true, "will": true,
+	"are": true, "but": true, "has": true, "had": true, "not": true, "who": true,
 }
 
-func keywords(s string) map[string]bool {
+// tokenSet is the salient (>=3 char, non-stop) token set of a string. >=3 keeps
+// short-but-meaningful identifiers like "api", "jwt".
+func tokenSet(s string) map[string]bool {
 	out := map[string]bool{}
 	for _, f := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
 		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
 	}) {
-		if len(f) >= 4 && !knotStop[f] {
+		if len(f) >= 3 && !knotStop[f] {
 			out[f] = true
 		}
 	}
@@ -588,51 +608,75 @@ func (d *Detector) reconcileBoth(ctx context.Context, atoms []Atom) ([]Knot, err
 	return append(pw, tw...), nil
 }
 
-// voteKnots clusters alike knots across runs and keeps clusters seen in a strict
-// majority of runs. Representative = the cluster's highest-confidence member;
-// Confidence = the mean across the cluster; Votes = distinct runs it appeared in.
+// voteKnots clusters alike knots across runs (order-invariant: union-find over
+// the SameKnot relation, so A~B~C all merge regardless of arrival order — the
+// old first-match assignment could split a cluster depending on iteration order)
+// and keeps clusters seen in a strict majority of runs. Representative = the
+// cluster's highest-confidence member; Confidence = the mean across the cluster;
+// Votes = distinct runs it appeared in. Output is sorted (most-voted first) for
+// determinism.
 func voteKnots(runs [][]Knot) []Knot {
-	type cluster struct {
-		rep   Knot
-		confs []float64
-		runs  map[int]bool
+	type item struct {
+		k   Knot
+		run int
 	}
-	var clusters []*cluster
+	var items []item
 	for ri, run := range runs {
 		for _, k := range run {
-			var hit *cluster
-			for _, c := range clusters {
-				if SameKnot(c.rep, k) {
-					hit = c
-					break
-				}
-			}
-			if hit == nil {
-				hit = &cluster{rep: k, runs: map[int]bool{}}
-				clusters = append(clusters, hit)
-			}
-			if k.Confidence > hit.rep.Confidence {
-				hit.rep = k
-			}
-			hit.confs = append(hit.confs, k.Confidence)
-			hit.runs[ri] = true
+			items = append(items, item{k, ri})
 		}
+	}
+	n := len(items)
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(x int) int {
+		for parent[x] != x {
+			parent[x] = parent[parent[x]]
+			x = parent[x]
+		}
+		return x
+	}
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if SameKnot(items[i].k, items[j].k) {
+				parent[find(i)] = find(j)
+			}
+		}
+	}
+	groups := map[int][]int{}
+	for i := 0; i < n; i++ {
+		r := find(i)
+		groups[r] = append(groups[r], i)
 	}
 	threshold := len(runs)/2 + 1
 	var out []Knot
-	for _, c := range clusters {
-		if len(c.runs) < threshold {
+	for _, idxs := range groups {
+		runsSeen := map[int]bool{}
+		rep := items[idxs[0]].k
+		var sum float64
+		for _, i := range idxs {
+			runsSeen[items[i].run] = true
+			sum += items[i].k.Confidence
+			if items[i].k.Confidence > rep.Confidence {
+				rep = items[i].k
+			}
+		}
+		if len(runsSeen) < threshold {
 			continue
 		}
-		k := c.rep
-		var sum float64
-		for _, f := range c.confs {
-			sum += f
-		}
-		k.Confidence = sum / float64(len(c.confs))
-		k.Votes = len(c.runs)
-		k.Samples = len(runs)
-		out = append(out, k)
+		rep.Confidence = sum / float64(len(idxs))
+		rep.Votes = len(runsSeen)
+		rep.Samples = len(runs)
+		out = append(out, rep)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Votes != out[j].Votes {
+			return out[i].Votes > out[j].Votes
+		}
+		return out[i].About < out[j].About
+	})
 	return out
 }
