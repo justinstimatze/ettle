@@ -6,8 +6,8 @@
 // This is the load-bearing piece. ettle's thesis is "model people from their
 // reasoning-in-progress, not from after-the-fact artifacts." A markdown note IS
 // an after-the-fact artifact; a session transcript is the reasoning-in-progress.
-// Capture extracts two signals, following the same rule inkling's observe layer
-// uses: the person's STATED INTENT (their prompts — what they're trying to do
+// Capture extracts two signals: the person's STATED INTENT (their prompts —
+// what they're trying to do
 // and the decisions they voice) and the WORK THEY COMMITTED (file edits and
 // shell commands — Edit/Write/Bash, the actions that passed a human's
 // permission; Read/Grep/etc. are the agent exploring, not the human deciding).

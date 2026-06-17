@@ -1,20 +1,18 @@
 // Package eval is ettle's calibration harness: it scores the detector against a
 // committed, synthetic, INSPECTABLE corpus of curated coordination knots.
 //
-// It exists to answer the sharpest adversarial critique of the project — that
-// the "~0.6 precision" number was unfalsifiable: its denominator lived in a
-// gitignored sidecar, rested on one private thread, and used a single circular
-// human rater. Here the ground truth is committed (testdata/eval/*.json), so a
+// It exists so the precision claim is falsifiable: rather than a number whose
+// denominator lives in a gitignored sidecar resting on one private thread and a
+// single rater, the ground truth is committed (testdata/eval/*.json), so a
 // stranger can read exactly what counts as a real knot, run the detector, and
-// see the precision/recall for themselves. It also runs the honest A/B the
-// review demanded: does multi-sample voting actually reduce false positives, or
-// only paraphrase variance? — reported with a McNemar significance test so a
-// non-significant result (the likely one on a small corpus) is stated as such.
+// see the precision/recall for themselves. It also runs an honest A/B: does
+// multi-sample voting actually reduce false positives, or only paraphrase
+// variance? — reported with a McNemar significance test so a non-significant
+// result (the likely one on a small corpus) is stated as such.
 //
-// The matcher is lifted from inkling's threadeval scoreMatch: a detected knot
-// matches a curated label when they share a party AND either a multi-word
-// keyword phrase appears verbatim or their token sets overlap past a Jaccard
-// threshold.
+// The matcher: a detected knot matches a curated label when they share a party
+// AND either a multi-word keyword phrase appears verbatim or their token sets
+// overlap past a Jaccard threshold.
 package eval
 
 import (
@@ -146,8 +144,7 @@ func Adjudicate(firm, soft []ettlemesh.Knot, labels []Label) Score {
 // ratio: a knot's explanation is a full sentence, and dividing by its token
 // count (Jaccard) wrongly drives a good match below threshold just because the
 // explanation is verbose. Counting how many curated discriminators actually show
-// up is robust to that. (Adapted from inkling threadeval, which used Jaccard
-// over shorter labels.)
+// up is robust to that (a Jaccard ratio over the shorter labels would not be).
 func ScoreMatch(l Label, k ettlemesh.Knot) (float64, bool) {
 	if !sharesParty(l.Parties, k.Parties) {
 		return 0, false
@@ -178,7 +175,7 @@ const minTokenHits = 2
 // of two binary classifiers on the same items (b: A right & B wrong; c: A wrong
 // & B right). Continuity-corrected chi-square via the erfc tail. Returns 1.0
 // (no evidence of a difference) when the discordant N is too small to test —
-// which is the honest result on a small corpus. Lifted from inkling rifts/stats.
+// which is the honest result on a small corpus.
 func McNemarTwoTailed(b, c int) float64 {
 	n := b + c
 	if n == 0 {

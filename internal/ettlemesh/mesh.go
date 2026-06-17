@@ -528,7 +528,7 @@ func SameKnot(a, b Knot) bool {
 	return jaccard(tokenSet(a.About+" "+a.Explanation), tokenSet(b.About+" "+b.Explanation)) >= knotJaccardMin
 }
 
-const knotJaccardMin = 0.18 // inkling's threadeval threshold, tuned on real knots
+const knotJaccardMin = 0.18 // threshold tuned on real coordination knots
 
 func partiesOverlap(a, b []string) bool {
 	for _, x := range a {
