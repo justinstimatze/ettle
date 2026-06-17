@@ -517,7 +517,7 @@ func minConfForParties(atoms []Atom, parties []string) float64 {
 // SameKnot reports whether two knots name the same coordination problem: they
 // share a party AND their subject+explanation token sets overlap past a Jaccard
 // threshold. The Jaccard test (vs the old "share any one >=4-char keyword")
-// stops the over-merge the adversarial review flagged — a hub person plus one
+// stops an over-merge — a hub person plus one
 // common domain noun ("cache", "deadline") no longer collapses two unrelated
 // knots — while still tolerating the paraphrase the stochastic detector
 // produces run to run.

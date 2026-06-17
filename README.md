@@ -83,30 +83,65 @@ the bundled fixture — no key needed to read it.
 
 ### Demo
 
-A ~90-second walkthrough on a fully-synthetic four-person team
-([`testdata/northwind/`](testdata/northwind) — four Claude Code **session
-transcripts**, no real data), three beats:
+A fully-synthetic four-person team ([`testdata/northwind/`](testdata/northwind)
+— four Claude Code **session transcripts**, no real data). Four people, four live
+sessions, nobody has synced. Their work is quietly colliding:
 
-1. **The pre-meeting collision catch.** Ivo is building a discount engine that
-   calls pricing in-process; Mara is extracting pricing into a network service
-   and deleting the in-process package. Nobody has told anyone. `ettle standup
-   --me ivo testdata/northwind/*.jsonl` surfaces it on Ivo's horizon before the
-   standup that would otherwise have discovered it.
-2. **Bind-vs-surface.** The simple collisions are FYI'd ("worth a look"); the
-   genuine values choice — the release-freeze date three people are diverging on
-   — is routed to a crux and pre-staged as a clean either/or. Friction in the
-   right spot, not everywhere.
-3. **The boundary, and N=1.** `--show-atoms` prints exactly what leaves each
-   machine (typed atoms, never the raw session); then `ettle standup
-   testdata/solo/dana.md` shows ettle is useful at N=1 too — catching one
-   person's own stale assumption.
+```mermaid
+flowchart TB
+    subgraph S["four live sessions — no standup yet"]
+        direction LR
+        M["<b>Mara</b> · pricing-extract<br/>pulling pricing OUT into a service,<br/>deleting the in-process package"]
+        I["<b>Ivo</b> · discount-engine<br/>new engine that calls pricing<br/>IN-PROCESS, no network hop"]
+        P["<b>Priya</b> · region-migration<br/>release freeze starts Monday"]
+        T["<b>Theo</b> · checkout-ui<br/>reimplementing the discount<br/>rules client-side in TS"]
+    end
+    M --> E(("ettle")); I --> E; P --> E; T --> E
+    E -- "collision" --> K1["Mara deletes the package<br/>Ivo's engine depends on"]
+    E -- "duplication" --> K2["Ivo &amp; Theo both build<br/>discount logic — keep in sync"]
+    E -- "team-wide divergence" --> K3["freeze Monday vs. 'merge<br/>before freeze' vs. 'ship next week'"]
+    K1 --> FYI["<b>worth a look</b> — FYI'd"]
+    K2 --> FYI
+    K3 --> CRUX["<b>pre-staged crux</b><br/>a values call, the human decides"]
+```
 
-Record it yourself with [`script/demo.sh`](script/demo.sh) (needs `asciinema`
-and an API key — the run is live). Then `asciinema upload demo/northwind.cast`
-and drop the badge here.
+A real run on Ivo's horizon (`ettle standup --me ivo testdata/northwind/*.jsonl`,
+trimmed) — the collision and the freeze crux, surfaced before the meeting:
 
-<!-- [![asciicast](https://asciinema.org/a/REPLACE_ID.svg)](https://asciinema.org/a/REPLACE_ID) -->
-*(cast badge goes here once recorded)*
+```
+  ettle — coordination horizon for ivo
+  22 atoms across 4 people; 6 knots surfaced
+
+  worth a look (firm)
+    • [collision] in-process pricing package timing
+      Ivo's discount engine depends on pricing remaining in-process by end of
+      next week, while Mara is extracting pricing into a standalone network
+      service and deleting the in-process package before a release freeze —
+      a direct conflict over the pricing package's location.
+      parties: ivo, mara · confidence 0.6
+    • [duplication] discount rule implementation
+      Theo is reimplementing discount rules in TypeScript for client-side
+      preview, while Ivo is building a server-side discount-rules engine;
+      parallel discount logic that must stay in sync.
+      parties: theo, ivo · confidence 0.6
+
+  worth a question (soft — rests on an inference)
+    • [teamwide-divergence] pricing service architecture and timing
+      Ivo assumes pricing stays in-process (shipping next week); Mara extracts
+      it before freeze; Priya locks a release freeze starting Monday — the
+      three timelines can't all be true.
+      parties: ivo, mara, priya, theo · confidence 0.4
+      → crux (inline): pricing service architecture and timing
+        ↳ as ivo frames it / as the other parties frame it
+```
+
+Three things to notice: the **collision is caught before the standup** that
+would otherwise have surfaced it; the simple conflicts are **FYI'd** while the
+genuine values choice (the freeze date) is **routed to a crux** and pre-staged
+as an either/or — friction in the right spot, not everywhere; and it's **useful
+at N=1** too — `ettle standup testdata/solo/dana.md` catches one person's own
+stale assumption. Add `--show-atoms` to any run to see exactly what crosses the
+boundary (typed atoms, never the raw session).
 
 Going distributed and secure is opt-in behind the same seams:
 

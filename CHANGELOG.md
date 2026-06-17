@@ -5,10 +5,10 @@
 First runnable cut of the multiplayer coordination PoC.
 
 - **Demo** — a fully-synthetic four-person team (`testdata/northwind/`, four
-  Claude Code session transcripts) and `script/demo.sh` (asciinema), three beats:
-  the pre-meeting collision catch, bind-vs-surface (simple collisions FYI'd, the
-  freeze-date divergence routed to a pre-staged crux), and the boundary reveal
-  (`--show-atoms`) + the N=1 self-assumption. Linked from the README.
+  Claude Code session transcripts) shown in the README as a scenario diagram plus
+  a real-run transcript: the pre-meeting collision catch, bind-vs-surface (simple
+  collisions FYI'd, the freeze-date divergence routed to a pre-staged crux), the
+  N=1 self-assumption, and `--show-atoms` for the boundary.
 
 - **Transport hardening** — the dev-only `--insecure-local` (plaintext/tokenless)
   gate now **resolves** the host and requires every address to be loopback

@@ -1,6 +1,6 @@
 # ettle — the horizon
 
-*An extrapolation. Where the N=1 wedge and the team layer go if the invariants hold all the way out. Grounded in a private pattern substrate adjacency-frontier walk (the substrate key is at the bottom) and the fictional lineage in SF_LINEAGE.md. This is the dream the design is a seed of — written down so we can tell, later, whether we grew it or its shadow.*
+*An extrapolation. Where the N=1 wedge and the team layer go if the invariants hold all the way out. The conceptual borrowings it leans on are named at the bottom; the fictional lineage is in SF_LINEAGE.md. This is the dream the design is a seed of — written down so we can tell, later, whether we grew it or its shadow.*
 
 ---
 
@@ -50,9 +50,9 @@ Build that, hold the boundary, keep the humans the deciders — and the morning 
 
 ---
 
-### What's under the fiction (substrate key)
+### What's under the fiction
 
-The frontier this extrapolates toward came from a private pattern substrate adjacency-walk on ettle's design constellation. The load-bearing borrowings:
+The fiction is built from a handful of named ideas, turned up and given a morning to happen in. The load-bearing borrowings:
 
 - **relevance as currency** — Sperber-Wilson: contextual-effect ÷ processing-effort. The rigorous emit gate.
 - **spotlight-choice** (the highest-adjacency frontier move) — coordinating by directing salience; the gift and the knife.
@@ -64,4 +64,4 @@ The frontier this extrapolates toward came from a private pattern substrate adja
 - **unscalable initial conditions as diagnostic, not defect** — why N=1 first is right, not just modest.
 - the shadow: **ring-of-gyges**, **noble-lie**, **self-derived-from-others-vs-reality-contact**, **treacherous-turn**, **form-persists-when-content-dissolves**.
 
-The fiction is just these, turned up and given a morning to happen in.
+Every move in the morning above is one of these, held to its invariant.
