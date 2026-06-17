@@ -9,10 +9,10 @@ It is easy to misread as "a shared dashboard." It is the opposite: your raw note
 ```mermaid
 flowchart TB
     subgraph A["Alice's machine — L1 (private)"]
-        AN["her working notes"] --> AD["her agent: distill"]
+        AN["her notes / live session<br/>(capture distills the transcript)"] --> AD["her agent: distill"]
     end
     subgraph B["Bob's machine — L1 (private)"]
-        BN["his working notes"] --> BD["his agent: distill"]
+        BN["his notes / live session"] --> BD["his agent: distill"]
     end
     AD -- "typed atoms only" --> BUS
     BD -- "typed atoms only" --> BUS
@@ -51,6 +51,11 @@ cp .env.example .env && $EDITOR .env
 
 # surface the coordination knots across a team's notes — no meeting
 go run ./cmd/ettle standup --me alice testdata/standup/*.md
+
+# or run it on real LIVE sessions — Claude Code transcripts, not notes —
+# the L1 layer that distills what each person actually reasoned about and did
+go run ./cmd/ettle standup testdata/sessions/*.jsonl
+go run ./cmd/ettle capture testdata/sessions/kit.jsonl   # preview what a session distills to
 
 # useful at N=1 too: one person's own stale self-assumption
 go run ./cmd/ettle standup testdata/solo/dana.md
@@ -101,7 +106,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 ## Relationship to sibling projects
 
-- **the single-user layer** — a private predecessor project supplies the per-person model (L1 telemetry: what one person is doing, deciding, depending on). ettle is the multiplayer extension: the directed and collective layers that predecessor never had, plus an actionable layer it never had.
+- **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer private predecessor supplies a fuller per-person model (deeper L1 telemetry); ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that the single-user layer never had.
 - **the atom bus** — a [NATS](https://nats.io) bus moves typed atoms between participants' machines (TLS + auth, pub/sub, replay). Behind a transport seam, so a zero-infra in-process adapter covers local testing and other rails (Slack, Matrix, A2A) can drop in later.
 - **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant knot back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.

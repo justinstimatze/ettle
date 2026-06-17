@@ -4,6 +4,15 @@
 
 First runnable cut of the multiplayer coordination PoC.
 
+- **L1 live-session capture** (`internal/capture`, `ettle capture`) — distills a
+  person's real Claude Code session transcript (their stated intent from prompts
+  + the work they committed via Edit/Write/Bash; exploration like Read/Grep and
+  subagent sidechains are skipped) into the same digest a hand-written note would
+  be. `ettle standup session.jsonl` runs the whole pipeline on **live
+  reasoning-in-progress**, not after-the-fact artifacts — the thesis the design
+  rests on. The digest stays local; only the distilled atoms cross. Synthetic
+  session fixtures in `testdata/sessions/`.
+
 - **`ettle standup`** — distills each participant's notes into typed atoms,
   reconciles them (pairwise + team-wide + a single-party self pass) into
   coordination knots, and surfaces only what's relevant to each human (`--me`).

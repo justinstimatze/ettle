@@ -30,6 +30,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
+	"github.com/justinstimatze/ettle/internal/capture"
 	"github.com/justinstimatze/ettle/internal/crux"
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -41,11 +42,19 @@ func main() {
 		case "version", "-version", "--version", "-v":
 			fmt.Println("ettle", buildVersion())
 			return
+		case "capture":
+			if err := runCapture(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
-		fmt.Fprintln(os.Stderr, "usage: ettle standup [flags] <note-file>...")
-		fmt.Fprintln(os.Stderr, "  each note file is one participant; see testdata/standup for the format")
+		fmt.Fprintln(os.Stderr, "usage: ettle standup [flags] <input>...")
+		fmt.Fprintln(os.Stderr, "  each input is one participant: a note file, or a Claude Code")
+		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
+		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview what a session distills to")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls for N participants (+2 per extra --samples)")
 		os.Exit(2)
 	}
@@ -313,12 +322,46 @@ func distinctParticipants(envs []transport.Envelope) int {
 	return len(seen)
 }
 
-// loadParticipants reads one participant per file. Optional leading `name:` and
-// `role:` lines set identity; otherwise the filename (sans extension) is the
-// name. Everything after the header is the private note.
+// runCapture previews the L1 digest a session transcript distills to — what
+// would cross the boundary before any model call. The raw transcript stays
+// local; this shows the lossy, privacy-respecting extraction.
+func runCapture(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: ettle capture <transcript.jsonl>")
+	}
+	for _, path := range args {
+		s, err := capture.Read(path)
+		if err != nil {
+			return fmt.Errorf("capture %s: %w", path, err)
+		}
+		fmt.Printf("\n  ── %s ──\n", filepath.Base(path))
+		if s.Empty() {
+			fmt.Println("  (no L1 signal extracted — no prompts, edits, or commands)")
+			continue
+		}
+		fmt.Println(s.Digest())
+		fmt.Println()
+	}
+	return nil
+}
+
+// loadParticipants reads one participant per input. A `.jsonl` input is a Claude
+// Code session transcript — the live-reasoning L1 source — distilled to a digest
+// by capture. Any other input is a note file: optional leading `name:` / `role:`
+// lines set identity, otherwise the filename (sans extension) is the name, and
+// everything after the header is the private note.
 func loadParticipants(paths []string) ([]participant, error) {
 	var out []participant
 	for _, path := range paths {
+		if strings.EqualFold(filepath.Ext(path), ".jsonl") {
+			s, err := capture.Read(path)
+			if err != nil {
+				return nil, fmt.Errorf("capture %s: %w", path, err)
+			}
+			name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+			out = append(out, participant{Name: name, Role: "", Notes: s.Digest()})
+			continue
+		}
 		f, err := os.Open(path)
 		if err != nil {
 			return nil, err

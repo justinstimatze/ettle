@@ -1,0 +1,6 @@
+{"type":"user","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"user","content":"Building the mobile login flow this sprint. It posts to /login and reads the session cookie back to keep the user signed in — that's the contract the app has been built around."}}
+{"type":"assistant","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"mobile/auth/login_client.go"}}]}}
+{"type":"user","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"user","content":"I'm assuming the cookie-based /login stays stable through the next two weeks while the app team ships — we can't change the auth contract mid-flight or every signed-in session breaks."}}
+{"type":"assistant","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"go build ./mobile/..."}}]}}
+{"type":"assistant","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"file_path":"internal/auth/middleware.go"}}]}}
+{"type":"user","isSidechain":false,"gitBranch":"mobile-login","message":{"role":"user","content":"Targeting end of next week for the mobile login to be done and handed to QA."}}
