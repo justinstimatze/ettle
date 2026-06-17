@@ -65,7 +65,17 @@ So the critical path is the **N=1 wedge** before anything multiplayer. The wedge
 - How is L3 conflict-detection defined — what counts as two models colliding? (N1_WEDGE.md prefigures it: a `GuardEvent` whose trigger is another participant's closed cell = a knot. Needs the cross-author threshold.)
 - ~~Transport: extend dispatch payloads, or ride A2A once it is the standard rail?~~ → **Decided: a NATS bus carries atoms, gemot carries cruxes, each agent surfaces to its own human (no shared human channel).** Both legs carry sensitive content and need TLS + auth — NATS has it natively; gemot needs it added (open with the gemot maintainer; the crux is the most sensitive thing on the wire). dispatch was the wrong shape (a local RPC rail, not a secure distributed bus). A2A / Matrix / Slack remain possible adapters behind the transport seam.
 
-## Next action — final sweep + public flip
+## Next action — Phase 5 (demo), then Phase 6 (ops polish), then the flip
+
+**Improvement round from the adversarial panel (see CHANGELOG + the "Recently built" list below): Phases 0,1,2,3,4,7 are DONE and pushed.** That covers claims-honesty, loud-failure (structured tool-use output), retry+parallel, the calibration harness (`ettle eval`), the privacy `--show-atoms`+caps, and the load-bearing **L1 live-session capture** (`ettle capture` / `ettle standup session.jsonl`). Remaining in the round:
+- **Phase 5 — synthetic demo (NEXT SESSION):** a fictional 4-person team fixture (`testdata/northwind/`, fully synthetic) + a 90s asciinema cast lifted from town/winze `script/demo.sh`, three beats — (1) the pre-meeting collision catch, (2) bind-vs-surface (one knot FYI'd, one crux pre-staged), (3) the boundary-transparency reveal (`--show-atoms`) + the N=1 self-assumption. Embed in README. Honest guardrails: `--samples` framed as variance not precision; never show "0 knots" as reassurance; don't claim live-capture beyond what `capture` does. The L1 capture now makes a session-based demo genuinely compelling — consider building the demo on `.jsonl` sessions, not notes.
+- **Phase 6 — ops polish:** stale `go get` line in `internal/transport/nats.go:6`; add "Requires Go ≥ 1.25" to README; reconcile the gemot demo-mode-vs-Postgres contradiction between `deploy/` and `gemotclient` docs; harden `--insecure-local` host check (resolve IP / check peer addr, or drop the safety claim); have the gemot client verify it's in an authenticated (non-anonymous) session.
+- Then: final whole-repo stranger's-eye sweep → `gh repo edit justinstimatze/ettle --visibility public` (still held for explicit go).
+
+---
+
+(Historical — the original first-cut next-action, kept for context:)
+### final sweep + public flip
 
 **First cut is BUILT and runs end-to-end** (`cmd/ettle`, in this repo). `ettle standup <note-file>...` distills each person's notes → atoms → reconciles pairwise + team-wide → routes FIRM ("worth a look") vs SOFT ("worth a question") → resolves contested knots (gemot or an inline either/or) → surfaces to `--me`. The engine (`internal/ettlemesh`) ported in clean (no private-repo deps); transport is a seam (`internal/transport`: zero-infra in-process default + a `-tags nats` distributed bus with TLS+auth); the crux seam (`internal/crux`) routes decision-rights / team-wide knots to gemot or the inline fallback. A synthetic fixture (`testdata/standup/`) lets a stranger run it with no infra. Smoke run on the fixture surfaced all planted frictions (collision, stale-assumption, decision-rights, team-wide deadline divergence) with correct FIRM/SOFT routing. Both builds compile + vet; the loop is proven against the real model.
 
