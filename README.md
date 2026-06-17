@@ -1,5 +1,13 @@
 # ettle
 
+> ⚠️ **Extremely early — a design-stage proof-of-concept, shared well before it's proven.** The
+> coordination engine runs, but its accuracy is **not validated**: `ettle eval` is an inspectable smoke
+> test on a tiny synthetic corpus, not a precision/recall measurement, and the demos are hand-seeded. The
+> headline "useful at N=1" wedge and the calibration loop that is supposed to make any of this *safe* are
+> **specced, not built** (see [Status](#status)). Plenty here is probably wrong. Treat it as a thesis with
+> a runnable skeleton, not a product. Read the `docs/` caveats before trusting anything; breakage and
+> rethinks expected, feedback very welcome.
+
 A rolling shared horizon of minimized surprise for a high-trust team whose members already think through their work with AI agents.
 
 Each person's agent models its own human (the single-user layer). It also keeps a directed model of each teammate, from its own vantage. A merged collective layer reconciles those models and surfaces the deltas that would otherwise become a surprise — a dependency someone is about to break, two people converging on the same work, an assumption one person holds that another has quietly abandoned. The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
