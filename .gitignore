@@ -1,0 +1,14 @@
+.DS_Store
+*.log
+/tmp/
+
+# Secrets and build output
+.env
+*.creds
+/ettle
+/cmd/ettle/ettle
+
+# Local, never-committed notes derived from internal/private material
+# (anonymized analyses, pasted snippets). Keep out of the public repo.
+*.local.md
+/local/

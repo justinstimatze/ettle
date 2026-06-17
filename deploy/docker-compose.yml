@@ -1,0 +1,36 @@
+# Local dev stack for ettle's distributed paths — the NATS atom bus and a gemot
+# deliberation service — in one command. DEV ONLY: NATS runs plaintext and gemot
+# runs in demo mode (in-memory, no auth), so ettle must be run with
+# --insecure-local. A real deployment uses TLS + NATS creds + GEMOT_REQUIRE_AUTH.
+#
+#   export ANTHROPIC_API_KEY=sk-ant-...        # for gemot's crux analysis
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+#   # then from the repo root (NATS path needs the build tag):
+#   NATS_URL=nats://localhost:4222 ETTLE_TEAM=demo \
+#   go run -tags nats ./cmd/ettle standup --me alice \
+#     --transport nats --gemot http://localhost:8088/mcp --insecure-local \
+#     testdata/standup/*.md
+#
+# Tear down:  docker compose -f deploy/docker-compose.yml down
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"] # JetStream: atoms are retained so Collect can't race a publisher
+    ports:
+      - "127.0.0.1:4222:4222"
+
+  gemot:
+    # Built from the public gemot repo at a pinned tag (no published image).
+    build:
+      context: "https://github.com/justinstimatze/gemot.git#v0.13.1"
+    environment:
+      # No DATABASE_URL → gemot demo mode: in-memory, ephemeral, no auth (dev).
+      # For persistence + auth, add a postgres service, set DATABASE_URL, and
+      # GEMOT_REQUIRE_AUTH=1 (then ettle needs a real bearer token, not --insecure-local).
+      # Required for gemot's crux analysis. Export it before `up`; if unset,
+      # gemot still boots (demo mode) and ettle just reports the resolver as
+      # unavailable on contested knots. (Default-empty so `down`/`ps` don't demand it.)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:8088:8080"
