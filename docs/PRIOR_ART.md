@@ -4,6 +4,8 @@ Three passes: a knowledge-based review of the academic lineage, a shallow live w
 
 **Headline finding.** Every individual component is being built, hard and well-funded — and the second pass found the *deliberation-routing* and *friction* sides are now built-for-us too (apply, don't invent). The specific assembly — multiplayer theory-of-mind across *personal* agents, privacy-bounded, modeling *people* rather than tasks, routing coordination vs. cruxes, with a per-human calibration loop, inside a consenting trust boundary — is, as far as this survey found, still unbuilt. The empty seat is bounded on every side by mature work, which is what makes it tractable now. See §7 for the latest pass.
 
+**Historical lineage (read this before believing "empty seat").** The single-user half of ettle is *old and well-funded*: the mid-1990s interface-agent vision (Maes; Mitchell's CAP), DARPA's PAL program (SRI's **CALO** → Siri, and CMU's **RADAR**), and — the closest ancestor to ettle's *pool of proxy agents* — USC/ISI's **Electric Elves** (deployed 2000), whose published "what went wrong" post-mortem is the empirical case for ettle's calibration/humans-decide invariants. The full review is in [CALO_LINEAGE.md](CALO_LINEAGE.md); the honest verdict is that ettle is *not* novel at L1, only (maybe) in the multi-principal assembly.
+
 ---
 
 ## 1. Agent-to-agent protocols — settled infrastructure, not human-modeling

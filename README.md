@@ -178,6 +178,8 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 - [docs/COMMONS.md](docs/COMMONS.md) — coordinated quality without wasted time as a commons; Ostrom's eight principles mapped to ettle, with graduated sanctions on gemot reputation.
 - [docs/SCALING.md](docs/SCALING.md) — how the continuous version avoids a token-burn feedback loop (atoms up, knots down; L3 emits no atoms; surprise-gated emit; O(1) shared reconcile).
 - [docs/PRIOR_ART.md](docs/PRIOR_ART.md) — literature and product map, with citations.
+- [docs/CALO_LINEAGE.md](docs/CALO_LINEAGE.md) — the personal-assistant-agent lineage (Maes/CAP, DARPA PAL's CALO & RADAR, Electric Elves) and what ettle inherits vs. extends.
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — candidate public datasets for validating the detector on real logged coordination, and the honest method/caveats.
 - [docs/ADOPTION.md](docs/ADOPTION.md) — consent-first, bottom-up adoption; the anti-viral stance.
 - [docs/SF_LINEAGE.md](docs/SF_LINEAGE.md) — the fictional touchstones and the bright/dark fork they mark.
 - [docs/NAMING.md](docs/NAMING.md) — why `ettle`, and the collisions that ruled out the alternatives.
