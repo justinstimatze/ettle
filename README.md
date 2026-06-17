@@ -81,6 +81,33 @@ either/or.
 **See [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) for exactly what it prints** on
 the bundled fixture — no key needed to read it.
 
+### Demo
+
+A ~90-second walkthrough on a fully-synthetic four-person team
+([`testdata/northwind/`](testdata/northwind) — four Claude Code **session
+transcripts**, no real data), three beats:
+
+1. **The pre-meeting collision catch.** Ivo is building a discount engine that
+   calls pricing in-process; Mara is extracting pricing into a network service
+   and deleting the in-process package. Nobody has told anyone. `ettle standup
+   --me ivo testdata/northwind/*.jsonl` surfaces it on Ivo's horizon before the
+   standup that would otherwise have discovered it.
+2. **Bind-vs-surface.** The simple collisions are FYI'd ("worth a look"); the
+   genuine values choice — the release-freeze date three people are diverging on
+   — is routed to a crux and pre-staged as a clean either/or. Friction in the
+   right spot, not everywhere.
+3. **The boundary, and N=1.** `--show-atoms` prints exactly what leaves each
+   machine (typed atoms, never the raw session); then `ettle standup
+   testdata/solo/dana.md` shows ettle is useful at N=1 too — catching one
+   person's own stale assumption.
+
+Record it yourself with [`script/demo.sh`](script/demo.sh) (needs `asciinema`
+and an API key — the run is live). Then `asciinema upload demo/northwind.cast`
+and drop the badge here.
+
+<!-- [![asciicast](https://asciinema.org/a/REPLACE_ID.svg)](https://asciinema.org/a/REPLACE_ID) -->
+*(cast badge goes here once recorded)*
+
 Going distributed and secure is opt-in behind the same seams:
 
 ```sh
