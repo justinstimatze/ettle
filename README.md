@@ -110,42 +110,43 @@ flowchart TB
 ```
 
 A real run on Ivo's horizon (`ettle standup --me ivo testdata/northwind/*.jsonl`,
-trimmed) — the collision and the freeze crux, surfaced before the meeting:
+trimmed to three of the knots it surfaces) — the collision and the freeze crux,
+before the meeting:
 
 ```
   ettle — coordination horizon for ivo
   22 atoms across 4 people; 6 knots surfaced
 
   worth a look (firm)
-    • [collision] in-process pricing package timing
-      Ivo's discount engine depends on pricing remaining in-process by end of
-      next week, while Mara is extracting pricing into a standalone network
-      service and deleting the in-process package before a release freeze —
-      a direct conflict over the pricing package's location.
+    • [collision] pricing package removal during discount-engine build
+      Ivo's discount engine depends on in-process pricing calls through end of
+      next week, but Mara commits to deleting the pricing package once her
+      service goes live — a direct conflict if her extraction lands first.
       parties: ivo, mara · confidence 0.6
-    • [duplication] discount rule implementation
-      Theo is reimplementing discount rules in TypeScript for client-side
-      preview, while Ivo is building a server-side discount-rules engine;
-      parallel discount logic that must stay in sync.
-      parties: theo, ivo · confidence 0.6
-
-  worth a question (soft — rests on an inference)
-    • [teamwide-divergence] pricing service architecture and timing
-      Ivo assumes pricing stays in-process (shipping next week); Mara extracts
-      it before freeze; Priya locks a release freeze starting Monday — the
-      three timelines can't all be true.
-      parties: ivo, mara, priya, theo · confidence 0.4
-      → crux (inline): pricing service architecture and timing
+    • [duplication] discount rules implementation in two codebases
+      Ivo is building discount rules in the orders service while Theo
+      reimplements the same rules in TypeScript on the checkout client —
+      duplication and a long-term sync burden.
+      parties: ivo, theo · confidence 1.0
+    • [teamwide-divergence] pricing package refactoring timeline
+      Ivo expects pricing in-process through next week; Mara plans to extract
+      and delete it before the freeze; Priya's two-week freeze starts Monday —
+      the three timelines can't all hold.
+      parties: ivo, mara, priya · confidence 0.6
+      → crux (inline): pricing package refactoring timeline
         ↳ as ivo frames it / as the other parties frame it
 ```
 
 Three things to notice: the **collision is caught before the standup** that
 would otherwise have surfaced it; the simple conflicts are **FYI'd** while the
-genuine values choice (the freeze date) is **routed to a crux** and pre-staged
-as an either/or — friction in the right spot, not everywhere; and it's **useful
-at N=1** too — `ettle standup testdata/solo/dana.md` catches one person's own
-stale assumption. Add `--show-atoms` to any run to see exactly what crosses the
-boundary (typed atoms, never the raw session).
+genuine values choice (the freeze timeline) is **routed to a crux** and
+pre-staged as an either/or — friction in the right spot, not everywhere; and
+it's **useful at N=1** too — `ettle standup testdata/solo/dana.md` catches one
+person's own stale assumption. (The detector is stochastic, so wording and the
+exact knot set shift run-to-run; a knot resting only on an inference is surfaced
+as a *question* — "worth a question" — rather than asserted as fact.) Add
+`--show-atoms` to any run to see exactly what crosses the boundary (typed atoms,
+never the raw session).
 
 Going distributed and secure is opt-in behind the same seams:
 
