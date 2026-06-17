@@ -4,7 +4,7 @@ A rolling shared horizon of minimized surprise for a high-trust team whose membe
 
 Each person's agent models its own human (the single-user layer). It also keeps a directed model of each teammate, from its own vantage. A merged collective layer reconciles those models and surfaces the deltas that would otherwise become a surprise — a dependency someone is about to break, two people converging on the same work, an assumption one person holds that another has quietly abandoned. The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
 
-It is easy to misread as "a shared dashboard." It is the opposite: your raw notes never leave your machine (only typed atoms cross), there is no shared channel humans read (your own agent surfaces only what's relevant to *you*), and friction is kept on purpose — but only at the genuine choices a human should own.
+It is easy to misread as "a shared dashboard." It is the opposite: your raw notes are never transmitted verbatim — your agent distills them into typed atoms and only those cross; there is no shared channel humans read (your own agent surfaces only what's relevant to *you*); and friction is kept on purpose — but only at the genuine choices a human should own. (The distillation is a model judgment, not a verified redaction — what an atom *contains* is the real privacy surface, not the raw note. See [SECURITY.md](SECURITY.md).)
 
 ```mermaid
 flowchart TB

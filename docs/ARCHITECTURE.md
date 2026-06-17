@@ -4,9 +4,13 @@ ettle is easy to misread as "a shared dashboard of what everyone's doing." It is
 the opposite. Three things make it unintuitive, and the diagram below is built to
 make them obvious:
 
-1. **Your raw notes never leave your machine.** Only *typed atoms* cross — short,
-   structured deltas (an intent, an assumption, a commitment, a dependency). The
-   panopticon version streams transcripts; ettle distills first.
+1. **Your raw notes are never transmitted verbatim.** Only *typed atoms* cross —
+   short, structured deltas (an intent, an assumption, a commitment, a
+   dependency). The panopticon version streams transcripts; ettle distills first.
+   Caveat worth stating plainly: distillation is a model judgment, not a verified
+   redaction — a sensitive sentence *can* be distilled into a coordination-relevant
+   atom. The atom contents are the privacy surface, and (roadmap) a `--show-atoms`
+   preview + structural caps are how that surface gets enforced rather than trusted.
 2. **There is no shared channel humans read.** The collective layer is for the
    *agents*. Each person's own agent surfaces back to them only the knots
    relevant to *them*. You never read the team feed; your agent does.

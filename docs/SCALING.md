@@ -30,7 +30,15 @@ so they're designed in, not bolted on.
 So the whole game is: **keep the number of reconciles bounded, and keep emits
 gated on genuine surprise.**
 
-## The firewalls (structural, not just rate limits)
+## The firewalls (design requirements for a loop that does not yet exist)
+
+These are written as "firewalls" for memorability, but be clear-eyed: with one
+exception (firewall 2, which holds trivially today because there is no emit-back
+path), **none of these is built.** They are the requirements the live loop must
+meet *before* it ships — design-time commitments, not installed protections. The
+hardest of them (firewall 1's single shared reconciler) is also an unsolved
+distributed-systems problem in its own right (leader election, failover, and a
+reconciler that necessarily sees every atom — a privacy-concentration point).
 
 ### 1. Atoms flow up, knots flow down — reconcile is O(1)/tick, not O(M)
 
@@ -44,13 +52,15 @@ carries atoms up and knots down; the expensive step happens once.
 
 ### 2. L3 emits knots, never atoms — the loop-breaker
 
-**Hard invariant.** The only source of atoms is human-paced reasoning (L1).
-Reconciliation produces knots *for humans to see*; it never writes a new atom
-back onto the bus. This makes a machine-speed cascade **structurally
-impossible**: the only thing that can inject a new atom is a human actually
-deciding something, which is slow and self-limiting. A surfaced knot may
-eventually cause a human to change course → a new atom — but that's
-human-paced, exactly the rate the system is supposed to run at.
+**Hard invariant (the design intent; the live loop that would test it is unbuilt
+— see the status note at the end).** The only source of atoms is human-paced
+reasoning (L1). Reconciliation produces knots *for humans to see*; it never writes
+a new atom back onto the bus. The point is to **throttle any cascade to human
+decision rate** rather than claim one is impossible: a surfaced knot can still
+cause a human to change course → a new atom, so the loop isn't broken, it's
+clamped to the rate a person actually decides things — exactly the rate the system
+is supposed to run at. (It's "structurally impossible" only in the trivial sense
+that today's one-shot CLI has no emit-back path at all.)
 
 ### 3. Surprise-gated emit, decided locally (no tokens to not-spend tokens)
 
