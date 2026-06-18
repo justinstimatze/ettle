@@ -354,8 +354,70 @@ func (d *Detector) Reconcile(ctx context.Context, atoms []Atom) ([]Knot, error) 
 // structurally blind to — one shared assumption / deadline / priority MOST of
 // the team operates on while at least one person diverges.
 func (d *Detector) ReconcileTeamwide(ctx context.Context, atoms []Atom) ([]Knot, error) {
+	// A team-wide divergence ("most share X, at least one diverges") is undefined
+	// below three people — there is no "most" of two. Short-circuit before paying
+	// for a model call that can only produce sub-quorum knots filterTeamwideQuorum
+	// would drop anyway. This makes the quorum invariant cost-free for the common
+	// small-group case (and is why the intra-group baselines in the superposition
+	// sim spend nothing on a pass that cannot fire).
+	if distinctAuthors(atoms) < 3 {
+		return nil, nil
+	}
 	sys := "You are the collective coordination layer doing a TEAM-WIDE pass. Pairwise checks miss a whole class of knot: a single assumption, deadline, priority, scope, or fact that MOST of the team is implicitly operating on, while at least one person's atoms hold it DIFFERENTLY. These surface only when you look across EVERYONE at once. Be strict: it must be something several people share AND someone diverges on (not an ordinary two-person collision). Most teams have at most one such knot; many have none. List EVERY involved person (the many who share AND the one(s) who diverge) in parties. about = a short noun phrase naming the shared thing in dispute (e.g. 'launch deadline'). confidence = the lowest confidence among the atoms the knot depends on."
-	return d.detectKnotsSys(ctx, sys, atoms, "report_knots", teamwideEnum, teamwideKinds, false)
+	knots, err := d.detectKnotsSys(ctx, sys, atoms, "report_knots", teamwideEnum, teamwideKinds, false)
+	if err != nil {
+		return nil, err
+	}
+	return filterTeamwideQuorum(knots), nil
+}
+
+// filterTeamwideQuorum drops teamwide-divergence knots naming fewer than three
+// DISTINCT people. "Most of the team shares X while at least one diverges" cannot
+// be satisfied by two people — that is an ordinary pairwise collision, which the
+// pairwise pass already owns. A 2-party "teamwide" knot is therefore definitionally
+// a mislabeled pairwise, and in practice the fabrication mode the superposition sim
+// exposed: the model bridges two unrelated people on a polysemous shared word and
+// stamps it team-wide. A genuine teamwide knot has >=3 parties by construction, so
+// this gate cannot cost recall on a real one. Deterministic — no model call. Only
+// the teamwide kind is gated; this filter is a no-op on any other kind.
+func filterTeamwideQuorum(knots []Knot) []Knot {
+	out := knots[:0:0] // fresh backing array; never alias the input
+	for _, k := range knots {
+		if k.Kind == KindTeamwideDivergence && distinctPeople(k.Parties) < 3 {
+			continue
+		}
+		out = append(out, k)
+	}
+	return out
+}
+
+// distinctAuthors counts the distinct atom authors, folding duplicates via
+// SamePerson — the team size the team-wide pass sees.
+func distinctAuthors(atoms []Atom) int {
+	froms := make([]string, 0, len(atoms))
+	for _, a := range atoms {
+		froms = append(froms, a.From)
+	}
+	return distinctPeople(froms)
+}
+
+// distinctPeople counts the distinct people named in parties, folding duplicates
+// via SamePerson (case/space-insensitive) so "Alice"/"alice " count once.
+func distinctPeople(parties []string) int {
+	var distinct []string
+	for _, p := range parties {
+		seen := false
+		for _, d := range distinct {
+			if SamePerson(d, p) {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			distinct = append(distinct, p)
+		}
+	}
+	return len(distinct)
 }
 
 // ReconcileSelf is the N=1 pass. The pairwise and team-wide passes look only
