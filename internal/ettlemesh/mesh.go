@@ -166,25 +166,53 @@ type Knot struct {
 	Samples int
 }
 
-// firmVoteFraction is the share of voting samples that must surface a knot for it
-// to be ASSERTED rather than merely asked about. The separability diagnostic
-// (eval --separability) established that recurrence-FREQUENCY discriminates real
-// from fabricated knots where confidence does not: fabricated cross-group knots
-// recur in <=~0.17 of runs while genuine ones recur far more, so a >=0.5 (majority
-// of samples) bar asserts the stable knots and routes the flickery/spurious ones
-// to "worth a question" instead of dropping them (recall is preserved; the
-// asserted set is cleaned). 0.5 = strict majority for samples>=3.
-const firmVoteFraction = 0.5
+// firmVoteFractionDefault is the share of voting samples that must surface a knot
+// for it to be ASSERTED rather than merely asked about, for any kind without a
+// per-kind override below. The separability diagnostic (eval --separability)
+// established that recurrence-FREQUENCY discriminates real from fabricated knots
+// where confidence does not: fabricated cross-group knots recur in <=~0.17 of runs
+// while genuine ones recur far more, so a >=0.5 (majority of samples) bar asserts
+// the stable knots and routes the flickery/spurious ones to "worth a question"
+// instead of dropping them (recall is preserved; the asserted set is cleaned).
+// 0.5 = strict majority for samples>=3.
+const firmVoteFractionDefault = 0.5
+
+// firmVoteFractionByKind overrides the default bar for kinds whose GENUINE knots
+// recur at a different rate. The separability batch showed the recurrence
+// distributions are not uniform across kinds: fabricated cross-group knots cluster
+// at <=~0.17 recurrence REGARDLESS of kind, but real knots separate by kind — a
+// real collision (a shared symbol two people both touch every run) recurs near
+// every sample, whereas a real decision-rights knot ("who owns the timeline call")
+// is genuinely flickery, surfacing in only ~0.3 of samples even when real. Under
+// the uniform 0.5 bar that flicker demoted real decision-rights knots to soft
+// (measured: auth-migration K2 recall 1.00->0.50 at samples=5). A lower per-kind
+// bar asserts them while staying clear of the ~0.17 fabrication ceiling.
+// decision-rights is NOT a cross-group fabrication vector in the corpus (those are
+// collision/teamwide-divergence), so lowering its bar does not raise
+// firm-fabrication. This map is the concrete seed of the Phase-3 calibration loop:
+// today the cut points are hand-set from the diagnostic batch; the loop will LEARN
+// them per kind from accumulated human verdicts.
+var firmVoteFractionByKind = map[string]float64{
+	KindDecisionRights: 0.3,
+}
+
+// firmVoteFractionFor returns the per-kind firm bar, falling back to the default.
+func firmVoteFractionFor(kind string) float64 {
+	if f, ok := firmVoteFractionByKind[kind]; ok {
+		return f
+	}
+	return firmVoteFractionDefault
+}
 
 // Firm reports whether a knot is solid enough to assert rather than merely ask
-// about. With voting (Samples>0) the signal is recurrence frequency — a knot a
-// majority of independent samples surfaced is firm; a flickery one is soft. In the
+// about. With voting (Samples>0) the signal is recurrence frequency — a knot that
+// recurs at or above its per-kind bar is firm; a flickery one is soft. In the
 // single-run path (no votes) it falls back to confidence: knots resting on
 // inferred atoms (below the threshold) are soft. Soft knots are surfaced as
 // questions, never dropped.
 func (k Knot) Firm() bool {
 	if k.Samples > 0 {
-		return float64(k.Votes) >= firmVoteFraction*float64(k.Samples)
+		return float64(k.Votes) >= firmVoteFractionFor(k.Kind)*float64(k.Samples)
 	}
 	return k.Confidence >= 0.5
 }

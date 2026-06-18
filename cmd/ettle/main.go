@@ -81,7 +81,7 @@ func main() {
 	transportName := fs.String("transport", "inproc", "atom transport: inproc | nats (nats needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
-	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — majority-recurring knots are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
+	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — knots recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
 	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
@@ -254,7 +254,7 @@ func surface(ctx context.Context, me string, knots []ettlemesh.Knot, atoms []ett
 	}
 
 	if len(soft) > 0 {
-		section("worth a question (soft — surfaced by a minority of samples, or rests on an inference)")
+		section("worth a question (soft — recurred too rarely across samples to assert, or rests on an inference)")
 		for _, k := range soft {
 			printKnot(k)
 		}

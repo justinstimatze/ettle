@@ -332,6 +332,32 @@ func TestFirm(t *testing.T) {
 	if (Knot{Votes: 1, Samples: 12}).Firm() {
 		t.Error("1/12 (fabrication-frequency) should be SOFT")
 	}
+	// Per-kind bar: a flickery-but-real decision-rights knot (2/5 = 0.4) clears its
+	// lowered 0.3 bar and asserts, where the same recurrence at the default bar is
+	// soft. This is the recall fix for auth-migration K2.
+	if !(Knot{Kind: KindDecisionRights, Votes: 2, Samples: 5}).Firm() {
+		t.Error("decision-rights 2/5 should be FIRM at its lowered 0.3 bar")
+	}
+	if (Knot{Kind: KindCollision, Votes: 2, Samples: 5}).Firm() {
+		t.Error("collision 2/5 should be SOFT at the default 0.5 bar")
+	}
+	// The lowered bar still clears the ~0.17 fabrication ceiling: a single stray
+	// sample (1/5 = 0.2) does NOT assert even for decision-rights.
+	if (Knot{Kind: KindDecisionRights, Votes: 1, Samples: 5}).Firm() {
+		t.Error("decision-rights 1/5 should be SOFT — below the 0.3 bar, in the fabrication band")
+	}
+}
+
+func TestFirmVoteFractionFor(t *testing.T) {
+	if got := firmVoteFractionFor(KindDecisionRights); got != 0.3 {
+		t.Errorf("decision-rights bar = %v, want 0.3", got)
+	}
+	if got := firmVoteFractionFor(KindCollision); got != firmVoteFractionDefault {
+		t.Errorf("collision bar = %v, want default %v", got, firmVoteFractionDefault)
+	}
+	if got := firmVoteFractionFor("anything-unknown"); got != firmVoteFractionDefault {
+		t.Errorf("unknown kind bar = %v, want default %v", got, firmVoteFractionDefault)
+	}
 }
 
 func TestSamePerson(t *testing.T) {
