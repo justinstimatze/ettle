@@ -59,4 +59,6 @@ models, carries them across two rounds, and emits only the surprise-gated deltas
 The NATS bus and the gemot crux are wired behind seams; the in-process + inline
 fallbacks let it run with no infrastructure at all. See the [README status](../README.md#status) for what is
 built vs deliberately unbuilt, and [CONCEPT.md](CONCEPT.md) for the model and the
-design invariants.
+design invariants. To run it for a team — the bus, the gemot endpoint, the
+secrets they need, and what not to turn on until calibration lands — see
+[DEPLOY.md](DEPLOY.md).
