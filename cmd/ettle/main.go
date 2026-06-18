@@ -451,9 +451,11 @@ func runEval(args []string) error {
 	samples := fs.Int("samples", 3, "voting samples for the --ab voted condition")
 	ab := fs.Bool("ab", false, "also run the voted condition and compare with McNemar")
 	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not knot detection)")
+	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
+	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
-		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...")
+		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...\n       ettle eval --stability [--runs K] <corpus.json>...")
 	}
 	key := apiKey()
 	if key == "" {
@@ -466,6 +468,9 @@ func runEval(args []string) error {
 
 	if *leak {
 		return runLeakEval(ctx, det, fs.Args())
+	}
+	if *stability {
+		return runStabilityEval(ctx, det, fs.Args(), *runs)
 	}
 
 	// A/B discordant pairs are pooled ACROSS corpora: per-corpus, b+c is bounded
@@ -495,6 +500,15 @@ func runEval(args []string) error {
 		}
 		s := eval.Adjudicate(firm, soft, c.Expected)
 		printScore("single-shot", s)
+		// Specificity (simulation #1): when a corpus has NO real knots (RecallTotal
+		// counts the real labels), the correct horizon is empty. Recall/precision
+		// are degenerate here, so the meaningful headline is how much got surfaced
+		// anyway — target 0. A firm knot is a false alarm; a soft one is at least
+		// hedged as a question. Any trap hit already prints on the single-shot line.
+		if s.RecallTotal == 0 {
+			fmt.Printf("    %-22s %d firm + %d soft surfaced on independent work (target 0)\n",
+				"specificity", s.TP+s.FP, s.WouldAsk)
+		}
 		printCalibration(append(append([]ettlemesh.Knot{}, firm...), soft...), c.Expected)
 
 		if *ab {
@@ -533,6 +547,70 @@ func runEval(args []string) error {
 		fmt.Printf("    precision: single FP=%d, voted FP=%d (descriptive — not a paired test)\n", poolFPSingle, poolFPVoted)
 	}
 	return nil
+}
+
+// runStabilityEval is the determinism harness (simulation #5). It runs each
+// corpus K times and measures how much the SET of surfaced knots agrees run to
+// run — the identity being (kind, parties), not wording, so a reworded
+// explanation does not count as a different knot. A tool people check every
+// morning must surface the same horizon from the same input; flicker is a trust
+// failure independent of any single run's correctness. Cost: K detection cycles
+// per corpus (one Distill per person per run); the scoring is pure and
+// unit-tested. Default model is haiku to keep the repeated runs cheap.
+func runStabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs int) error {
+	if runs < 2 {
+		return fmt.Errorf("--stability needs --runs >= 2 (got %d): with one run there are no pairs to compare", runs)
+	}
+	for _, path := range paths {
+		c, err := eval.LoadCorpus(path)
+		if err != nil {
+			return fmt.Errorf("load corpus %s: %w", path, err)
+		}
+		people, err := loadParticipants(c.Inputs)
+		if err != nil {
+			return fmt.Errorf("corpus %s inputs: %w", c.Name, err)
+		}
+		fmt.Printf("\n  ══ %s ══ (%d inputs, %d runs)\n", c.Name, len(c.Inputs), runs)
+
+		var runKeys []map[string]bool
+		failed := false
+		for i := 0; i < runs; i++ {
+			firm, soft, err := detectFor(ctx, det, people, 1)
+			if err != nil {
+				fmt.Printf("    ⚠ run %d failed (corpus skipped): %v\n", i+1, err)
+				failed = true
+				break
+			}
+			keys := eval.RunKeys(firm, soft)
+			runKeys = append(runKeys, keys)
+			fmt.Printf("    run %d: %d distinct knots\n", i+1, len(keys))
+		}
+		if failed {
+			continue
+		}
+
+		res := eval.ComputeStability(runKeys)
+		fmt.Printf("    %-22s mean pairwise Jaccard %.2f · worst pair %.2f (1.00 = identical horizon every run)\n",
+			"stability", res.MeanJaccard, res.MinJaccard)
+		if flick := res.Flickering(); len(flick) > 0 {
+			fmt.Printf("    %-22s %d knot(s) appeared in some runs but not all:\n", "FLICKER", len(flick))
+			for _, k := range flick {
+				fmt.Printf("      %s  (in %d/%d runs)\n", prettyKey(k), res.Frequency[k], runs)
+			}
+		} else {
+			fmt.Printf("    %-22s every surfaced knot appeared in all %d runs\n", "stable", runs)
+		}
+	}
+	return nil
+}
+
+// prettyKey turns a stability key ("kind\x00a+b") back into readable form.
+func prettyKey(key string) string {
+	parts := strings.SplitN(key, "\x00", 2)
+	if len(parts) != 2 {
+		return key
+	}
+	return fmt.Sprintf("[%s] %s", parts[0], strings.ReplaceAll(parts[1], "+", ", "))
 }
 
 // runLeakEval is the privacy-boundary harness: for each case it distills the
@@ -986,6 +1064,13 @@ func runCapture(args []string) error {
 func loadParticipants(paths []string) ([]participant, error) {
 	var out []participant
 	for _, path := range paths {
+		// Corpus metadata is never a person. A `standup testdata/dir/*.md` glob
+		// will sweep up PROVENANCE.md / README.md sitting beside the notes; left
+		// in, they become a phantom participant AND their text (which often
+		// describes the eval itself) contaminates the distilled atoms. Skip them.
+		if base := strings.ToUpper(filepath.Base(path)); base == "PROVENANCE.MD" || base == "README.MD" {
+			continue
+		}
 		if strings.EqualFold(filepath.Ext(path), ".jsonl") {
 			s, err := capture.Read(path)
 			if err != nil {

@@ -1,0 +1,32 @@
+{
+  "name": "independent-work",
+  "inputs": [
+    "testdata/independent/ana.md",
+    "testdata/independent/ben.md",
+    "testdata/independent/cleo.md",
+    "testdata/independent/dao.md"
+  ],
+  "expected_knots": [
+    {
+      "id": "D1",
+      "parties": ["ana", "dao"],
+      "about": "both mention a 'cache' — but Ana's is an on-device SQLite offline cache and Dao's is the CI build cache; no shared resource, no dependency",
+      "keywords": ["cache", "duplicate", "shared"],
+      "real": false
+    },
+    {
+      "id": "D2",
+      "parties": ["ana", "ben"],
+      "about": "both mention a 'rename' — Ben renames marketing-site URL slugs, unrelated to anything Ana touches; not a breaking-change collision",
+      "keywords": ["rename", "slug", "breaking", "signature"],
+      "real": false
+    },
+    {
+      "id": "D3",
+      "parties": ["ana", "ben", "dao"],
+      "about": "three different unrelated dates (Ana's Friday demo, Ben's end-of-next-week SEO merge, Dao's no-deadline maintenance) — surface 'deadline' overlap with no shared timeline to diverge on",
+      "keywords": ["deadline", "friday", "timeline", "next week"],
+      "real": false
+    }
+  ]
+}
