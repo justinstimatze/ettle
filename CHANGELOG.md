@@ -2,8 +2,34 @@
 
 ## Unreleased
 
+## v0.1.0 — 2026-06-18
+
 First runnable cut of the multiplayer coordination PoC.
 
+- **MCP server** (`ettle mcp`, `internal/mcpserver`) — serves the coordination
+  engine over the Model Context Protocol so any MCP client (Claude Code, Cursor)
+  drives it directly: `ettle_emit` distills a person's notes server-side through
+  the privacy boundary (stores only atoms, drops the raw notes), `ettle_horizon`
+  reconciles the team's atoms into firm/soft knots filtered to `me`, and
+  `ettle_self_check` runs the N=1 self pass with no team. MCP is the consent-clean
+  surface a meeting bot is not (each agent emits only its own person; nothing
+  harvested — see ADOPTION.md). Depends on a narrow `reconciler` interface so the
+  handlers are tested key-free, including a full in-memory MCP round-trip.
+- **`file://` directory transport** (`internal/transport/dir.go`) — zero-infra
+  multiplayer over a folder a team already shares (Dropbox/Drive/git/Syncthing):
+  each participant writes only its own `<root>/.ettle/<name>.atoms.jsonl`,
+  reconcile reads the folder, no broker to run. Replace-current storage (trivial
+  clean-exit, no longitudinal pile-up); atomic temp-rename writes; lenient parse;
+  `.ettle/` namespacing + conflict-copy skip; filename-authoritative identity; and
+  a Coverage/staleness roster so a partially-synced horizon is never read as a bare
+  "all clear". NATS stays a scheme-selected option (`file://` | `nats://` |
+  inproc), the `file://` parse single-sourced so it can't drift across build tags.
+- **Per-kind firm bar** — recurrence-voting ranks knots firm (assert) vs soft
+  (ask), and the bar is now per-kind: a genuinely flickery `decision-rights` knot
+  asserts at a lower recurrence (0.3) than the default (0.5), staying clear of the
+  fabrication floor. The hand-set seed of the Phase-3 calibration loop. (The
+  separability diagnostic established recurrence-frequency, not model confidence,
+  is what discriminates real knots from fabricated ones.)
 - **L2 — the directed-model layer — is built (structural form).** The pipeline used
   to skip straight from distill (L1) to a flat-pool reconcile (L3); the documented
   centerpiece between them, the per-pair directed models, was specced but absent.
