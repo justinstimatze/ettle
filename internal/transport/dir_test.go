@@ -230,6 +230,27 @@ func TestIsConflictCopy(t *testing.T) {
 	if isConflictCopy("alice.atoms.jsonl") {
 		t.Error("a clean filename is not a conflict copy")
 	}
+	// A participant whose name merely contains "conflict" must NOT be mistaken for
+	// a sync conflict-copy and silently dropped (the over-greedy-substring bug).
+	if isConflictCopy("conflict-resolution.atoms.jsonl") {
+		t.Error("a name containing 'conflict' is not a conflict copy")
+	}
+}
+
+// TestDirBusKeepsParticipantNamedLikeConflict locks the silent-drop fix end to
+// end: a participant whose folded name contains "conflict" is collected, not
+// skipped.
+func TestDirBusKeepsParticipantNamedLikeConflict(t *testing.T) {
+	root := t.TempDir()
+	b, _ := NewDirBus(root)
+	ctx := context.Background()
+	if err := b.Publish(ctx, Envelope{Participant: "conflict-team", Atoms: []ettlemesh.Atom{atom("x")}}); err != nil {
+		t.Fatal(err)
+	}
+	envs, _ := b.Collect(ctx)
+	if len(envs) != 1 || envs[0].Participant != "conflict-team" {
+		t.Fatalf("a participant named like 'conflict' must survive Collect, got %+v", envs)
+	}
 }
 
 func hasWarning(ws []string, substr string) bool {

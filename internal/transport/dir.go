@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,7 +31,12 @@ import (
 // Envelope.Sig. And a teammate whose file never reached this folder is invisible
 // (Coverage reports who/how-stale among files PRESENT, not an out-of-band roster).
 type DirBus struct {
-	dir      string     // <root>/.ettle
+	dir string // <root>/.ettle
+
+	// mu guards the read-side state below. Publish needs no lock (it only writes
+	// its own file, filesystem-atomically), but Collect/Coverage/Warnings share
+	// this state and may be called concurrently once DirBus backs the MCP horizon.
+	mu       sync.Mutex
 	warnings []string   // non-fatal Collect issues, surfaced via Warnings()
 	lastEnvs []Envelope // envelopes from the last Collect, for Coverage to reuse
 }
@@ -113,9 +119,13 @@ func (d *DirBus) Publish(_ context.Context, env Envelope) error {
 // participant (the PROVENANCE.md glob-junk lesson, in transport form).
 func isConflictCopy(name string) bool {
 	low := strings.ToLower(name)
+	// Match the specific markers real sync tools emit — NOT a bare "conflict"
+	// substring, which would silently drop a participant whose name happened to
+	// contain that word.
 	for _, mark := range []string{
 		"conflicted copy", // Dropbox
-		"conflict",        // Drive / generic ("case conflict", "sync conflict")
+		"case conflict",   // Google Drive
+		"sync conflict",   // generic
 		".sync-conflict-", // Syncthing
 	} {
 		if strings.Contains(low, mark) {
@@ -135,8 +145,10 @@ func (d *DirBus) Collect(_ context.Context) ([]Envelope, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dir transport: glob %s: %w", d.dir, err)
 	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	var out []Envelope
-	d.warnings = d.warnings[:0]
+	d.warnings = nil
 	for _, path := range matches {
 		base := filepath.Base(path)
 		if isConflictCopy(base) {
@@ -203,6 +215,8 @@ type MemberStatus struct {
 // type-asserts for it. This is the false-all-clear guard: surface the roster +
 // staleness so "clear" is never shown bare over a partially-synced folder.
 func (d *DirBus) Coverage() []MemberStatus {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	now := time.Now().UTC()
 	out := make([]MemberStatus, 0, len(d.lastEnvs))
 	for _, env := range d.lastEnvs {
@@ -219,6 +233,14 @@ func (d *DirBus) Coverage() []MemberStatus {
 	return out
 }
 
-// Warnings returns and clears the non-fatal issues seen on the last Collect/
-// Coverage pass (skipped conflict-copies, unparseable files, identity mismatches).
-func (d *DirBus) Warnings() []string { return d.warnings }
+// Warnings returns a copy of the non-fatal issues seen on the last Collect
+// (skipped conflict-copies, unparseable files, identity mismatches). A copy, so a
+// held result isn't mutated by a subsequent Collect.
+func (d *DirBus) Warnings() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.warnings) == 0 {
+		return nil
+	}
+	return append([]string(nil), d.warnings...)
+}
