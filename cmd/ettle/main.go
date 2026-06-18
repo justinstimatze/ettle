@@ -824,6 +824,16 @@ func runSeparabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []s
 			"frequency median", rep.RealFreqMedian, k, rep.FabFreqMedian, k, majority)
 		fmt.Printf("    %-26s real %.2f  vs  fabricated %.2f  (does a confidence threshold split them?)\n",
 			"confidence mean", rep.RealConfMean, rep.FabConfMean)
+
+		// Project, offline from these same K runs, what voting would fabricate at
+		// each samples size — the tuning curve, free of new calls. Seed fixed for a
+		// reproducible estimate.
+		curve := eval.ProjectVotingCurve(jointRuns, groupA, groupB, []int{1, 3, 5, 7, 9}, 4000, 1)
+		fmt.Printf("    projected cross-group fabrication per voted detection (offline from %d runs):\n", k)
+		for _, p := range curve {
+			fmt.Printf("      samples=%d (maj %d)   %.3f knots/detection  [95%% CI %.2f–%.2f]\n",
+				p.Samples, p.Majority, p.FabMean, p.FabCILow, p.FabCIHigh)
+		}
 	}
 	return nil
 }

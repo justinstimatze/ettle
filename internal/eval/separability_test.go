@@ -70,3 +70,35 @@ func TestComputeSeparabilityDedupesWithinRun(t *testing.T) {
 		t.Errorf("mean conf should fold both (0.6,0.8)=0.7, got %.2f", rep.Real[0].MeanConf)
 	}
 }
+
+func TestProjectVotingCurve(t *testing.T) {
+	a := map[string]bool{"alice": true, "bob": true}
+	b := map[string]bool{"cleo": true, "dao": true}
+	fab := ettlemesh.Knot{Kind: "collision", Parties: []string{"alice", "dao"}, Confidence: 0.6}
+	real := ettlemesh.Knot{Kind: "collision", Parties: []string{"alice", "bob"}, Confidence: 0.9}
+	// 10 runs: fabricated knot in 2/10 (low freq), real knot in all 10.
+	var runs [][]ettlemesh.Knot
+	for i := 0; i < 10; i++ {
+		run := []ettlemesh.Knot{real}
+		if i < 2 {
+			run = append(run, fab)
+		}
+		runs = append(runs, run)
+	}
+	pts := ProjectVotingCurve(runs, a, b, []int{1, 5}, 2000, 42)
+	if len(pts) != 2 {
+		t.Fatalf("want 2 points, got %d", len(pts))
+	}
+	// samples=1 reproduces the raw single-shot fabrication mean (~0.2).
+	if pts[0].Samples != 1 || pts[0].FabMean < 0.1 || pts[0].FabMean > 0.3 {
+		t.Errorf("samples=1 should reproduce raw mean ~0.2, got %.3f", pts[0].FabMean)
+	}
+	// samples=5 (majority 3): a 2/10 knot almost never clears the vote → ~0.
+	if pts[1].Samples != 5 || pts[1].Majority != 3 {
+		t.Fatalf("samples=5 majority should be 3, got %d", pts[1].Majority)
+	}
+	// P(>=3 of 5 | p=0.2) ≈ 0.058, so expect a ~3× reduction well under 0.1.
+	if pts[1].FabMean >= pts[0].FabMean || pts[1].FabMean > 0.1 {
+		t.Errorf("voting should crush a 2/10 fabrication: s1=%.3f s5=%.3f", pts[0].FabMean, pts[1].FabMean)
+	}
+}

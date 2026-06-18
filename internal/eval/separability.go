@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"math/rand"
 	"sort"
 	"strings"
 
@@ -182,4 +183,102 @@ func meanConf(s []KnotStat) float64 {
 		sum += k.MeanConf
 	}
 	return sum / float64(len(s))
+}
+
+// VotePoint is the projected cross-group fabrication under a samples=S strict-
+// majority vote, estimated offline from the K observed single-shot runs.
+type VotePoint struct {
+	Samples             int
+	Majority            int
+	FabMean             float64 // expected fabricated cross-group knots per voted detection
+	FabCILow, FabCIHigh float64 // 2.5/97.5 percentile bootstrap interval
+}
+
+// ProjectVotingCurve estimates, WITHOUT new model calls, what ReconcileVoted would
+// fabricate at each samples size S. We already paid for K independent single-shot
+// joint runs; those ARE the empirical distribution of one detection's output. To
+// project samples=S, Monte-Carlo it: draw S of the K runs (with replacement),
+// keep knots that recur in a strict majority (S/2+1) — exactly voteKnots' identity
+// (KnotKey: kind+parties) — and count cross-boundary survivors. Repeat `bootstraps`
+// times; report the mean and a percentile interval. samples=1 reproduces the raw
+// single-shot fabrication mean (a built-in sanity check). The interval is Monte-
+// Carlo estimation uncertainty given K runs, NOT a claim that K runs is plenty —
+// read it alongside the underlying K.
+func ProjectVotingCurve(runs [][]ettlemesh.Knot, groupA, groupB map[string]bool, sampleSizes []int, bootstraps int, seed int64) []VotePoint {
+	k := len(runs)
+	if k == 0 || bootstraps <= 0 {
+		return nil
+	}
+	// Precompute each run's distinct knot keys and which keys are cross-boundary
+	// (classification is a function of parties, so a key's class is run-invariant).
+	runKeys := make([]map[string]bool, k)
+	crossKey := map[string]bool{}
+	for i, run := range runs {
+		s := map[string]bool{}
+		for _, kn := range run {
+			key := KnotKey(kn)
+			s[key] = true
+			if ClassifyKnot(kn.Parties, groupA, groupB) == ClassCrossBoundary {
+				crossKey[key] = true
+			}
+		}
+		runKeys[i] = s
+	}
+
+	rng := rand.New(rand.NewSource(seed))
+	var points []VotePoint
+	for _, S := range sampleSizes {
+		if S < 1 {
+			continue
+		}
+		maj := S/2 + 1
+		counts := make([]float64, bootstraps)
+		for b := 0; b < bootstraps; b++ {
+			freq := map[string]int{}
+			for d := 0; d < S; d++ {
+				for key := range runKeys[rng.Intn(k)] {
+					freq[key]++
+				}
+			}
+			fab := 0
+			for key, f := range freq {
+				if f >= maj && crossKey[key] {
+					fab++
+				}
+			}
+			counts[b] = float64(fab)
+		}
+		mean, lo, hi := meanAndPercentileCI(counts)
+		points = append(points, VotePoint{Samples: S, Majority: maj, FabMean: mean, FabCILow: lo, FabCIHigh: hi})
+	}
+	return points
+}
+
+// meanAndPercentileCI returns the mean and the 2.5/97.5 percentile bounds of xs.
+func meanAndPercentileCI(xs []float64) (mean, lo, hi float64) {
+	n := len(xs)
+	if n == 0 {
+		return 0, 0, 0
+	}
+	cp := append([]float64(nil), xs...)
+	sort.Float64s(cp)
+	var sum float64
+	for _, x := range cp {
+		sum += x
+	}
+	mean = sum / float64(n)
+	lo = cp[pctIndex(n, 0.025)]
+	hi = cp[pctIndex(n, 0.975)]
+	return mean, lo, hi
+}
+
+func pctIndex(n int, p float64) int {
+	i := int(p * float64(n))
+	if i < 0 {
+		return 0
+	}
+	if i >= n {
+		return n - 1
+	}
+	return i
 }
