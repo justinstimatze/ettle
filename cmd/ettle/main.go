@@ -83,9 +83,11 @@ func main() {
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 1, "run the reconcile passes N times and keep only knots that recur across a majority (stabilizes the stochastic detector; costs N× the reconcile calls)")
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
+	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
+	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(os.Args[2:])
 
-	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, paths: fs.Args()}
+	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: *ground, groundModel: *groundModel, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
 		os.Exit(1)
@@ -101,6 +103,8 @@ type runConfig struct {
 	me, model, gemotURL, transport string
 	insecureLocal                  bool
 	showAtoms                      bool
+	ground                         bool
+	groundModel                    string
 	gemotTimeout                   time.Duration
 	samples                        int
 	paths                          []string
@@ -134,6 +138,8 @@ func run(cfg runConfig) error {
 	// multi-person run (and re-bill every prior call).
 	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, cfg.model)
+	det.Ground = cfg.ground
+	det.GroundModel = cfg.groundModel
 
 	bus, err := busFor(cfg.transport, cfg.insecureLocal)
 	if err != nil {
@@ -188,6 +194,12 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("reconcile self: %w", err)
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
+	// Grounding pass: drop cross-person knots whose parties don't share a concrete
+	// referent (a no-op when det.Ground is off — set via --no-ground).
+	knots, err = det.GroundKnots(ctx, knots, atoms)
+	if err != nil {
+		return fmt.Errorf("ground: %w", err)
+	}
 
 	// 4+5: resolve contested knots, then surface to --me.
 	var resolver crux.Resolver = crux.Inline{}
@@ -432,6 +444,12 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 		return nil, nil, err
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
+	// Grounding pass: drop cross-person knots whose parties don't share a concrete
+	// referent (a no-op when det.Ground is off — set via --no-ground).
+	knots, err = det.GroundKnots(ctx, knots, atoms)
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, k := range knots {
 		if k.Firm() {
 			firm = append(firm, k)
@@ -454,6 +472,8 @@ func runEval(args []string) error {
 	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
+	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
+	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
 		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...\n       ettle eval --stability [--runs K] <corpus.json>...\n       ettle eval --superposition <super-corpus.json>...")
@@ -466,6 +486,8 @@ func runEval(args []string) error {
 	defer cancel()
 	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, *model)
+	det.Ground = *ground
+	det.GroundModel = *groundModel
 
 	if *leak {
 		return runLeakEval(ctx, det, fs.Args())

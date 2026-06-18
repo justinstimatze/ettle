@@ -184,6 +184,12 @@ type Detector struct {
 	msgs    messager
 	Model   string
 	Timeout time.Duration // per-call timeout; 0 → default 90s
+	Ground  bool          // run the semantic grounding pass on cross-person knots (opt-in; default OFF — a measured negative result, see ground.go)
+	// GroundModel optionally runs the grounding/verification call on a DIFFERENT
+	// (typically stronger) model than detection — a stronger independent judge can
+	// catch a polysemy error the detector's own model is blind to. Empty = verify
+	// with the same Model used for detection.
+	GroundModel string
 }
 
 // NewDetector builds a Detector over a real Anthropic client.
