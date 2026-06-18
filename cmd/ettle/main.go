@@ -472,6 +472,7 @@ func runEval(args []string) error {
 	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
+	separability := fs.Bool("separability", false, "diagnostic: over K joint runs, contrast fabricated vs real knots on recurrence-frequency and confidence (picks the fork: voting/threshold vs upstream grounding)")
 	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(args)
@@ -497,6 +498,9 @@ func runEval(args []string) error {
 	}
 	if *superposition {
 		return runSuperpositionEval(ctx, det, fs.Args(), *runs)
+	}
+	if *separability {
+		return runSeparabilityEval(ctx, det, fs.Args(), *runs)
 	}
 
 	// A/B discordant pairs are pooled ACROSS corpora: per-corpus, b+c is bounded
@@ -741,6 +745,96 @@ func detectKeys(ctx context.Context, det *ettlemesh.Detector, people []participa
 		return nil, err
 	}
 	return eval.RunKeys(firm, soft), nil
+}
+
+// detectKnots runs one detection cycle and returns every knot it surfaced
+// (firm+soft pooled), preserving confidence — the separability diagnostic needs
+// the per-knot confidence the stability-key set throws away.
+func detectKnots(ctx context.Context, det *ettlemesh.Detector, people []participant) ([]ettlemesh.Knot, error) {
+	firm, soft, err := detectFor(ctx, det, people, 1)
+	if err != nil {
+		return nil, err
+	}
+	return append(append([]ettlemesh.Knot{}, firm...), soft...), nil
+}
+
+// runSeparabilityEval is the fork-picking diagnostic. Over K single-shot joint
+// runs of a superposition corpus it contrasts FABRICATED (cross-group) knots
+// against REAL (intra-group) ones on two signals — recurrence frequency (which
+// simulates majority voting offline, free) and model confidence. If the fabricated
+// knots are low-frequency and/or low-confidence relative to the real ones, the
+// cheap fixes apply (voting we already have, or an abstention threshold); if the
+// distributions overlap, grounding must move upstream to distill time. One batch,
+// no extra calls beyond the K joint runs. Cost: K cycles.
+func runSeparabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs int) error {
+	if runs < 2 {
+		return fmt.Errorf("--separability needs --runs >= 2 (got %d): frequency needs repeated runs", runs)
+	}
+	for _, path := range paths {
+		c, err := eval.LoadSuperCorpus(path)
+		if err != nil {
+			return fmt.Errorf("load super-corpus %s: %w", path, err)
+		}
+		peopleA, err := loadParticipants(c.GroupA)
+		if err != nil {
+			return fmt.Errorf("corpus %s groupA: %w", c.Name, err)
+		}
+		peopleB, err := loadParticipants(c.GroupB)
+		if err != nil {
+			return fmt.Errorf("corpus %s groupB: %w", c.Name, err)
+		}
+		groupA, groupB := nameSet(peopleA), nameSet(peopleB)
+		joint := append(append([]participant{}, peopleA...), peopleB...)
+		fmt.Printf("\n  ══ %s ══ (A: %s · B: %s · %d joint runs)\n", c.Name,
+			strings.Join(sortedKeys(groupA), ","), strings.Join(sortedKeys(groupB), ","), runs)
+
+		var jointRuns [][]ettlemesh.Knot
+		for i := 0; i < runs; i++ {
+			ks, err := detectKnots(ctx, det, joint)
+			if err != nil {
+				fmt.Printf("    ⚠ joint run %d failed: %v\n", i+1, err)
+				continue
+			}
+			jointRuns = append(jointRuns, ks)
+		}
+		if len(jointRuns) < 2 {
+			fmt.Printf("    too few successful runs (%d) to diagnose\n", len(jointRuns))
+			continue
+		}
+
+		rep := eval.ComputeSeparability(jointRuns, groupA, groupB)
+		k := rep.Runs
+		majority := k/2 + 1
+
+		fmt.Printf("    FABRICATED (cross-group) — %d distinct:\n", len(rep.Fabricated))
+		for _, s := range rep.Fabricated {
+			fmt.Printf("      %-44s seen %2d/%d · mean-conf %.2f%s\n",
+				prettyKey(s.Key), s.Seen, k, s.MeanConf, votedNote(s.Seen, majority))
+		}
+		fmt.Printf("    REAL (intra-group) — %d distinct:\n", len(rep.Real))
+		for _, s := range rep.Real {
+			fmt.Printf("      %-44s seen %2d/%d · mean-conf %.2f%s\n",
+				prettyKey(s.Key), s.Seen, k, s.MeanConf, votedNote(s.Seen, majority))
+		}
+		if len(rep.Orphan) > 0 {
+			fmt.Printf("    ORPHAN (party in neither group — roster bug) — %d distinct\n", len(rep.Orphan))
+		}
+
+		fmt.Printf("    %-26s real %.0f/%d  vs  fabricated %.0f/%d  (would a samples>=%d majority vote split them?)\n",
+			"frequency median", rep.RealFreqMedian, k, rep.FabFreqMedian, k, majority)
+		fmt.Printf("    %-26s real %.2f  vs  fabricated %.2f  (does a confidence threshold split them?)\n",
+			"confidence mean", rep.RealConfMean, rep.FabConfMean)
+	}
+	return nil
+}
+
+// votedNote flags whether a knot's recurrence clears a strict-majority vote — the
+// offline simulation of what ReconcileVoted(samples=K) would keep.
+func votedNote(seen, majority int) string {
+	if seen >= majority {
+		return "  ✓ survives vote"
+	}
+	return "  ✗ voted out"
 }
 
 // nameSet is the lowercased participant-name set for a group (matches how KnotKey
