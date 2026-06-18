@@ -115,13 +115,19 @@ func (d *DirBus) Publish(_ context.Context, env Envelope) error {
 }
 
 // isConflictCopy spots filenames a sync tool produces when it can't merge two
-// versions of the "same" file. We never want to ingest one as a phantom
-// participant (the PROVENANCE.md glob-junk lesson, in transport form).
+// versions of the "same" file, so we don't ingest one as a phantom participant
+// (the PROVENANCE.md glob-junk lesson, in transport form).
+//
+// It is a best-effort DE-NOISER, deliberately NOT exhaustive: it matches the
+// specific markers below, never a bare "conflict" substring (which would silently
+// drop a participant whose name contained that word — the failure this guards
+// against). So OneDrive ("alice-DESKTOP-AB12") and Drive ("alice (1)") copies,
+// which carry no "conflict" token, are NOT caught — widening to "(N)" or a
+// "-MACHINE" suffix would re-introduce the greedy false-positive. The safety net
+// is Coverage: an un-caught copy shows up as a VISIBLE extra member in the roster,
+// not silent corruption, so a human sees the odd entry.
 func isConflictCopy(name string) bool {
 	low := strings.ToLower(name)
-	// Match the specific markers real sync tools emit — NOT a bare "conflict"
-	// substring, which would silently drop a participant whose name happened to
-	// contain that word.
 	for _, mark := range []string{
 		"conflicted copy", // Dropbox
 		"case conflict",   // Google Drive
