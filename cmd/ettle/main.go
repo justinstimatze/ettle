@@ -453,9 +453,10 @@ func runEval(args []string) error {
 	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not knot detection)")
 	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
+	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
-		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...\n       ettle eval --stability [--runs K] <corpus.json>...")
+		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...\n       ettle eval --stability [--runs K] <corpus.json>...\n       ettle eval --superposition <super-corpus.json>...")
 	}
 	key := apiKey()
 	if key == "" {
@@ -471,6 +472,9 @@ func runEval(args []string) error {
 	}
 	if *stability {
 		return runStabilityEval(ctx, det, fs.Args(), *runs)
+	}
+	if *superposition {
+		return runSuperpositionEval(ctx, det, fs.Args(), *runs)
 	}
 
 	// A/B discordant pairs are pooled ACROSS corpora: per-corpus, b+c is bounded
@@ -611,6 +615,122 @@ func prettyKey(key string) string {
 		return key
 	}
 	return fmt.Sprintf("[%s] %s", parts[0], strings.ReplaceAll(parts[1], "+", ", "))
+}
+
+// runSuperpositionEval is the locality harness (the metamorphic test). For two
+// independent groups it checks the law f(A∪B)=f(A)∪f(B). The headline is the
+// CROSS-BOUNDARY FABRICATION RATE: a knot linking A and B can never appear in a
+// solo run, so it is provably invented — but WHETHER it appears varies run to
+// run, so a single joint run is misleading (one clean run looks like a pass). We
+// run the join K times and report the fraction of runs that fabricated at least
+// one cross-group knot, plus every distinct fabricated link seen. A and B are
+// each detected once as the intra-group baseline (those secondary metrics are
+// flicker-confounded; the cross-boundary rate is not). Cost: (K+2) cycles.
+func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs int) error {
+	if runs < 1 {
+		runs = 1
+	}
+	for _, path := range paths {
+		c, err := eval.LoadSuperCorpus(path)
+		if err != nil {
+			return fmt.Errorf("load super-corpus %s: %w", path, err)
+		}
+		peopleA, err := loadParticipants(c.GroupA)
+		if err != nil {
+			return fmt.Errorf("corpus %s groupA: %w", c.Name, err)
+		}
+		peopleB, err := loadParticipants(c.GroupB)
+		if err != nil {
+			return fmt.Errorf("corpus %s groupB: %w", c.Name, err)
+		}
+		groupA, groupB := nameSet(peopleA), nameSet(peopleB)
+		joint := append(append([]participant{}, peopleA...), peopleB...)
+		fmt.Printf("\n  ══ %s ══ (A: %s · B: %s · %d joint runs)\n", c.Name,
+			strings.Join(sortedKeys(groupA), ","), strings.Join(sortedKeys(groupB), ","), runs)
+
+		keysA, err := detectKeys(ctx, det, peopleA)
+		if err != nil {
+			fmt.Printf("    ⚠ group A detection failed (skipped): %v\n", err)
+			continue
+		}
+		keysB, err := detectKeys(ctx, det, peopleB)
+		if err != nil {
+			fmt.Printf("    ⚠ group B detection failed (skipped): %v\n", err)
+			continue
+		}
+		fmt.Printf("    f(A)=%d knots · f(B)=%d knots (intra-group baseline)\n", len(keysA), len(keysB))
+
+		fabricatedRuns := 0
+		fabricated := map[string]bool{} // union of distinct cross-boundary links seen
+		var localitySum float64
+		var dropped, spurious, orphan int
+		ok := 0
+		for i := 0; i < runs; i++ {
+			keysAB, err := detectKeys(ctx, det, joint)
+			if err != nil {
+				fmt.Printf("    ⚠ joint run %d failed: %v\n", i+1, err)
+				continue
+			}
+			ok++
+			r := eval.ComputeSuperposition(keysA, keysB, keysAB, groupA, groupB)
+			localitySum += r.LocalityScore()
+			dropped += len(r.Dropped)
+			spurious += len(r.SpuriousIntra)
+			orphan += len(r.Orphan)
+			if len(r.CrossBoundary) > 0 {
+				fabricatedRuns++
+				for _, k := range r.CrossBoundary {
+					fabricated[k] = true
+				}
+			}
+		}
+		if ok == 0 {
+			continue
+		}
+
+		rate := float64(fabricatedRuns) / float64(ok)
+		fmt.Printf("    %-22s %d/%d joint runs (%.0f%%) invented ≥1 A↔B knot — PROVABLY FABRICATED\n",
+			"CROSS-BOUNDARY RATE", fabricatedRuns, ok, rate*100)
+		for _, k := range sortedKeys(fabricated) {
+			fmt.Printf("      %s\n", prettyKey(k))
+		}
+		fmt.Printf("    %-22s %.2f mean (1.00 = law holds; dominated by intra-group flicker, see #5)\n",
+			"locality", localitySum/float64(ok))
+		fmt.Printf("    %-22s %d dropped, %d spurious-intra across runs (flicker-confounded)\n",
+			"intra-group churn", dropped, spurious)
+		if orphan > 0 {
+			fmt.Printf("    %-22s %d knot(s) about a non-participant — roster/identity bug\n", "ORPHAN", orphan)
+		}
+	}
+	return nil
+}
+
+// detectKeys runs one detection cycle and returns its stability-key set.
+func detectKeys(ctx context.Context, det *ettlemesh.Detector, people []participant) (map[string]bool, error) {
+	firm, soft, err := detectFor(ctx, det, people, 1)
+	if err != nil {
+		return nil, err
+	}
+	return eval.RunKeys(firm, soft), nil
+}
+
+// nameSet is the lowercased participant-name set for a group (matches how KnotKey
+// folds party names, so membership tests line up).
+func nameSet(people []participant) map[string]bool {
+	set := map[string]bool{}
+	for _, p := range people {
+		set[strings.ToLower(strings.TrimSpace(p.Name))] = true
+	}
+	return set
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // runLeakEval is the privacy-boundary harness: for each case it distills the

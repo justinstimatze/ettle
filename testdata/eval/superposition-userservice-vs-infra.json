@@ -1,0 +1,5 @@
+{
+  "name": "superposition-userservice-vs-infra",
+  "groupA": ["testdata/standup/alice.md", "testdata/standup/bob.md"],
+  "groupB": ["testdata/independent/cleo.md", "testdata/independent/dao.md"]
+}
