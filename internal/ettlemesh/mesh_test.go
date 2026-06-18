@@ -312,11 +312,25 @@ func TestConfFromWord(t *testing.T) {
 }
 
 func TestFirm(t *testing.T) {
+	// Single-run path (no votes): confidence decides.
 	if !(Knot{Confidence: 0.5}).Firm() {
 		t.Error("0.5 should be FIRM (>= threshold)")
 	}
 	if (Knot{Confidence: 0.49}).Firm() {
 		t.Error("0.49 should be SOFT")
+	}
+	// Voted path (Samples>0): recurrence frequency decides, confidence ignored.
+	if !(Knot{Votes: 3, Samples: 5, Confidence: 0.1}).Firm() {
+		t.Error("3/5 (majority) should be FIRM regardless of low confidence")
+	}
+	if (Knot{Votes: 2, Samples: 5, Confidence: 0.99}).Firm() {
+		t.Error("2/5 (minority) should be SOFT regardless of high confidence")
+	}
+	if !(Knot{Votes: 5, Samples: 5, Confidence: 0}).Firm() {
+		t.Error("5/5 should be FIRM")
+	}
+	if (Knot{Votes: 1, Samples: 12}).Firm() {
+		t.Error("1/12 (fabrication-frequency) should be SOFT")
 	}
 }
 
@@ -418,14 +432,27 @@ func TestVoteKnots(t *testing.T) {
 		},
 	}
 	got := voteKnots(runs)
-	if len(got) != 1 {
-		t.Fatalf("voteKnots kept %d, want 1 (one-off dropped by majority): %+v", len(got), got)
+	// Keep-all: the 3-run GetUser cluster AND the 1-run carol/dave one-off both
+	// survive (frequency ranks firm/soft, it does not drop). Output is sorted
+	// most-voted first.
+	if len(got) != 2 {
+		t.Fatalf("voteKnots kept %d, want 2 (cluster + kept one-off): %+v", len(got), got)
 	}
 	k := got[0]
 	if k.Votes != 3 || k.Samples != 3 {
-		t.Errorf("votes/samples = %d/%d, want 3/3", k.Votes, k.Samples)
+		t.Errorf("top knot votes/samples = %d/%d, want 3/3", k.Votes, k.Samples)
+	}
+	if !k.Firm() {
+		t.Error("a 3/3 knot must be FIRM (asserted)")
 	}
 	if k.Confidence < 0.89 || k.Confidence > 0.91 {
 		t.Errorf("voted confidence = %v, want mean ~0.9", k.Confidence)
+	}
+	oneOff := got[1]
+	if oneOff.Votes != 1 || oneOff.Samples != 3 {
+		t.Errorf("one-off votes/samples = %d/%d, want 1/3", oneOff.Votes, oneOff.Samples)
+	}
+	if oneOff.Firm() {
+		t.Error("a 1/3 one-off must be SOFT (a question), not dropped or asserted")
 	}
 }

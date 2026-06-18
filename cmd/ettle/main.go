@@ -71,7 +71,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
 		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview what a session distills to")
 		fmt.Fprintln(os.Stderr, "  ettle drift <prev-dir> <curr-dir>  # L2: directed models + surprise-gated deltas across two rounds")
-		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls for N participants (+2 per extra --samples)")
+		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)
 	}
 	fs := flag.NewFlagSet("standup", flag.ExitOnError)
@@ -81,7 +81,7 @@ func main() {
 	transportName := fs.String("transport", "inproc", "atom transport: inproc | nats (nats needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
-	samples := fs.Int("samples", 1, "run the reconcile passes N times and keep only knots that recur across a majority (stabilizes the stochastic detector; costs N× the reconcile calls)")
+	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — majority-recurring knots are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
 	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
@@ -254,7 +254,7 @@ func surface(ctx context.Context, me string, knots []ettlemesh.Knot, atoms []ett
 	}
 
 	if len(soft) > 0 {
-		section("worth a question (soft — rests on an inference)")
+		section("worth a question (soft — surfaced by a minority of samples, or rests on an inference)")
 		for _, k := range soft {
 			printKnot(k)
 		}

@@ -166,10 +166,28 @@ type Knot struct {
 	Samples int
 }
 
+// firmVoteFraction is the share of voting samples that must surface a knot for it
+// to be ASSERTED rather than merely asked about. The separability diagnostic
+// (eval --separability) established that recurrence-FREQUENCY discriminates real
+// from fabricated knots where confidence does not: fabricated cross-group knots
+// recur in <=~0.17 of runs while genuine ones recur far more, so a >=0.5 (majority
+// of samples) bar asserts the stable knots and routes the flickery/spurious ones
+// to "worth a question" instead of dropping them (recall is preserved; the
+// asserted set is cleaned). 0.5 = strict majority for samples>=3.
+const firmVoteFraction = 0.5
+
 // Firm reports whether a knot is solid enough to assert rather than merely ask
-// about. Knots resting on inferred atoms (confidence below the threshold) are
-// soft — surface them as a question, not a fact.
-func (k Knot) Firm() bool { return k.Confidence >= 0.5 }
+// about. With voting (Samples>0) the signal is recurrence frequency — a knot a
+// majority of independent samples surfaced is firm; a flickery one is soft. In the
+// single-run path (no votes) it falls back to confidence: knots resting on
+// inferred atoms (below the threshold) are soft. Soft knots are surfaced as
+// questions, never dropped.
+func (k Knot) Firm() bool {
+	if k.Samples > 0 {
+		return float64(k.Votes) >= firmVoteFraction*float64(k.Samples)
+	}
+	return k.Confidence >= 0.5
+}
 
 // messager is the seam over the Anthropic client — exactly the shape of
 // (*anthropic.Client).Messages. Tests inject a fake that returns a canned
@@ -786,10 +804,14 @@ func DedupeSelf(self, cross []Knot) []Knot {
 }
 
 // ReconcileVoted runs the pairwise + team-wide detector `samples` times and keeps
-// only knots that recur across a STRICT MAJORITY of runs. IMPORTANT: this reduces
-// run-to-run PARAPHRASE VARIANCE (test-retest reliability), not bias — correlated
-// misreads can still recur. Each surviving knot carries Votes/Samples. `samples`
-// <= 1 is exactly the single-run path. Cost is `samples`× the reconcile calls.
+// EVERY knot any run surfaced, each carrying how many runs surfaced it (Votes) out
+// of how many ran (Samples). It does NOT drop minority knots: frequency is a
+// firm/soft RANKING signal consumed by Knot.Firm (a majority-recurring knot is
+// asserted; a flickery one becomes a question), not a keep/drop gate — dropping at
+// strict majority also discarded genuine-but-flickery knots and cost recall.
+// IMPORTANT: recurrence is a run-to-run PARAPHRASE-STABILITY signal (test-retest),
+// not a validity one — correlated misreads can still recur. `samples` <= 1 is
+// exactly the single-run path. Cost is `samples`× the reconcile calls.
 func (d *Detector) ReconcileVoted(ctx context.Context, atoms []Atom, samples int) ([]Knot, error) {
 	if samples <= 1 {
 		return d.reconcileBoth(ctx, atoms)
@@ -861,7 +883,6 @@ func voteKnots(runs [][]Knot) []Knot {
 		r := find(i)
 		groups[r] = append(groups[r], i)
 	}
-	threshold := len(runs)/2 + 1
 	var out []Knot
 	for _, idxs := range groups {
 		// Confidence is the mean across distinct RUNS, not across cluster items: a
@@ -880,9 +901,11 @@ func voteKnots(runs [][]Knot) []Knot {
 				rep = items[i].k
 			}
 		}
-		if len(runConf) < threshold {
-			continue
-		}
+		// Keep EVERY clustered knot, carrying its vote count — no majority drop.
+		// Frequency is now a firm/soft RANKING signal (Knot.Firm), not a keep/drop
+		// gate: dropping at strict majority also killed genuine but flickery knots
+		// (e.g. decision-rights), costing recall. A knot only a minority of samples
+		// surfaced becomes a question, not a discard.
 		var sum float64
 		for _, c := range runConf {
 			sum += c
