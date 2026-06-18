@@ -13,15 +13,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: gofmt
-        run: test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)
-      - name: build / vet / test (default)
-        run: |
-          go build ./...
-          go vet ./...
-          go test ./...
-      - name: build / vet / test (nats)
-        run: |
-          go build -tags nats ./...
-          go vet -tags nats ./...
-          go test -tags nats ./...
+      # Single source of truth: CI runs the SAME `make ci` you run locally
+      # (gofmt check + build/vet/test, default and -tags nats), so the two
+      # can't drift. Run `make ci` before pushing — or `make hooks` once to
+      # have git push run it for you.
+      - name: make ci
+        run: make ci

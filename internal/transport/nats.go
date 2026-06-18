@@ -4,6 +4,7 @@
 // default build needs no external bus and stays infra-free.
 //
 // The nats.go dep is already in go.mod; the tag just gates compilation:
+//
 //	go build -tags nats ./...    /    go run -tags nats ./cmd/ettle ...
 //
 // Security: NATS is secure-by-default for this use when you point it at a

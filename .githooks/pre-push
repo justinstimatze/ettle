@@ -1,0 +1,11 @@
+#!/bin/sh
+# Catch CI errors locally, before the push leaves the machine. Runs the exact
+# gate CI runs (make ci = gofmt check + build/vet/test, default and -tags nats).
+# Enable with: make hooks   (sets core.hooksPath=.githooks)
+# Bypass once with: git push --no-verify
+echo "pre-push: running 'make ci' (the same gate CI runs)…"
+if ! make ci; then
+	echo
+	echo "pre-push: 'make ci' failed — fix it (try 'make fmt') or 'git push --no-verify' to skip." >&2
+	exit 1
+fi

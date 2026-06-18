@@ -12,8 +12,8 @@ func TestIsHost(t *testing.T) {
 		{"::1", true},
 		{"127.0.0.2", true}, // whole 127/8 is loopback
 		{"", false},
-		{"8.8.8.8", false},                 // parsed IP, non-loopback → false (no DNS)
-		{"nonexistent.invalid", false},     // RFC 6761 reserved TLD: NXDOMAIN, fail-closed, no network
+		{"8.8.8.8", false},             // parsed IP, non-loopback → false (no DNS)
+		{"nonexistent.invalid", false}, // RFC 6761 reserved TLD: NXDOMAIN, fail-closed, no network
 	}
 	for _, c := range cases {
 		if got := IsHost(c.host); got != c.want {
