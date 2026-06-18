@@ -86,7 +86,7 @@ func main() {
 	me := fs.String("me", "", "surface knots relevant to this participant (their agent's view); empty = full team view")
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested knots (e.g. https://gemot.example/mcp); empty = inline either/or")
-	transportName := fs.String("transport", "inproc", "atom transport: inproc | nats (nats needs -tags nats)")
+	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | nats (needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — knots recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
@@ -186,6 +186,11 @@ func run(cfg runConfig) error {
 	if got := distinctParticipants(envs); got < len(people) {
 		fmt.Fprintf(os.Stderr, "ettle: WARNING collected %d of %d participants — results are PARTIAL (a peer may have missed the window); do not read this as 'all clear'.\n", got, len(people))
 	}
+	// File transport: a shared synced folder is eventually-consistent, so a peer's
+	// file may not have arrived yet. Surface the roster + per-member staleness so a
+	// stale/partial horizon is visible and "clear" is never read as bare. (Honest
+	// limit: a teammate whose file never reached this folder can't be seen here.)
+	reportCoverage(bus)
 	atoms := transport.Atoms(envs)
 	// Cross-person detection (pairwise + team-wide). With --samples>1, runs the
 	// passes N times and keeps only knots that recur across a majority — the
@@ -364,6 +369,33 @@ func distinctParticipants(envs []transport.Envelope) int {
 		seen[strings.ToLower(strings.TrimSpace(e.Participant))] = true
 	}
 	return len(seen)
+}
+
+// reportCoverage prints the shared-folder roster + per-member staleness when the
+// bus is the file transport, so a partially-synced or stale horizon is never read
+// as a clean all-clear. A no-op for transports without coverage (inproc/NATS),
+// whose freshness is covered by the partial-collection guard above.
+func reportCoverage(bus transport.Transport) {
+	cov, ok := bus.(interface {
+		Coverage() []transport.MemberStatus
+	})
+	if !ok {
+		return
+	}
+	for _, m := range cov.Coverage() {
+		age := "fresh"
+		if m.EmittedAt == "" {
+			age = "age unknown"
+		} else if m.Staleness > 0 {
+			age = fmt.Sprintf("emitted %s ago", m.Staleness.Round(time.Second))
+		}
+		fmt.Fprintf(os.Stderr, "ettle: horizon member %q — %s\n", m.Participant, age)
+	}
+	if w, ok := bus.(interface{ Warnings() []string }); ok {
+		for _, msg := range w.Warnings() {
+			fmt.Fprintf(os.Stderr, "ettle: WARNING %s\n", msg)
+		}
+	}
 }
 
 // personResult is one participant's distilled atoms + the questions the

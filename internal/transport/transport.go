@@ -26,10 +26,30 @@ import (
 // Envelope is one participant's contribution crossing the boundary: the typed
 // atoms only, never their raw notes. This is the contextual-privacy invariant
 // in its cheap form.
+//
+// The V/EmittedAt/Sig fields are additive and only set by the file transport
+// (DirBus); the in-process and NATS paths leave them zero, which is harmless.
 type Envelope struct {
 	Participant string           `json:"participant"`
 	Role        string           `json:"role"`
 	Atoms       []ettlemesh.Atom `json:"atoms"`
+
+	// V is the envelope schema version. A file written by one ettle version may
+	// be read by another across a synced folder; readers tolerate a missing V
+	// (treat as 1) and an unknown-higher V (best-effort). Zero on the inproc/NATS
+	// paths, which never persist.
+	V int `json:"v,omitempty"`
+	// EmittedAt (RFC3339 UTC) is when the writer emitted this envelope. It is a
+	// DISPLAY / staleness signal only — never used for ordering or correctness, so
+	// cross-machine clock skew can't produce a wrong horizon (replace-current has
+	// no cross-round ordering). Preferred over file mtime, which sync tools rewrite
+	// to download time. Empty when unknown.
+	EmittedAt string `json:"emitted_at,omitempty"`
+	// Sig is RESERVED for a future per-envelope signature (the honest path to
+	// enforced identity over a shared folder, where filename ownership is only a
+	// convention). Always "" in v1; reserved now so adding it later is not a schema
+	// break.
+	Sig string `json:"sig,omitempty"`
 }
 
 // Transport moves Envelopes between participants. Publish announces this

@@ -99,6 +99,11 @@ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 # each person's own agent calls ettle_emit with that person's notes, ettle_horizon
 # reconciles the team's atoms into knots — no hand-assembled note files
 claude mcp add ettle -- go run ./cmd/ettle mcp
+
+# multiplayer with NO broker: point at a folder the team already shares
+# (Dropbox/Drive/git/Syncthing). Each agent writes only its own file under
+# .ettle/; reconcile reads the folder. Securing the folder is the sync tool's job.
+go run ./cmd/ettle standup --me alice --transport file:///path/to/shared testdata/standup/*.md
 ```
 
 Each note file is one participant (an optional `name:` / `role:` header, then
