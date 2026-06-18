@@ -24,7 +24,7 @@ From *Governing the Commons* (1990) — the design principles shared by commons 
 7. **Minimal recognition of the right to organize.** → consent-first, bottom-up adoption (ADOPTION.md). The platform does not impose coordination norms from outside; the team governs its own commons.
 8. **Nested enterprises (polycentric governance).** → the L1/L2/L3 layering *is* nesting, and the N-spectrum (team → org → community → city) is polycentric scaling: small-N binds locally, large-N maps views, each layer governs itself and composes upward.
 
-## Where it lives (the answer to "not sure where it should live")
+## Where the governance lives in the architecture
 
 It is a **governance layer over the whole mesh**, but the mechanisms land in specific, mostly-already-present places — and only one is genuinely new code:
 

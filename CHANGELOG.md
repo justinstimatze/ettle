@@ -40,7 +40,7 @@ First runnable cut of the multiplayer coordination PoC.
   or DSN folded into an *inferred* assumption (or the question rendered from one)
   crossed unredacted. Both producers now funnel through one chokepoint (`sealAtom`), so
   the secret scanner and the per-person override cannot be present on one path and
-  absent on the other; new ledger in [docs/DUAL_PATH_AUDIT.md](docs/DUAL_PATH_AUDIT.md).
+  absent on the other.
   Also: the connection-string redactor now catches credentials-only URLs
   (`redis://:pass@host`) and `@`-in-password DSNs (both previously leaked); `clip` no
   longer splits a multibyte rune across the boundary; `voteKnots` confidence no longer

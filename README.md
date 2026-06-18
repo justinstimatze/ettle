@@ -203,7 +203,6 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — candidate public datasets for validating the detector on real logged coordination, and the honest method/caveats.
 - [docs/ADOPTION.md](docs/ADOPTION.md) — consent-first, bottom-up adoption; the anti-viral stance.
 - [docs/SF_LINEAGE.md](docs/SF_LINEAGE.md) — the fictional touchstones and the bright/dark fork they mark.
-- [docs/NAMING.md](docs/NAMING.md) — why `ettle`, and the collisions that ruled out the alternatives.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — where help matters most, ranked by leverage (the unbuilt calibration loop first), gated on the non-negotiable invariants.
 
 ## Relationship to sibling projects
