@@ -31,8 +31,8 @@ Two of those invariants are operational constraints, not slogans:
   ettle's output back into an automated actor.
 
 So "deploying in your org" today means **running the batch `standup` / `drift`
-flow over a shared, secured bus, on demand**, with humans as the deciders — not
-an autonomous mesh. The seams below are real and tested; the always-on product
+flow over a shared, secured substrate (a synced folder or a bus), on demand**,
+with humans as the deciders — not an autonomous mesh. The seams below are real and tested; the always-on product
 on top of them is not built.
 
 ## Tier 0 — one team, no infrastructure (the default)
@@ -50,9 +50,39 @@ session transcripts — `*.jsonl`, distilled by `capture`), run it on one machin
 share the per-person output. No bus, no service, no secrets. `--show-atoms`
 shows exactly what would cross the boundary (typed atoms, never the raw note).
 
-## Tier 1 — a shared atom bus (NATS)
+## Tier 1 — a shared folder (no broker)
 
-When agents run on different machines and need to exchange atoms, build with the
+When agents run on different machines but the team already shares a folder
+(Dropbox / Google Drive / git / Syncthing), point each at it with
+`--transport file://<path>` — multiplayer with **no server to run**. Each
+participant's agent writes only its own file under `<path>/.ettle/`; reconcile
+reads the folder. Securing and replicating the folder is the sync tool's job, and
+only boundary-distilled atoms cross — never the raw notes.
+
+```sh
+# each teammate, on their own machine, pointed at the same synced folder:
+go run ./cmd/ettle standup --me alice --transport file://$HOME/Dropbox/team-x notes.md
+```
+
+| Property | Behavior |
+|---|---|
+| Storage | replace-current — each file holds that person's latest atoms (clean exit = delete your file; no history pile-up, so the longitudinal-leak surface isn't amplified) |
+| Identity | the filename is authoritative; that a file is really its owner's rests on the folder's access control — a convention, **not** structurally enforced (per-envelope signing is reserved, not built) |
+| Freshness | every run prints a roster + per-member staleness, so a partially-synced horizon is never read as a bare "all clear" |
+| Conflicts | sync conflict-copies (Dropbox/Syncthing markers) are skipped; an undetected one (OneDrive/Drive numbering) surfaces as a visible extra roster member, not silent corruption |
+
+**When this fits:** the batch model — run `standup` on demand and read whatever has
+synced. Eventual-consistency lag (seconds–minutes) is fine here; it would only bite
+a continuous live-emit loop, which is deliberately unbuilt ([SCALING.md](SCALING.md)).
+**Honest limit:** a teammate whose file never reached your copy of the folder is
+invisible — coverage reports who/how-stale among files *present*, not against an
+out-of-band roster. For low-latency exchange or a hard membership guarantee, use
+the NATS bus below.
+
+## Tier 2 — a shared atom bus (NATS)
+
+When agents run on different machines and need low-latency atom exchange (or a
+membership guarantee the folder can't give), build with the
 `nats` tag and point each at a shared NATS server. **TLS and auth are enforced**
 — `DialNATS` refuses to connect without credentials unless you explicitly opt
 into the localhost-plaintext path, and `--insecure-local` is rejected for any
@@ -80,7 +110,7 @@ go run -tags nats ./cmd/ettle standup --transport nats --insecure-local --me ali
 `--insecure-local` resolves the host and refuses anything that isn't actually
 loopback, so a remote server dressed up as `localhost` can't be run unauthed.
 
-## Tier 2 — contested knots to a gemot deliberation
+## Tier 3 — contested knots to a gemot deliberation
 
 Most coordination is bindable and never leaves the mesh. When a knot is a real
 values/priority choice (a *crux*), route it to a [gemot](https://github.com/justinstimatze/gemot)

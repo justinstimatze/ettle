@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **DEPLOY.md** — documents the `file://` shared-folder transport as a deployment
+  tier (zero-infra multiplayer, no broker), between the single-machine default and
+  the NATS bus; tiers renumbered accordingly.
+
 ## v0.1.0 — 2026-06-18
 
 First runnable cut of the multiplayer coordination PoC.
