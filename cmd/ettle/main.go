@@ -36,6 +36,7 @@ import (
 	"github.com/justinstimatze/ettle/internal/crux"
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/eval"
+	"github.com/justinstimatze/ettle/internal/mcpserver"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -63,6 +64,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "mcp":
+			if err := runMCP(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -71,6 +78,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
 		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview what a session distills to")
 		fmt.Fprintln(os.Stderr, "  ettle drift <prev-dir> <curr-dir>  # L2: directed models + surprise-gated deltas across two rounds")
+		fmt.Fprintln(os.Stderr, "  ettle mcp                          # serve the coordination engine over MCP (stdio): ettle_emit / ettle_horizon / ettle_self_check")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)
 	}
@@ -1306,6 +1314,30 @@ func runCapture(args []string) error {
 		fmt.Println()
 	}
 	return nil
+}
+
+// runMCP serves the coordination engine over an MCP stdio transport, so any MCP
+// client (Claude Code, Cursor) can drive it: each participant's own agent calls
+// ettle_emit with that person's notes, and ettle_horizon reconciles the team's
+// atoms into coordination knots. The differentiated surface is the knot, not the
+// per-person summary; MCP (not a meeting bot) is the consent-clean shape — see
+// internal/mcpserver and docs/ADOPTION.md.
+func runMCP(args []string) error {
+	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
+	model := fs.String("model", "claude-haiku-4-5", "model id")
+	_ = fs.Parse(args)
+
+	key := apiKey()
+	if key == "" {
+		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file)")
+	}
+	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
+	det := ettlemesh.NewDetector(&client, *model)
+
+	// The stdio MCP server owns stdout (the JSON-RPC channel); diagnostics go to
+	// stderr. Run until the client disconnects or the process is interrupted.
+	fmt.Fprintf(os.Stderr, "ettle mcp: serving on stdio (model %s) — tools: ettle_emit, ettle_horizon, ettle_self_check\n", *model)
+	return mcpserver.Serve(context.Background(), det, buildVersion())
 }
 
 // loadParticipants reads one participant per input. A `.jsonl` input is a Claude

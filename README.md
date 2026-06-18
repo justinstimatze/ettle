@@ -94,6 +94,11 @@ go run ./cmd/ettle drift --me ivo testdata/drift/r1 testdata/drift/r2
 
 # stabilize the stochastic detector by majority-voting across samples
 go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
+
+# serve the engine over MCP so any agent (Claude Code, Cursor) drives it directly:
+# each person's own agent calls ettle_emit with that person's notes, ettle_horizon
+# reconciles the team's atoms into knots — no hand-assembled note files
+claude mcp add ettle -- go run ./cmd/ettle mcp
 ```
 
 Each note file is one participant (an optional `name:` / `role:` header, then
