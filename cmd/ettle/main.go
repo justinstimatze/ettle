@@ -641,13 +641,17 @@ func prettyKey(key string) string {
 
 // runSuperpositionEval is the locality harness (the metamorphic test). For two
 // independent groups it checks the law f(A∪B)=f(A)∪f(B). The headline is the
-// CROSS-BOUNDARY FABRICATION RATE: a knot linking A and B can never appear in a
-// solo run, so it is provably invented — but WHETHER it appears varies run to
-// run, so a single joint run is misleading (one clean run looks like a pass). We
-// run the join K times and report the fraction of runs that fabricated at least
-// one cross-group knot, plus every distinct fabricated link seen. A and B are
-// each detected once as the intra-group baseline (those secondary metrics are
-// flicker-confounded; the cross-boundary rate is not). Cost: (K+2) cycles.
+// CROSS-BOUNDARY FABRICATION: a knot linking A and B can never appear in a solo
+// run, so it is provably invented — but WHETHER it appears varies run to run, so
+// a single joint run is misleading (one clean run looks like a pass). We run the
+// join K times. The PRIMARY signal is the mean cross-boundary knots PER RUN with
+// a 95% CI (lower variance than a binary rate, so the same K buys a tighter
+// estimate); a coarser binary rate (% of runs with >=1) with a Wilson interval is
+// reported alongside. Both carry bands so an A/B is honest about whether two
+// conditions actually differ — overlapping bands = underpowered. Every distinct
+// fabricated link is listed. A and B are each detected once as the intra-group
+// baseline (those secondary metrics are flicker-confounded; the cross-boundary
+// signal is not). Cost: (K+2) cycles.
 func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs int) error {
 	if runs < 1 {
 		runs = 1
@@ -682,8 +686,8 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 		}
 		fmt.Printf("    f(A)=%d knots · f(B)=%d knots (intra-group baseline)\n", len(keysA), len(keysB))
 
-		fabricatedRuns := 0
 		fabricated := map[string]bool{} // union of distinct cross-boundary links seen
+		var perRun []int                // cross-boundary count per run (for the stats bands)
 		var localitySum float64
 		var dropped, spurious, orphan int
 		ok := 0
@@ -699,20 +703,23 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 			dropped += len(r.Dropped)
 			spurious += len(r.SpuriousIntra)
 			orphan += len(r.Orphan)
-			if len(r.CrossBoundary) > 0 {
-				fabricatedRuns++
-				for _, k := range r.CrossBoundary {
-					fabricated[k] = true
-				}
+			perRun = append(perRun, len(r.CrossBoundary))
+			for _, k := range r.CrossBoundary {
+				fabricated[k] = true
 			}
 		}
 		if ok == 0 {
 			continue
 		}
 
-		rate := float64(fabricatedRuns) / float64(ok)
-		fmt.Printf("    %-22s %d/%d joint runs (%.0f%%) invented ≥1 A↔B knot — PROVABLY FABRICATED\n",
-			"CROSS-BOUNDARY RATE", fabricatedRuns, ok, rate*100)
+		st := eval.ComputeSuperStats(perRun)
+		// Continuous mean (primary A/B signal — lower variance) with its 95% band,
+		// then the coarser binary rate with its Wilson interval. Overlapping bands
+		// between two conditions = the run did not distinguish them (underpowered).
+		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  — PROVABLY FABRICATED (primary signal)\n",
+			"CROSS-BOUNDARY MEAN", st.MeanPerRun, st.MeanCILow, st.MeanCIHigh)
+		fmt.Printf("    %-22s %.0f%% of %d runs invented ≥1 A↔B knot  [95%% CI %.0f–%.0f%%]\n",
+			"  (binary rate)", st.Rate*100, ok, st.RateCILow*100, st.RateCIHigh*100)
 		for _, k := range sortedKeys(fabricated) {
 			fmt.Printf("      %s\n", prettyKey(k))
 		}
