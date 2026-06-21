@@ -177,6 +177,25 @@ type Knot struct {
 // 0.5 = strict majority for samples>=3.
 const firmVoteFractionDefault = 0.5
 
+// dropFloorFraction is the abstention gate: a voted knot whose recurrence
+// Votes/Samples is strictly below this is DROPPED — not asserted, not even asked.
+// It is a separate, lower bar than firmVoteFractionFor (which only ranks a SURFACED
+// knot firm-vs-soft); this one decides surface-vs-drop. The separability diagnostic
+// established that fabricated cross-group knots recur at <=~0.17 of runs while clear
+// real knots recur near every run, so dropping the single-appearance tail kills the
+// false alarms ("lighter agenda": a false cross-group knot ADDS a bogus item to a
+// standup; missing a flickery real one only leaves it on the human agenda, where it
+// already was). Recall is best-effort by design — a flickery-real knot seen once is
+// an ACCEPTED miss (it recurs on a later morning / via drift).
+// INVARIANT: keep this STRICTLY BELOW the lowest per-kind bar in
+// firmVoteFractionByKind (currently KindDecisionRights=0.3) so the floor can never
+// drop a knot the firm bar would have asserted — surfacing must dominate ranking.
+// Engagement by sample size (threshold = frac*samples, drop if Votes < threshold):
+// samples<=3 → threshold<=0.75, every clustered knot has Votes>=1 so the floor is
+// INERT (eval --ab's default samples=3 is unaffected); samples=5 → threshold 1.25,
+// so a Votes==1 one-off drops and Votes>=2 survives (the fabrication-tail cut).
+const dropFloorFraction = 0.25
+
 // firmVoteFractionByKind overrides the default bar for kinds whose GENUINE knots
 // recur at a different rate. The separability batch showed the recurrence
 // distributions are not uniform across kinds: fabricated cross-group knots cluster
@@ -941,6 +960,14 @@ func voteKnots(runs [][]Knot) []Knot {
 		rep.Confidence = sum / float64(len(runConf))
 		rep.Votes = len(runConf)
 		rep.Samples = len(runs)
+		// Abstention gate: drop the low-recurrence tail before it is ever surfaced.
+		// A knot that recurred below dropFloorFraction of samples is the fabrication
+		// signature (separability: cross-group fabrications recur <=~0.17); dropping
+		// it here means it is neither asserted nor asked. Inert at samples<=3 (every
+		// cluster has Votes>=1 >= frac*samples); engages at samples>=5.
+		if float64(rep.Votes) < dropFloorFraction*float64(rep.Samples) {
+			continue
+		}
 		out = append(out, rep)
 	}
 	sort.Slice(out, func(i, j int) bool {

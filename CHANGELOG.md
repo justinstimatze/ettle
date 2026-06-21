@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Abstention gate — the recurrence noise floor** (`dropFloorFraction` in
+  `internal/ettlemesh/mesh.go`, applied in `voteKnots`) closes the bulk of the
+  cross-group fabrication the robustness battery surfaced. A voted knot recurring
+  below the floor (0.25 of samples — strictly under the lowest per-kind firm bar, so
+  it can never drop a knot the firm bar would assert) is dropped entirely: not
+  asserted, not asked. It catches the fabrication *tail* (separability: fabricated
+  cross-group knots recur ≤~0.17 of runs), which is most fabrications, at **zero
+  clear-knot recall cost**. Measured (haiku, `--samples 5`): on the worst corpus
+  `superposition-frontend-vs-data` FIRM (asserted) cross-boundary fabrication fell
+  **2.60 → 0.50 knots/run** (~80%); on `superposition-userservice-vs-infra`,
+  **0.40 → 0.00**. Real-knot recall held 1.00 on all eight clear-knot corpora;
+  pooled real-knot false positives halved (4 → 2). The only recall casualty is
+  auth-migration K2, a flickery `decision-rights` knot already lost to detection
+  flicker pre-floor — an accepted miss under the **"lighter agenda, not no meeting"**
+  framing (precision is the goal; missing a flickery knot just leaves it on the human
+  agenda). Residual: high-recurrence *polysemy* misreads (e.g. `mabel↔opal` both on
+  "analytics") survive — the floor structurally can't reach a 0.5-recurrence knot;
+  that needs a separate structural fix on the collision/teamwide pass (out of scope).
+- **`eval --superposition` now measures what ships** — runs *voted* at `--samples`
+  (not single-shot) and splits the headline into **FIRM** cross-boundary (asserted —
+  the stop-ship number, target 0) vs **all** (firm+soft pooled). The old single-shot,
+  firm+soft-pooled headline overstated fabrication by counting questions as claims.
 - **DEPLOY.md** — documents the `file://` shared-folder transport as a deployment
   tier (zero-infra multiplayer, no broker), between the single-machine default and
   the NATS bus; tiers renumbered accordingly.

@@ -537,7 +537,7 @@ func runEval(args []string) error {
 		return runStabilityEval(ctx, det, fs.Args(), *runs)
 	}
 	if *superposition {
-		return runSuperpositionEval(ctx, det, fs.Args(), *runs)
+		return runSuperpositionEval(ctx, det, fs.Args(), *runs, *samples)
 	}
 	if *separability {
 		return runSeparabilityEval(ctx, det, fs.Args(), *runs)
@@ -696,9 +696,12 @@ func prettyKey(key string) string {
 // fabricated link is listed. A and B are each detected once as the intra-group
 // baseline (those secondary metrics are flicker-confounded; the cross-boundary
 // signal is not). Cost: (K+2) cycles.
-func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs int) error {
+func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []string, runs, samples int) error {
 	if runs < 1 {
 		runs = 1
+	}
+	if samples < 1 {
+		samples = 1
 	}
 	for _, path := range paths {
 		c, err := eval.LoadSuperCorpus(path)
@@ -715,57 +718,80 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 		}
 		groupA, groupB := nameSet(peopleA), nameSet(peopleB)
 		joint := append(append([]participant{}, peopleA...), peopleB...)
-		fmt.Printf("\n  ══ %s ══ (A: %s · B: %s · %d joint runs)\n", c.Name,
-			strings.Join(sortedKeys(groupA), ","), strings.Join(sortedKeys(groupB), ","), runs)
+		fmt.Printf("\n  ══ %s ══ (A: %s · B: %s · %d joint runs × %d samples)\n", c.Name,
+			strings.Join(sortedKeys(groupA), ","), strings.Join(sortedKeys(groupB), ","), runs, samples)
 
-		keysA, err := detectKeys(ctx, det, peopleA)
+		// Baselines run VOTED at the same samples as the product ships, so f(A)/f(B)
+		// reflect the abstention gate + firm bar, not raw single-shot output. Only the
+		// pooled (firm+soft) key set is needed for the locality law.
+		keysA, _, err := detectKeysVoted(ctx, det, peopleA, samples)
 		if err != nil {
 			fmt.Printf("    ⚠ group A detection failed (skipped): %v\n", err)
 			continue
 		}
-		keysB, err := detectKeys(ctx, det, peopleB)
+		keysB, _, err := detectKeysVoted(ctx, det, peopleB, samples)
 		if err != nil {
 			fmt.Printf("    ⚠ group B detection failed (skipped): %v\n", err)
 			continue
 		}
-		fmt.Printf("    f(A)=%d knots · f(B)=%d knots (intra-group baseline)\n", len(keysA), len(keysB))
+		fmt.Printf("    f(A)=%d knots · f(B)=%d knots (intra-group baseline, voted)\n", len(keysA), len(keysB))
 
-		fabricated := map[string]bool{} // union of distinct cross-boundary links seen
-		var perRun []int                // cross-boundary count per run (for the stats bands)
+		fabFirm := map[string]bool{} // distinct ASSERTED cross-boundary links (the harm)
+		fabAll := map[string]bool{}  // distinct cross-boundary links incl. soft (asked)
+		var perRunFirm, perRunAll []int
 		var localitySum float64
 		var dropped, spurious, orphan int
 		ok := 0
 		for i := 0; i < runs; i++ {
-			keysAB, err := detectKeys(ctx, det, joint)
+			allKeysAB, firmKeysAB, err := detectKeysVoted(ctx, det, joint, samples)
 			if err != nil {
 				fmt.Printf("    ⚠ joint run %d failed: %v\n", i+1, err)
 				continue
 			}
 			ok++
-			r := eval.ComputeSuperposition(keysA, keysB, keysAB, groupA, groupB)
+			// Locality is computed over the pooled set (a soft cross-group knot still
+			// violates locality); the FIRM split below is what separates an asserted
+			// fabrication (stop-ship) from a merely asked one.
+			r := eval.ComputeSuperposition(keysA, keysB, allKeysAB, groupA, groupB)
 			localitySum += r.LocalityScore()
 			dropped += len(r.Dropped)
 			spurious += len(r.SpuriousIntra)
 			orphan += len(r.Orphan)
-			perRun = append(perRun, len(r.CrossBoundary))
+			firmCount := 0
 			for _, k := range r.CrossBoundary {
-				fabricated[k] = true
+				fabAll[k] = true
+				if firmKeysAB[k] {
+					firmCount++
+					fabFirm[k] = true
+				}
 			}
+			perRunAll = append(perRunAll, len(r.CrossBoundary))
+			perRunFirm = append(perRunFirm, firmCount)
 		}
 		if ok == 0 {
 			continue
 		}
 
-		st := eval.ComputeSuperStats(perRun)
-		// Continuous mean (primary A/B signal — lower variance) with its 95% band,
-		// then the coarser binary rate with its Wilson interval. Overlapping bands
-		// between two conditions = the run did not distinguish them (underpowered).
-		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  — PROVABLY FABRICATED (primary signal)\n",
-			"CROSS-BOUNDARY MEAN", st.MeanPerRun, st.MeanCILow, st.MeanCIHigh)
-		fmt.Printf("    %-22s %.0f%% of %d runs invented ≥1 A↔B knot  [95%% CI %.0f–%.0f%%]\n",
-			"  (binary rate)", st.Rate*100, ok, st.RateCILow*100, st.RateCIHigh*100)
-		for _, k := range sortedKeys(fabricated) {
-			fmt.Printf("      %s\n", prettyKey(k))
+		// FIRM is the primary, stop-ship signal: an ASSERTED cross-group knot links
+		// two people who were never in the same run, presented as a claim. Target 0.
+		stFirm := eval.ComputeSuperStats(perRunFirm)
+		stAll := eval.ComputeSuperStats(perRunAll)
+		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  — ASSERTED FABRICATION (stop-ship; target 0)\n",
+			"FIRM CROSS-BOUNDARY", stFirm.MeanPerRun, stFirm.MeanCILow, stFirm.MeanCIHigh)
+		fmt.Printf("    %-22s %.0f%% of %d runs asserted ≥1 A↔B knot  [95%% CI %.0f–%.0f%%]\n",
+			"  (firm rate)", stFirm.Rate*100, ok, stFirm.RateCILow*100, stFirm.RateCIHigh*100)
+		for _, k := range sortedKeys(fabFirm) {
+			fmt.Printf("      FIRM  %s\n", prettyKey(k))
+		}
+		// ALL (firm+soft) is the secondary signal: the total locality leakage,
+		// including knots only ASKED as questions (lower harm under "lighter agenda").
+		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  (incl. soft / asked-not-asserted)\n",
+			"all cross-boundary", stAll.MeanPerRun, stAll.MeanCILow, stAll.MeanCIHigh)
+		for _, k := range sortedKeys(fabAll) {
+			if fabFirm[k] {
+				continue // already listed as FIRM
+			}
+			fmt.Printf("      soft  %s\n", prettyKey(k))
 		}
 		fmt.Printf("    %-22s %.2f mean (1.00 = law holds; dominated by intra-group flicker, see #5)\n",
 			"locality", localitySum/float64(ok))
@@ -778,13 +804,17 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 	return nil
 }
 
-// detectKeys runs one detection cycle and returns its stability-key set.
-func detectKeys(ctx context.Context, det *ettlemesh.Detector, people []participant) (map[string]bool, error) {
-	firm, soft, err := detectFor(ctx, det, people, 1)
+// detectKeysVoted runs one VOTED detection cycle (samples reconcile passes, through
+// the abstention gate + firm bar) and returns two key sets: allKeys (firm+soft
+// pooled — what the run "said") and firmKeys (asserted only). The superposition
+// headline splits on firmKeys so an ASSERTED cross-group fabrication (the real harm)
+// is reported apart from one merely asked as a question.
+func detectKeysVoted(ctx context.Context, det *ettlemesh.Detector, people []participant, samples int) (allKeys, firmKeys map[string]bool, err error) {
+	firm, soft, err := detectFor(ctx, det, people, samples)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return eval.RunKeys(firm, soft), nil
+	return eval.RunKeys(firm, soft), eval.RunKeys(firm, nil), nil
 }
 
 // detectKnots runs one detection cycle and returns every knot it surfaced

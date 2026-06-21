@@ -482,3 +482,69 @@ func TestVoteKnots(t *testing.T) {
 		t.Error("a 1/3 one-off must be SOFT (a question), not dropped or asserted")
 	}
 }
+
+// TestDropFloor pins the abstention gate (dropFloorFraction). At samples=5 the
+// single-appearance tail (the fabrication signature) is DROPPED while >=2/5 knots
+// survive; at samples=3 the floor is inert (default --ab is unaffected); and the
+// floor never drops a knot the per-kind firm bar would assert.
+func TestDropFloor(t *testing.T) {
+	// 5 runs. Recurrence by knot:
+	//   collision alice/bob   : 5/5 → kept, FIRM
+	//   collision eve/finn    : 2/5 → kept (above floor, below the 0.5 collision firm
+	//                                  bar → SOFT) — proves "kept but soft"
+	//   decision-rights gid/hal: 2/5 → FIRM by the 0.3 bar (2>=1.5) AND kept (2>=1.25)
+	//                                  — the floor∩firm invariant, operationally
+	//   duplication carol/dave : 1/5 → DROPPED (1 < 0.25*5 = 1.25)
+	clear := Knot{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename", Confidence: 0.9}
+	twice := Knot{Kind: KindCollision, Parties: []string{"eve", "finn"}, About: "ledger schema", Confidence: 0.8}
+	rights := Knot{Kind: KindDecisionRights, Parties: []string{"gid", "hal"}, About: "who owns the cutover", Confidence: 0.7}
+	oneOff := Knot{Kind: KindDuplication, Parties: []string{"carol", "dave"}, About: "spurious overlap", Confidence: 0.8}
+	runs := [][]Knot{
+		{clear, twice, rights, oneOff},
+		{clear, twice, rights},
+		{clear},
+		{clear},
+		{clear},
+	}
+	got := voteKnots(runs)
+	by := map[string]Knot{}
+	for _, k := range got {
+		by[k.Kind+"\x00"+strings.Join(k.Parties, "+")] = k
+	}
+	if _, dropped := by[KindDuplication+"\x00carol+dave"]; dropped {
+		t.Errorf("a 1/5 one-off must be DROPPED by the floor, but it survived: %+v", got)
+	}
+	if len(got) != 3 {
+		t.Fatalf("voteKnots kept %d, want 3 (5/5, 2/5, 2/5; the 1/5 dropped): %+v", len(got), got)
+	}
+	if c := by[KindCollision+"\x00alice+bob"]; c.Votes != 5 || !c.Firm() {
+		t.Errorf("5/5 collision = %d/%d firm=%v, want 5/5 FIRM", c.Votes, c.Samples, c.Firm())
+	}
+	if e := by[KindCollision+"\x00eve+finn"]; e.Votes != 2 || e.Firm() {
+		t.Errorf("2/5 collision = %d/%d firm=%v, want 2/5 KEPT-but-SOFT", e.Votes, e.Samples, e.Firm())
+	}
+	// The invariant: a knot the per-kind firm bar would assert is never floored away.
+	r, ok := by[KindDecisionRights+"\x00gid+hal"]
+	if !ok {
+		t.Fatal("a FIRM 2/5 decision-rights knot was dropped by the floor — invariant violated")
+	}
+	if !r.Firm() {
+		t.Errorf("2/5 decision-rights should be FIRM by the 0.3 bar, got firm=%v", r.Firm())
+	}
+
+	// Inertness at samples=3: the floor (threshold 0.75) cannot drop a Votes>=1 knot.
+	small := voteKnots([][]Knot{
+		{clear, oneOff},
+		{clear},
+		{clear},
+	})
+	foundOneOff := false
+	for _, k := range small {
+		if k.Kind == KindDuplication {
+			foundOneOff = true
+		}
+	}
+	if !foundOneOff {
+		t.Errorf("at samples=3 the floor must be INERT (1/3 kept), but the one-off was dropped: %+v", small)
+	}
+}
