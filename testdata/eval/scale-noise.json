@@ -1,0 +1,40 @@
+{
+  "name": "scale-noise",
+  "inputs": [
+    "testdata/scale/ravi.md",
+    "testdata/scale/lena.md",
+    "testdata/scale/sun.md",
+    "testdata/scale/omar.md",
+    "testdata/scale/theo.md"
+  ],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["ravi", "lena"],
+      "about": "Ravi inserts a rate_limit stanza into gateway/routes.yaml depending on the existing location-block order; Lena is reordering and collapsing the location blocks in the same file in the same window — incompatible edits to one file, order-dependent",
+      "keywords": ["gateway/routes.yaml", "location", "rate_limit", "reorder", "collision"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["sun", "ravi"],
+      "about": "Sun writes onboarding docs and edits example config snippets in the README; surface overlap on 'config' but touches no live service config — no shared resource with Ravi or anyone",
+      "keywords": ["docs", "onboarding", "readme", "config"],
+      "real": false
+    },
+    {
+      "id": "D2",
+      "parties": ["omar", "theo"],
+      "about": "Omar upgrades the test framework (CI YAML + *_test.go) and Theo refactors internal/log; both 'backend', both touch many files, but disjoint trees and no shared resource",
+      "keywords": ["test framework", "ci", "logging", "refactor"],
+      "real": false
+    },
+    {
+      "id": "D3",
+      "parties": ["omar", "ravi"],
+      "about": "both mention 'CI'/'config'/'deploy' in passing — surface tokens only, Omar's CI YAML and Ravi's gateway config are unrelated files",
+      "keywords": ["ci", "config", "yaml", "deploy"],
+      "real": false
+    }
+  ]
+}

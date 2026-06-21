@@ -1,0 +1,20 @@
+{
+  "name": "stale-assumption",
+  "inputs": ["testdata/stale/mira.md", "testdata/stale/devon.md", "testdata/stale/priya.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["mira", "devon"],
+      "about": "Mira's rollup assumes events.user_id is a stable bigint joined to users.id; Devon is mid-migration changing that column to a UUID string and moving the join key, which silently invalidates Mira's assumption",
+      "keywords": ["user_id", "events", "bigint", "uuid", "stale assumption", "join key"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["mira", "priya"],
+      "about": "Mira and Priya both work on the same daily-active-users feature, but Priya is a pure consumer of the rollup API and never touches the schema — surface overlap on 'events'/'user_id'/'dau', no shared resource and nothing for her assumption to go stale against",
+      "keywords": ["dashboard", "dau", "endpoint", "consumer", "duplicate"],
+      "real": false
+    }
+  ]
+}
