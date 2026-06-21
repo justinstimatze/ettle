@@ -44,6 +44,12 @@ func (f *fakeReconciler) ReconcileVoted(_ context.Context, _ []ettlemesh.Atom, _
 	return f.voted, nil
 }
 
+// GroundKnots is a pass-through in the fake: the direction-check is exercised in
+// ettlemesh's own tests; here the server just needs the seam satisfied.
+func (f *fakeReconciler) GroundKnots(_ context.Context, knots []ettlemesh.Knot, _ []ettlemesh.Atom) ([]ettlemesh.Knot, error) {
+	return knots, nil
+}
+
 func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([]ettlemesh.Knot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -39,6 +39,7 @@ type reconciler interface {
 	Distill(ctx context.Context, from, role, text string, private []string) ([]ettlemesh.Atom, error)
 	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) ([]ettlemesh.Knot, error)
 	ReconcileSelf(ctx context.Context, atoms []ettlemesh.Atom) ([]ettlemesh.Knot, error)
+	GroundKnots(ctx context.Context, knots []ettlemesh.Knot, atoms []ettlemesh.Atom) ([]ettlemesh.Knot, error)
 }
 
 // defaultSamples matches the CLI default (voting on); 1 disables voting.
@@ -203,6 +204,13 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 		samples = defaultSamples
 	}
 	knots, err := s.det.ReconcileVoted(ctx, atoms, samples)
+	if err != nil {
+		return nil, horizonOut{}, err
+	}
+	// Collision direction-check: drop cross-person collisions that are really
+	// producer/consumer or different artifacts sharing a topic word (no-op if the
+	// detector has Ground off).
+	knots, err = s.det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return nil, horizonOut{}, err
 	}

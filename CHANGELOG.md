@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Collision direction-check — closes the residual fabrication the floor couldn't
+  reach, now ON by default** (`GroundKnots` in `internal/ettlemesh/ground.go`). The
+  abstention floor (below) kills the flickery fabrication tail, but a *high*-recurrence
+  misread survives it: a producer/consumer pipeline read as a collision because both
+  people name the same topic word (mabel "consuming the metrics API" vs opal "writing
+  warehouse tables the metrics service queries" — both say "metrics"). This is
+  lexically inseparable from a real collision (bex+cyrus both say "orders"/"status"),
+  so no token filter can catch it — the discriminator is the *relationship*. The
+  reframed pass asks one bounded question of each cross-person COLLISION: do both
+  parties **edit the same artifact** (real), or does one **produce what the other
+  consumes** / do they touch **different artifacts sharing a topic word** (fabricated)?
+  Measured (haiku, `--samples 5`): FIRM cross-boundary fabrication on
+  superposition-frontend-vs-data **0.50 → 0.00**, the "auth service" collision trap
+  cleared, **real-collision recall held 1.00 on every clear corpus** (schema, scale,
+  standup GetUser), pooled FP 6 → 3. This is the same scaffold that shipped *off* in
+  June under a *validity* framing ("do they share a referent?" — both do, so it
+  failed); the *direction* framing is answerable from the atoms and works. Now default
+  ON across `standup`, `eval`, and the **MCP horizon** (`ettle_horizon`); disable with
+  `--no-ground`. Scope: collisions only — duplication/teamwide/decision-rights have
+  different truth conditions and pass through.
 - **Abstention gate — the recurrence noise floor** (`dropFloorFraction` in
   `internal/ettlemesh/mesh.go`, applied in `voteKnots`) closes the bulk of the
   cross-group fabrication the robustness battery surfaced. A voted knot recurring

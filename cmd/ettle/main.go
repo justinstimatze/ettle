@@ -91,11 +91,11 @@ func main() {
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — knots recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
-	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
+	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default): it drops cross-person COLLISIONS that are really producer/consumer or two artifacts sharing a topic word, not a same-artifact edit. Measured to cut fabrication to 0 at full real-collision recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(os.Args[2:])
 
-	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: *ground, groundModel: *groundModel, paths: fs.Args()}
+	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
 		os.Exit(1)
@@ -207,8 +207,9 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("reconcile self: %w", err)
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Grounding pass: drop cross-person knots whose parties don't share a concrete
-	// referent (a no-op when det.Ground is off — set via --no-ground).
+	// Collision direction-check: drop cross-person COLLISIONS that are really
+	// producer/consumer or different artifacts sharing a topic word (ON by default;
+	// disable with --no-ground).
 	knots, err = det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return fmt.Errorf("ground: %w", err)
@@ -484,8 +485,9 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 		return nil, nil, err
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Grounding pass: drop cross-person knots whose parties don't share a concrete
-	// referent (a no-op when det.Ground is off — set via --no-ground).
+	// Collision direction-check: drop cross-person COLLISIONS that are really
+	// producer/consumer or different artifacts sharing a topic word (ON by default;
+	// disable with --no-ground).
 	knots, err = det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return nil, nil, err
@@ -513,7 +515,7 @@ func runEval(args []string) error {
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
 	separability := fs.Bool("separability", false, "diagnostic: over K joint runs, contrast fabricated vs real knots on recurrence-frequency and confidence (picks the fork: voting/threshold vs upstream grounding)")
-	ground := fs.Bool("ground", false, "experimental: run the semantic grounding pass on cross-person knots (off by default — a measured negative result; see ground.go)")
+	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default — see ground.go); pass to measure the pre-grounding baseline")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
@@ -527,7 +529,7 @@ func runEval(args []string) error {
 	defer cancel()
 	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, *model)
-	det.Ground = *ground
+	det.Ground = !*noGround
 	det.GroundModel = *groundModel
 
 	if *leak {
@@ -1387,6 +1389,7 @@ func runCapture(args []string) error {
 func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
+	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default — see ground.go)")
 	_ = fs.Parse(args)
 
 	key := apiKey()
@@ -1395,6 +1398,7 @@ func runMCP(args []string) error {
 	}
 	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
 	det := ettlemesh.NewDetector(&client, *model)
+	det.Ground = !*noGround
 
 	// The stdio MCP server owns stdout (the JSON-RPC channel); diagnostics go to
 	// stderr. Run until the client disconnects or the process is interrupted.
