@@ -207,8 +207,8 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
-	// Collision direction-check: drop cross-person collisions that are really
-	// producer/consumer or different artifacts sharing a topic word (no-op if the
+	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	// bridge people on a shared topic word across independent scopes (no-op if the
 	// detector has Ground off).
 	knots, err = s.det.GroundKnots(ctx, knots, atoms)
 	if err != nil {

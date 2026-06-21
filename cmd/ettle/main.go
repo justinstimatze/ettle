@@ -91,7 +91,7 @@ func main() {
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — knots recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
-	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default): it drops cross-person COLLISIONS that are really producer/consumer or two artifacts sharing a topic word, not a same-artifact edit. Measured to cut fabrication to 0 at full real-collision recall (see ground.go).")
+	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide knots that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-knot recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(os.Args[2:])
 
@@ -207,8 +207,8 @@ func run(cfg runConfig) error {
 		return fmt.Errorf("reconcile self: %w", err)
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Collision direction-check: drop cross-person COLLISIONS that are really
-	// producer/consumer or different artifacts sharing a topic word (ON by default;
+	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	// bridge people on a shared topic word across independent scopes (ON by default;
 	// disable with --no-ground).
 	knots, err = det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
@@ -485,8 +485,8 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 		return nil, nil, err
 	}
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Collision direction-check: drop cross-person COLLISIONS that are really
-	// producer/consumer or different artifacts sharing a topic word (ON by default;
+	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	// bridge people on a shared topic word across independent scopes (ON by default;
 	// disable with --no-ground).
 	knots, err = det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
@@ -515,7 +515,7 @@ func runEval(args []string) error {
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
 	separability := fs.Bool("separability", false, "diagnostic: over K joint runs, contrast fabricated vs real knots on recurrence-frequency and confidence (picks the fork: voting/threshold vs upstream grounding)")
-	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default — see ground.go); pass to measure the pre-grounding baseline")
+	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go); pass to measure the pre-grounding baseline")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
@@ -1389,7 +1389,7 @@ func runCapture(args []string) error {
 func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
-	noGround := fs.Bool("no-ground", false, "disable the collision direction-check pass (ON by default — see ground.go)")
+	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
 	_ = fs.Parse(args)
 
 	key := apiKey()

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Cross-person coupling check — generalizes the collision direction-check to
+  duplication + teamwide-divergence** (`GroundKnots`/`groundableKnots` in
+  `internal/ettlemesh/ground.go`). The collision pass (below) closed the *collision*
+  vector, but a `--samples 5` re-measure found the **same root error** — two people
+  bridged on a shared topic word while working in *independent scopes* — surviving
+  voting under two **other** kinds: a fake `[duplication] alice,cleo` (a user-lookup
+  cache and a Grafana metrics dashboard read as redundant work) and a fake
+  `[teamwide-divergence] alice,bob,cleo` (cleo's unscheduled internal maintenance
+  swept into a product launch deadline), together **0.40 FIRM cross-boundary
+  knots/run** on `superposition-userservice-vs-infra`. The pass now asks a
+  kind-appropriate **coupling** question of each cross-person collision/duplication/
+  teamwide knot: collision → do both *edit the same artifact*; duplication → are both
+  *building the same deliverable twice*; teamwide → does the named assumption actually
+  *govern every party* and do they hold it *differently*. decision-rights is excluded
+  (a who-decides truth condition the coupling question would misjudge). Measured
+  (haiku, `--samples 5`): userservice-vs-infra FIRM cross-boundary **0.40 → 0.00**
+  (CI 0.00–0.00, both fabs gone); **real-knot recall held 1.00 across kinds** — real
+  teamwide (calendar K1), real duplication (duplicate-util K1), real collision
+  (schema-collision K1) all kept at precision 1.00; labeled fakes duplicate-util D1
+  (CI test-retry vs HTTP backoff) and shared-deadline-null D1 (agreed Q3 freeze)
+  dropped. **Caveat:** the pass is a *single probabilistic judge call*, not a
+  deterministic gate — it lowers fabrication probability but a borderline fab still
+  flickers firm run-to-run (frontend-vs-data's mabel/opal collision landed firm 0.40
+  this run, within noise of the prior 0.00); n=5 can't claim a stable per-corpus rate,
+  and whether one merged 3-kind prompt slightly dilutes collision precision vs the
+  focused prompt is an open question for higher-n. Default ON across `standup`,
+  `eval`, and the **MCP horizon**; disable with `--no-ground`.
 - **Collision direction-check — closes the residual fabrication the floor couldn't
   reach, now ON by default** (`GroundKnots` in `internal/ettlemesh/ground.go`). The
   abstention floor (below) kills the flickery fabrication tail, but a *high*-recurrence

@@ -24,6 +24,28 @@ func TestMultiPerson(t *testing.T) {
 	}
 }
 
+func TestGroundableKnots(t *testing.T) {
+	knots := []Knot{
+		ck(KindCollision, "alice", "bob"),                 // 0: checkable
+		ck(KindDuplication, "evan", "fay"),                // 1: checkable (broadened)
+		ck(KindTeamwideDivergence, "jun", "kara", "liam"), // 2: checkable (broadened)
+		ck(KindDecisionRights, "alice", "bob"),            // 3: excluded — who-decides
+		ck(KindCollision, "alice", "Alice"),               // 4: excluded — single person
+		ck(KindStaleAssumption, "cleo"),                   // 5: excluded — self knot
+		ck(KindCollision, "alice"),                        // 6: excluded — one party
+	}
+	got := groundableKnots(knots)
+	want := []int{0, 1, 2}
+	if len(got) != len(want) {
+		t.Fatalf("groundableKnots = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("groundableKnots = %v, want %v", got, want)
+		}
+	}
+}
+
 func TestApplyGroundingVerdictsDropsUngroundedCrossPerson(t *testing.T) {
 	knots := []Knot{
 		ck(KindCollision, "alice", "bob"), // 0: grounded → keep
