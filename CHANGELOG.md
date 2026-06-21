@@ -22,13 +22,20 @@
   teamwide (calendar K1), real duplication (duplicate-util K1), real collision
   (schema-collision K1) all kept at precision 1.00; labeled fakes duplicate-util D1
   (CI test-retry vs HTTP backoff) and shared-deadline-null D1 (agreed Q3 freeze)
-  dropped. **Caveat:** the pass is a *single probabilistic judge call*, not a
-  deterministic gate — it lowers fabrication probability but a borderline fab still
-  flickers firm run-to-run (frontend-vs-data's mabel/opal collision landed firm 0.40
-  this run, within noise of the prior 0.00); n=5 can't claim a stable per-corpus rate,
-  and whether one merged 3-kind prompt slightly dilutes collision precision vs the
-  focused prompt is an open question for higher-n. Default ON across `standup`,
-  `eval`, and the **MCP horizon**; disable with `--no-ground`.
+  dropped. To keep each kind's instruction undiluted, the pass makes **one focused
+  call per kind present** (collision / duplication / teamwide) rather than one merged
+  3-kind prompt — cost is +1 model call per additional distinct kind. The same change
+  numbers each prompt's knots by their **full-slice index**, fixing a latent
+  verdict-mismap that silently failed to drop a fabrication whenever a
+  self/decision-rights knot preceded a groundable one (fail-open kept it).
+  Re-smoke-tested after the split: userservice-vs-infra FIRM still **0.00**, real
+  teamwide (calendar K1) and real duplication (duplicate-util K1) recall held **1.00**.
+  **Caveat:** the pass is a *single probabilistic judge call*, not a deterministic
+  gate — it lowers fabrication probability but a borderline fab still flickers firm
+  run-to-run (frontend-vs-data's mabel/opal collision, calendar's "review" D1); n=5
+  can't claim a stable per-corpus rate, and that flicker (finding #5) is accepted for
+  now. Default ON across `standup`, `eval`, and the **MCP horizon**; disable with
+  `--no-ground`.
 - **Collision direction-check — closes the residual fabrication the floor couldn't
   reach, now ON by default** (`GroundKnots` in `internal/ettlemesh/ground.go`). The
   abstention floor (below) kills the flickery fabrication tail, but a *high*-recurrence

@@ -1,9 +1,35 @@
 package ettlemesh
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func ck(kind string, parties ...string) Knot {
 	return Knot{Kind: kind, Parties: parties, Confidence: 1.0}
+}
+
+// buildGroundPrompt must number knots by their FULL-SLICE index, not their position
+// within idxs — otherwise the model's verdict (keyed by the shown index) misses its
+// knot in applyGroundingVerdicts (keyed by full-slice index) whenever a non-groundable
+// knot precedes a groundable one. This pins the verdict-mapping fix.
+func TestBuildGroundPromptNumbersBySliceIndex(t *testing.T) {
+	knots := []Knot{
+		ck(KindStaleAssumption, "cleo"),   // 0: self knot — not groundable
+		ck(KindCollision, "alice", "bob"), // 1: groundable
+		ck(KindCollision, "dao", "evan"),  // 2: groundable
+	}
+	got := buildGroundPrompt(KindCollision, []int{1, 2}, knots, nil)
+	if !strings.Contains(got, "Knot 1 — [collision]") || !strings.Contains(got, "Knot 2 — [collision]") {
+		t.Fatalf("want knots numbered by full-slice index (1, 2), got:\n%s", got)
+	}
+	if strings.Contains(got, "Knot 0 —") {
+		t.Fatalf("numbered by subset position (0-based) — the verdict-mapping bug:\n%s", got)
+	}
+	// Focused prompt: only the collision test, never the duplication/teamwide text.
+	if strings.Contains(got, "HTTP retry helpers") || strings.Contains(got, "freeze on the 27th") {
+		t.Fatalf("collision prompt leaked another kind's guidance:\n%s", got)
+	}
 }
 
 func TestMultiPerson(t *testing.T) {
