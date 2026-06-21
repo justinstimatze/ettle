@@ -1,0 +1,27 @@
+{
+  "name": "shared-component-null",
+  "inputs": ["testdata/sharedcomp/kai.md", "testdata/sharedcomp/nora.md", "testdata/sharedcomp/iris.md"],
+  "expected_knots": [
+    {
+      "id": "D1",
+      "parties": ["kai", "nora"],
+      "about": "both name 'the auth service' — Kai rotates internal signing keys (no API change), Nora documents the endpoints (prose only); same component name, no shared resource and no behavior either depends on from the other",
+      "keywords": ["auth service", "login", "jwt", "endpoints"],
+      "real": false
+    },
+    {
+      "id": "D2",
+      "parties": ["nora", "iris"],
+      "about": "both name 'the auth service' — Nora writes endpoint docs, Iris adds metrics/dashboards; observability and documentation are disjoint, neither changes the service",
+      "keywords": ["auth service", "endpoints", "metrics", "dashboard"],
+      "real": false
+    },
+    {
+      "id": "D3",
+      "parties": ["kai", "iris"],
+      "about": "both name 'the auth service' — Kai's key rotation is internal, Iris's instrumentation is non-invasive; same noun, no collision",
+      "keywords": ["auth service", "signing keys", "latency", "alert"],
+      "real": false
+    }
+  ]
+}

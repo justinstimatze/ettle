@@ -1,0 +1,20 @@
+{
+  "name": "calendar-divergence",
+  "inputs": ["testdata/calendar/jun.md", "testdata/calendar/kara.md", "testdata/calendar/liam.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["jun", "kara", "liam"],
+      "about": "three incompatible beliefs about the same release freeze: Jun is pacing to a freeze on the 27th, Kara believes it moved to the 30th, and Liam believes there is no freeze at all under continuous deploy — a teamwide divergence on a shared fact (the freeze) that will surface as missed handoffs",
+      "keywords": ["freeze", "27th", "30th", "continuous deploy", "divergence", "cutoff"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["jun", "kara"],
+      "about": "Jun mentions reviewers and Kara mentions a design review — both say 'review' but they are unrelated review processes (code review vs design review), not a shared contested fact",
+      "keywords": ["review", "reviewers", "design review"],
+      "real": false
+    }
+  ]
+}

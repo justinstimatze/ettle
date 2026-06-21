@@ -1,0 +1,20 @@
+{
+  "name": "duplicate-util",
+  "inputs": ["testdata/dupe/evan.md", "testdata/dupe/fay.md", "testdata/dupe/glen.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["evan", "fay"],
+      "about": "Evan and Fay are independently building the same utility — an HTTP retry wrapper with exponential backoff, jitter, max-attempts and Retry-After — in two repos under different names (retryWithBackoff vs Retry); duplicated effort that should be one shared helper",
+      "keywords": ["retry", "backoff", "jitter", "retry-after", "duplicate", "http"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["evan", "glen"],
+      "about": "Glen adds CI test-retry to the pipeline YAML — the word 'retry' overlaps, but it is rerunning flaky tests in CI, not an HTTP backoff helper; different domain, no shared code",
+      "keywords": ["retry", "ci", "flaky", "tests"],
+      "real": false
+    }
+  ]
+}

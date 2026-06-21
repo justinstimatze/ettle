@@ -1,0 +1,20 @@
+{
+  "name": "ownership-dispute",
+  "inputs": ["testdata/ownership/hana.md", "testdata/ownership/ivo.md", "testdata/ownership/jana.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["hana", "ivo"],
+      "about": "Hana is unilaterally rolling out an RFC 7807 error standard across services this week; Ivo holds that error format is an API-review-owned platform decision still in draft — a genuine decision-rights conflict over who owns the error-format choice, not a code collision",
+      "keywords": ["error", "problem+json", "standard", "api review", "decision", "owns"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["jana"],
+      "about": "Jana weighs streaming vs in-memory for her own export feature — an open question, but entirely within her own scope with no second party claiming it; a self-only deliberation, not a cross-person decision-rights knot",
+      "keywords": ["streaming", "export", "decision", "in-memory"],
+      "real": false
+    }
+  ]
+}

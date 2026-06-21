@@ -1,0 +1,5 @@
+{
+  "name": "superposition-frontend-vs-data",
+  "groupA": ["testdata/super2/mabel.md", "testdata/super2/nash.md"],
+  "groupB": ["testdata/super2/opal.md", "testdata/super2/reed.md"]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "schema-collision",
+  "inputs": ["testdata/schema/bex.md", "testdata/schema/cyrus.md", "testdata/schema/dana.md"],
+  "expected_knots": [
+    {
+      "id": "K1",
+      "parties": ["bex", "cyrus"],
+      "about": "Bex's migration 0042 ADDS an orders.status enum column; Cyrus's migration 0041 RENAMES orders.state to status as an enum — two migrations defining the same orders.status column in the same window, an incompatible schema collision plus an ordering conflict (0041 vs 0042)",
+      "keywords": ["orders", "status", "migration", "schema", "collision", "enum"],
+      "real": true
+    },
+    {
+      "id": "D1",
+      "parties": ["bex", "dana"],
+      "about": "Dana reads the orders table read-only for a report and mentions 'status'; she runs no migration and writes nothing, so there is no resource to collide on — surface overlap only",
+      "keywords": ["orders", "status", "report", "read-only"],
+      "real": false
+    }
+  ]
+}
