@@ -228,17 +228,31 @@ func run(cfg runConfig) error {
 // surface prints the knots relevant to `me` (or all, in team view), routed FIRM
 // vs SOFT, with contested knots resolved. This is the agent → its own human.
 func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, resolver crux.Resolver) {
-	var firm, soft []ettlemesh.Knot
+	// Act/ask routing (docs/LEGIBILITY.md stage 0c). The detector has no ground truth
+	// for a cross-person conflict, and recurrence is test-retest STABILITY, not
+	// validity — so a cross-person knot is never ASSERTED, only posed as a question to
+	// the parties (mixed-initiative: ask when a wrong claim's cost is social and the
+	// confidence is unearned). Only SELF knots — a person's own drift, which they can
+	// verify directly — are asserted. The Firm-and-bindable "act" lane for cross-person
+	// knots opens later, earned per kind against the calibration label (stage 2). The
+	// ask lane is ordered firm-first so the most-recurring float to the top.
+	var act, ask []ettlemesh.Knot
 	for _, k := range knots {
 		if me != "" && !partyOf(k, me) {
 			continue
 		}
-		if k.Firm() {
-			firm = append(firm, k)
+		if crossPerson(k) {
+			ask = append(ask, k)
 		} else {
-			soft = append(soft, k)
+			act = append(act, k)
 		}
 	}
+	sort.SliceStable(ask, func(i, j int) bool {
+		if ask[i].Firm() != ask[j].Firm() {
+			return ask[i].Firm() // firm-first
+		}
+		return ask[i].Votes > ask[j].Votes
+	})
 
 	who := "the team"
 	if me != "" {
@@ -248,30 +262,32 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	fmt.Printf("  %s across %s; %s surfaced\n",
 		plural(len(atoms), "atom", "atoms"),
 		plural(countPeople(atoms), "person", "people"),
-		plural(len(firm)+len(soft), "knot", "knots"))
+		plural(len(act)+len(ask), "knot", "knots"))
 
-	section("worth a look (firm)")
-	if len(firm) == 0 {
+	if len(act) == 0 && len(ask) == 0 {
+		section("horizon")
 		fmt.Println("    — nothing; the horizon is clear.")
 	}
-	for _, k := range firm {
-		printKnot(k)
-		if crux.Contested(k) {
-			r, err := resolver.Resolve(ctx, k, atoms)
-			switch {
-			case err != nil:
-				// Don't swallow it — a contested knot with no crux must explain why.
-				fmt.Printf("      → (resolver unavailable: %v)\n", err)
-			case r != nil:
-				printResolution(r)
-			}
+	if len(act) > 0 {
+		section("worth a look (your own assumptions to revisit)")
+		for _, k := range act {
+			printKnot(k)
 		}
 	}
-
-	if len(soft) > 0 {
-		section("worth a question (soft — recurred too rarely across samples to assert, or rests on an inference)")
-		for _, k := range soft {
-			printKnot(k)
+	if len(ask) > 0 {
+		section("worth checking together (a question, not a claim — confirm or wave off)")
+		for _, k := range ask {
+			printAsk(k)
+			if crux.Contested(k) {
+				r, err := resolver.Resolve(ctx, k, atoms)
+				switch {
+				case err != nil:
+					// Don't swallow it — a contested knot with no crux must explain why.
+					fmt.Printf("      → (resolver unavailable: %v)\n", err)
+				case r != nil:
+					printResolution(r)
+				}
+			}
 		}
 	}
 
@@ -322,6 +338,33 @@ func printKnot(k ettlemesh.Knot) {
 	}
 	fmt.Printf("    • [%s] %s\n      %s\n      parties: %s · confidence %.1f%s\n",
 		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, vote)
+}
+
+// printAsk renders a cross-person knot as a QUESTION addressed to its parties, not an
+// assertion (docs/LEGIBILITY.md stage 0c) — the detector cannot certify a cross-person
+// conflict, so it poses it for the humans to confirm or wave off.
+func printAsk(k ettlemesh.Knot) {
+	vote := ""
+	if k.Samples > 0 {
+		vote = fmt.Sprintf(" · seen in %d/%d samples", k.Votes, k.Samples)
+	}
+	fmt.Printf("    ? [possible %s] %s\n      %s\n      Real, or already handled?  parties: %s · confidence %.1f%s\n",
+		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, vote)
+}
+
+// crossPerson reports whether a knot names at least two DISTINCT people (case/space
+// folded) — the knots that get the interrogative register. Single-author (self) knots
+// are the only ones asserted.
+func crossPerson(k ettlemesh.Knot) bool {
+	if len(k.Parties) < 2 {
+		return false
+	}
+	for _, p := range k.Parties[1:] {
+		if !ettlemesh.SamePerson(p, k.Parties[0]) {
+			return true
+		}
+	}
+	return false
 }
 
 func printResolution(r *Resolution) {

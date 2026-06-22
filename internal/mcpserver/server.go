@@ -111,6 +111,10 @@ type knotView struct {
 	Confidence  float64  `json:"confidence"`
 	Votes       int      `json:"votes,omitempty"`
 	Samples     int      `json:"samples,omitempty"`
+	// Question marks a cross-person knot the agent must present as a QUESTION to its
+	// human, not an assertion — the detector cannot certify a cross-person conflict
+	// (docs/LEGIBILITY.md stage 0c). Self knots (own drift) are assertable and omit it.
+	Question bool `json:"question,omitempty"`
 }
 
 func toKnotView(k ettlemesh.Knot) knotView {
@@ -118,12 +122,27 @@ func toKnotView(k ettlemesh.Knot) knotView {
 		Kind: k.Kind, Parties: k.Parties, About: k.About,
 		Explanation: k.Explanation, Confidence: k.Confidence,
 		Votes: k.Votes, Samples: k.Samples,
+		Question: crossPerson(k.Parties),
 	}
 }
 
 func partiesInclude(parties []string, me string) bool {
 	for _, p := range parties {
 		if ettlemesh.SamePerson(p, me) {
+			return true
+		}
+	}
+	return false
+}
+
+// crossPerson reports whether a knot names at least two DISTINCT people — the knots
+// presented as questions rather than assertions (stage 0c).
+func crossPerson(parties []string) bool {
+	if len(parties) < 2 {
+		return false
+	}
+	for _, p := range parties[1:] {
+		if !ettlemesh.SamePerson(p, parties[0]) {
 			return true
 		}
 	}

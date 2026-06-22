@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Interrogative register (stage 0c) — cross-person knots are posed as questions,
+  not asserted** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The detector has no
+  ground truth for a cross-person conflict, and recurrence is test-retest *stability*,
+  not validity — so it has no standing to assert one. The CLI `surface` now routes
+  **self knots** (a person's own drift, which they can verify) to an asserted "worth a
+  look" lane and **every cross-person knot** to a "worth checking together (a question,
+  not a claim)" lane — "[possible collision] … Real, or already handled?" — ordered
+  firm-first; contested ones still pre-stage their either/or. The MCP `horizon` marks
+  each cross-person `knotView` `question:true` so agent consumers present it as a
+  question too. Grounded in mixed-initiative design (act when confident+positive-sum,
+  ask otherwise) and trust calibration (communicate true uncertainty, don't overclaim).
+  The Firm-and-bindable act-lane for cross-person knots opens later, *earned per kind*
+  against the calibration label (stage 2) — so this register is also the active-learning
+  query front-end that loop will need. Deterministically tested (`TestSurfaceActAskRouting`).
 - **Legible abstention (stage 0a) — the coupling check stops dropping silently**
   (`GroundKnots` now returns `(kept, suppressed)`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
   A clear horizon that silently hid a suppressed call trains the human to stop

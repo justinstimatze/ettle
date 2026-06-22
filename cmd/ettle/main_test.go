@@ -26,6 +26,32 @@ func captureStdout(t *testing.T, f func()) string {
 	return string(b)
 }
 
+// Act/ask routing (docs/LEGIBILITY.md stage 0c): a cross-person knot is posed as a
+// QUESTION (the detector can't certify it); a self knot — own drift — is asserted.
+func TestSurfaceActAskRouting(t *testing.T) {
+	ctx := context.Background()
+	cross := ettlemesh.Knot{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "may clash", Confidence: 0.6, Votes: 5, Samples: 5}
+	self := ettlemesh.Knot{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"mabel"}, About: "deadline assumption", Explanation: "you assumed Friday", Confidence: 0.6, Votes: 5, Samples: 5}
+
+	// Cross-person knot → interrogative register, never asserted as "[collision]".
+	out := captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{cross}, nil, 0, nil, nil, crux.Inline{}) })
+	if !strings.Contains(out, "worth checking together") || !strings.Contains(out, "? [possible collision]") {
+		t.Fatalf("a cross-person knot must be posed as a question:\n%s", out)
+	}
+	if strings.Contains(out, "• [collision]") {
+		t.Fatalf("a cross-person knot must NOT be asserted as a bare claim:\n%s", out)
+	}
+	if !strings.Contains(out, "Real, or already handled?") {
+		t.Fatalf("the question framing must invite confirm/dismiss:\n%s", out)
+	}
+
+	// Self knot (own drift) → asserted in the act lane.
+	out = captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{self}, nil, 0, nil, nil, crux.Inline{}) })
+	if !strings.Contains(out, "your own assumptions") || !strings.Contains(out, "• [stale-assumption]") {
+		t.Fatalf("a self knot (own drift) must be asserted, not questioned:\n%s", out)
+	}
+}
+
 // Legible abstention (docs/LEGIBILITY.md stage 0a): a coupling-check suppression must
 // be SHOWN — off the agenda, filtered to me — never silently dropped.
 func TestSurfaceHeldBack(t *testing.T) {
