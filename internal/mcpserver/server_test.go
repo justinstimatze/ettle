@@ -59,6 +59,66 @@ func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([
 
 func newServerWith(f *fakeReconciler) *server { return &server{det: f, h: newHorizon()} }
 
+// memLabelSink captures verdicts in memory for tests — no filesystem.
+type memLabelSink struct {
+	mu  sync.Mutex
+	got []Label
+}
+
+func (m *memLabelSink) record(l Label) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.got = append(m.got, l)
+	return nil
+}
+
+// Stage 0c-2: ettle_respond captures the human verdict as a label (the calibration
+// loop's future input), validates the verdict, and never mutates the horizon.
+func TestRespondCapturesLabel(t *testing.T) {
+	sink := &memLabelSink{}
+	s := &server{det: &fakeReconciler{}, h: newHorizon(), labels: sink}
+	ctx := context.Background()
+
+	_, out, err := s.respond(ctx, nil, respondIn{Me: "mabel", Knot: "collision|mabel+opal", Verdict: "not_real", Note: "pipeline, not a clash"})
+	if err != nil {
+		t.Fatalf("respond errored: %v", err)
+	}
+	if !out.Recorded || out.Verdict != "not_real" {
+		t.Fatalf("unexpected out: %+v", out)
+	}
+	if len(sink.got) != 1 {
+		t.Fatalf("want 1 label captured, got %d", len(sink.got))
+	}
+	if l := sink.got[0]; l.Key != "collision|mabel+opal" || l.By != "mabel" || l.Verdict != "not_real" || l.TS == "" {
+		t.Fatalf("label not recorded faithfully: %+v", l)
+	}
+
+	// A bad verdict is rejected and nothing is captured.
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "mabel", Knot: "k", Verdict: "maybe"}); err == nil {
+		t.Fatal("expected an error for an invalid verdict")
+	}
+	// Missing fields rejected.
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "", Knot: "k", Verdict: "real"}); err == nil {
+		t.Fatal("expected an error for a missing responder")
+	}
+	if len(sink.got) != 1 {
+		t.Fatalf("rejected calls must not capture; got %d labels", len(sink.got))
+	}
+}
+
+// The knot key an agent answers must match the key the horizon hands out (wording-
+// independent: same kind + parties => same key regardless of order/case/About).
+func TestKnotKeyStableAndCrossCallMatch(t *testing.T) {
+	a := knotKey("collision", []string{"Opal", " mabel "})
+	b := knotKey("collision", []string{"mabel", "opal"})
+	if a != b {
+		t.Fatalf("key not order/case-stable: %q vs %q", a, b)
+	}
+	if a != "collision|mabel+opal" {
+		t.Fatalf("unexpected key form: %q", a)
+	}
+}
+
 func TestEmitDistillsStoresAndDropsRaw(t *testing.T) {
 	f := &fakeReconciler{atoms: []ettlemesh.Atom{
 		{Typ: ettlemesh.Dependency, Subject: "user-service/cache", Content: "relies on it", Confidence: 1},

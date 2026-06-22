@@ -44,8 +44,8 @@ func TestMultiPerson(t *testing.T) {
 		{[]string{"alice", "alice", "dao"}, true},
 	}
 	for _, c := range cases {
-		if got := multiPerson(c.parties); got != c.want {
-			t.Errorf("multiPerson(%v) = %v, want %v", c.parties, got, c.want)
+		if got := MultiPerson(c.parties); got != c.want {
+			t.Errorf("MultiPerson(%v) = %v, want %v", c.parties, got, c.want)
 		}
 	}
 }
@@ -84,7 +84,7 @@ func TestApplyGroundingVerdictsDropsUngroundedCrossPerson(t *testing.T) {
 		t.Fatalf("expected 2 knots (alice×bob + cleo self), got %d: %+v", len(out), out)
 	}
 	for _, k := range out {
-		if multiPerson(k.Parties) && SamePerson(k.Parties[1], "dao") {
+		if MultiPerson(k.Parties) && SamePerson(k.Parties[1], "dao") {
 			t.Fatalf("the ungrounded alice×dao knot should have been dropped")
 		}
 	}

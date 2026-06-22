@@ -241,7 +241,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 		if me != "" && !partyOf(k, me) {
 			continue
 		}
-		if crossPerson(k) {
+		if ettlemesh.MultiPerson(k.Parties) {
 			ask = append(ask, k)
 		} else {
 			act = append(act, k)
@@ -350,21 +350,6 @@ func printAsk(k ettlemesh.Knot) {
 	}
 	fmt.Printf("    ? [possible %s] %s\n      %s\n      Real, or already handled?  parties: %s · confidence %.1f%s\n",
 		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, vote)
-}
-
-// crossPerson reports whether a knot names at least two DISTINCT people (case/space
-// folded) — the knots that get the interrogative register. Single-author (self) knots
-// are the only ones asserted.
-func crossPerson(k ettlemesh.Knot) bool {
-	if len(k.Parties) < 2 {
-		return false
-	}
-	for _, p := range k.Parties[1:] {
-		if !ettlemesh.SamePerson(p, k.Parties[0]) {
-			return true
-		}
-	}
-	return false
 }
 
 func printResolution(r *Resolution) {

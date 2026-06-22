@@ -19,10 +19,13 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -78,8 +81,9 @@ func (h *horizon) snapshot() []transport.Envelope {
 }
 
 type server struct {
-	det reconciler
-	h   *horizon
+	det    reconciler
+	h      *horizon
+	labels labelSink // where ettle_respond writes verdicts; nil disables the tool
 }
 
 // --- shareable projections (exactly what crosses, as plain JSON) ---
@@ -115,6 +119,10 @@ type knotView struct {
 	// human, not an assertion — the detector cannot certify a cross-person conflict
 	// (docs/LEGIBILITY.md stage 0c). Self knots (own drift) are assertable and omit it.
 	Question bool `json:"question,omitempty"`
+	// Key identifies the coordination problem (kind + sorted parties, wording-
+	// independent) so a human can answer it via ettle_respond — the label-capture
+	// channel (stage 0c-2). Same key across horizon calls = the same knot recurring.
+	Key string `json:"key"`
 }
 
 func toKnotView(k ettlemesh.Knot) knotView {
@@ -122,27 +130,33 @@ func toKnotView(k ettlemesh.Knot) knotView {
 		Kind: k.Kind, Parties: k.Parties, About: k.About,
 		Explanation: k.Explanation, Confidence: k.Confidence,
 		Votes: k.Votes, Samples: k.Samples,
-		Question: crossPerson(k.Parties),
+		Question: ettlemesh.MultiPerson(k.Parties),
+		Key:      knotKey(k.Kind, k.Parties),
 	}
+}
+
+// knotKey is the wording-independent identity of a coordination problem: kind + its
+// distinct parties (lowercased, trimmed, sorted), joined cleanly for use as a tool
+// argument. Mirrors eval.KnotKey's semantics but with a readable separator (no NUL),
+// since this key is passed back through ettle_respond by an agent.
+func knotKey(kind string, parties []string) string {
+	ps := make([]string, 0, len(parties))
+	seen := map[string]bool{}
+	for _, p := range parties {
+		n := strings.ToLower(strings.TrimSpace(p))
+		if n == "" || seen[n] {
+			continue
+		}
+		seen[n] = true
+		ps = append(ps, n)
+	}
+	sort.Strings(ps)
+	return kind + "|" + strings.Join(ps, "+")
 }
 
 func partiesInclude(parties []string, me string) bool {
 	for _, p := range parties {
 		if ettlemesh.SamePerson(p, me) {
-			return true
-		}
-	}
-	return false
-}
-
-// crossPerson reports whether a knot names at least two DISTINCT people — the knots
-// presented as questions rather than assertions (stage 0c).
-func crossPerson(parties []string) bool {
-	if len(parties) < 2 {
-		return false
-	}
-	for _, p := range parties[1:] {
-		if !ettlemesh.SamePerson(p, parties[0]) {
 			return true
 		}
 	}
@@ -322,7 +336,91 @@ func (s *server) selfCheck(ctx context.Context, _ *mcp.CallToolRequest, in selfI
 	return text(fmt.Sprintf("%s: %d atom(s), %d self-knot(s).", in.Participant, len(atoms), len(out.Knots))), out, nil
 }
 
-// newMCPServer builds the MCP server with the three tools registered. Shared by
+// --- ettle_respond (stage 0c-2: capture the human verdict as the calibration label) ---
+
+// Label is one human verdict on a surfaced cross-person knot — the ground-truth
+// signal stage 2's calibration loop will consume (docs/LEGIBILITY.md). It is captured
+// now, before that loop exists, so the labeled data accrues from day one: a detector
+// flag-rate is only calibratable against confirmations from people who saw the work.
+type Label struct {
+	Key     string `json:"key"`     // knotKey: the coordination problem answered
+	Verdict string `json:"verdict"` // real | not_real | handled
+	By      string `json:"by"`      // the responder (their own knot)
+	Note    string `json:"note,omitempty"`
+	TS      string `json:"ts"` // RFC3339, UTC
+}
+
+// labelSink persists verdicts. A file sink is the default; tests inject an in-memory
+// one. Kept an interface so capture has no hard dependency on the filesystem.
+type labelSink interface {
+	record(Label) error
+}
+
+// fileLabelSink appends one JSON object per line — an append-only log the calibration
+// loop (or any audit) can replay. Append+create, mutex-guarded for concurrent tools.
+type fileLabelSink struct {
+	mu   sync.Mutex
+	path string
+}
+
+func newFileLabelSink(path string) *fileLabelSink { return &fileLabelSink{path: path} }
+
+func (f *fileLabelSink) record(l Label) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fh, err := os.OpenFile(f.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+	b, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+	_, err = fh.Write(append(b, '\n'))
+	return err
+}
+
+type respondIn struct {
+	Me      string `json:"me" jsonschema:"the person responding — answer only your OWN knots"`
+	Knot    string `json:"knot" jsonschema:"the knot's key field from ettle_horizon"`
+	Verdict string `json:"verdict" jsonschema:"one of: real | not_real | handled"`
+	Note    string `json:"note,omitempty" jsonschema:"optional free-text context"`
+}
+
+type respondOut struct {
+	Recorded bool   `json:"recorded"`
+	Key      string `json:"key"`
+	Verdict  string `json:"verdict"`
+}
+
+// respond records a human's verdict on a cross-person knot. It does NOT mutate the
+// horizon or bind anything — it only captures the label (humans stay the deciders;
+// the loop that consumes these is stage 2, deliberately unbuilt).
+func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respondIn) (*mcp.CallToolResult, respondOut, error) {
+	if s.labels == nil {
+		return nil, respondOut{}, fmt.Errorf("label capture is not configured on this server")
+	}
+	me := strings.TrimSpace(in.Me)
+	key := strings.TrimSpace(in.Knot)
+	if me == "" || key == "" {
+		return nil, respondOut{}, fmt.Errorf("both `me` and `knot` (the key from ettle_horizon) are required")
+	}
+	v := strings.ToLower(strings.TrimSpace(in.Verdict))
+	switch v {
+	case "real", "not_real", "handled":
+	default:
+		return nil, respondOut{}, fmt.Errorf("verdict must be one of real | not_real | handled, got %q", in.Verdict)
+	}
+	lbl := Label{Key: key, Verdict: v, By: me, Note: in.Note, TS: time.Now().UTC().Format(time.RFC3339)}
+	if err := s.labels.record(lbl); err != nil {
+		return nil, respondOut{}, fmt.Errorf("record label: %w", err)
+	}
+	return text(fmt.Sprintf("recorded: %s judged %q on %s.", me, v, key)),
+		respondOut{Recorded: true, Key: key, Verdict: v}, nil
+}
+
+// newMCPServer builds the MCP server with the tools registered. Shared by
 // Serve (stdio) and the in-memory round-trip test.
 func newMCPServer(s *server, version string) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "ettle", Version: version}, nil)
@@ -342,6 +440,11 @@ func newMCPServer(s *server, version string) *mcp.Server {
 		Description: "Useful at N=1, no team needed: distill one person's notes and surface a stale self-assumption — a commitment that contradicts an assumption the same plan rests on. Stateless; does not touch the shared horizon.",
 	}, s.selfCheck)
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "ettle_respond",
+		Description: "Record YOUR human's verdict on a cross-person knot from ettle_horizon (one marked question:true) — real, not_real, or handled. This is the ground-truth signal the system will calibrate against; answer only your own knots, and pass the knot's `key`. It records the label only — it does not bind or decide anything.",
+	}, s.respond)
+
 	return srv
 }
 
@@ -350,6 +453,13 @@ func newMCPServer(s *server, version string) *mcp.Server {
 // buildVersion lives). Stdio discipline: stdout is the JSON-RPC channel, so
 // callers must keep all logging on stderr.
 func Serve(ctx context.Context, det reconciler, version string) error {
-	s := &server{det: det, h: newHorizon()}
+	// Label capture is local-first: an append-only JSONL file in the working dir,
+	// overridable by ETTLE_LABELS_PATH. The verdicts are the calibration loop's future
+	// input (stage 2); writing them now means the data exists before the loop does.
+	path := os.Getenv("ETTLE_LABELS_PATH")
+	if path == "" {
+		path = "ettle-labels.jsonl"
+	}
+	s := &server{det: det, h: newHorizon(), labels: newFileLabelSink(path)}
 	return newMCPServer(s, version).Run(ctx, &mcp.StdioTransport{})
 }

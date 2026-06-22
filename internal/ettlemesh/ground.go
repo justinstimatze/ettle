@@ -182,7 +182,7 @@ func groundableKnots(knots []Knot) []int {
 	for i, k := range knots {
 		switch k.Kind {
 		case KindCollision, KindDuplication, KindTeamwideDivergence:
-			if multiPerson(k.Parties) {
+			if MultiPerson(k.Parties) {
 				idx = append(idx, i)
 			}
 		}
@@ -201,7 +201,7 @@ const groundSys = "You are the coordination layer's coupling check: an independe
 func applyGroundingVerdicts(knots []Knot, verdicts map[int]bool) (kept, suppressed []Knot) {
 	kept = knots[:0:0] // fresh backing array; never alias the input
 	for i, k := range knots {
-		if !multiPerson(k.Parties) {
+		if !MultiPerson(k.Parties) {
 			kept = append(kept, k)
 			continue
 		}
@@ -215,9 +215,12 @@ func applyGroundingVerdicts(knots []Knot, verdicts map[int]bool) (kept, suppress
 	return kept, suppressed
 }
 
-// multiPerson reports whether a knot's parties denote at least two DISTINCT
-// people (the inverse of singleAuthor — the only knots the grounding pass checks).
-func multiPerson(parties []string) bool {
+// MultiPerson reports whether a knot's parties denote at least two DISTINCT people
+// (case/space folded). The single source of truth for "is this a cross-person knot?"
+// — the grounding pass checks it, the CLI routes self-vs-cross-person on it, and the
+// MCP horizon marks cross-person knots as questions with it. Exported so those three
+// call sites share one definition rather than drifting copies.
+func MultiPerson(parties []string) bool {
 	if len(parties) < 2 {
 		return false
 	}

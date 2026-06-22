@@ -12,3 +12,7 @@
 # (anonymized analyses, pasted snippets). Keep out of the public repo.
 *.local.md
 /local/
+
+# ettle_respond label-capture log (runtime data, never committed)
+ettle-labels.jsonl
+*.labels.jsonl

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Label capture (stage 0c-2) — `ettle_respond` records the human verdict**
+  (`internal/mcpserver`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)). A new MCP tool lets
+  a person's agent answer a cross-person knot from `ettle_horizon` — `real` /
+  `not_real` / `handled` — keyed by the knot's wording-independent `key` (now on every
+  `knotView`). Each verdict is appended as a `Label` (`{key, verdict, by, note, ts}`)
+  to a local JSONL (`ETTLE_LABELS_PATH`, default `ettle-labels.jsonl`, gitignored).
+  This is the **active-learning label stream** stage 2's calibration loop will consume
+  — written now so the data accrues before the loop exists (a detector flag-rate is
+  only calibratable against confirmations from people who saw the work). It records
+  **only**: no binding, no horizon mutation — humans stay the deciders. Label sink is
+  an interface (file by default; tests inject memory). Tested:
+  `TestRespondCapturesLabel` (capture + verdict/field validation, no-capture on
+  reject), `TestKnotKeyStableAndCrossCallMatch` (order/case-stable key).
 - **Interrogative register (stage 0c) — cross-person knots are posed as questions,
   not asserted** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The detector has no
   ground truth for a cross-person conflict, and recurrence is test-retest *stability*,
