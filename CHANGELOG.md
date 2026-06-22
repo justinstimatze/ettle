@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Inference-channel measurement (stage 1a-1) — `ettle eval --leak-inference`**
+  ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The `--leak` harness scans crossed atoms
+  for markers the person *wrote*, so it is structurally blind to the inference pass —
+  which manufactures *de-novo* claims the person never stated (and `--leak` never even
+  runs inference). The new opt-in mode runs `InferImplicit` on a trap corpus (notes
+  whose behavioral cues tempt a sensitive conclusion) and scans the **inferred** atoms
+  (`Inferred=true` only) for that conclusion's markers (`eval.InferenceLeaks`). Opt-in
+  because it adds one inference call per case — the cheap `--leak` path is unchanged.
+  **Measured (haiku, `testdata/leak/inference-traps.json`):** ~1/3 traps tripped — from
+  an innocuous "documenting my runbooks / pairing Kit on deploy" note the pass
+  reproducibly inferred *"the speaker is leaving or transitioning out of their current
+  role"* (conf 0.6), a claim the note never made; **0/6 inferred atoms were demoted to
+  questions** — they cross *asserted* at conf 0.4–0.6. (Rate is noisy, n=1/case and
+  stochastic; the qualitative finding — the inference channel fabricates sensitive
+  de-novo claims and asserts them — is the result, and it earns the enforcement step
+  0b.) A methodology note caught in review: the liberal substring matcher false-tripped
+  on the 3-letter marker `ill` ⊂ `will`; the trap corpus now avoids collision-prone
+  short markers. Tested deterministically (`TestInferenceLeaks`: a sensitive inferred
+  atom trips, an operative-only one doesn't, a STATED marker is the `--leak` channel and
+  is ignored here).
 - **Read-side mirror (stage 1b) — `ettle mirror --me <name>`** turns the one-way
   mirror around ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). L2 — the directed model of
   *you* that drives how you're treated — was, per ADOPTION.md, "a one-way mirror at

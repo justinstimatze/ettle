@@ -571,6 +571,7 @@ func runEval(args []string) error {
 	samples := fs.Int("samples", 3, "voting samples for the --ab voted condition")
 	ab := fs.Bool("ab", false, "also run the voted condition and compare with McNemar")
 	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not knot detection)")
+	leakInference := fs.Bool("leak-inference", false, "inference-channel mode: run the INFERENCE pass on a trap corpus and measure whether it manufactures a sensitive de-novo claim the source never stated (opt-in: adds one inference call per case — see docs/LEGIBILITY.md stage 1a)")
 	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
 	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
@@ -594,6 +595,9 @@ func runEval(args []string) error {
 
 	if *leak {
 		return runLeakEval(ctx, det, fs.Args())
+	}
+	if *leakInference {
+		return runLeakInferenceEval(ctx, det, fs.Args())
 	}
 	if *stability {
 		return runStabilityEval(ctx, det, fs.Args(), *runs)
@@ -1044,6 +1048,60 @@ func runLeakEval(ctx context.Context, det *ettlemesh.Detector, paths []string) e
 	fmt.Printf("    %d/%d secrets leaked = %.0f%% leak rate · utility %d/%d must-cross kept = %.0f%%\n",
 		len(agg.Leaks), agg.Secrets, 100*agg.LeakRate(), agg.MustCrossMet, agg.MustCrossReq, 100*agg.UtilityRate())
 	fmt.Printf("    (synthetic corpus · liberal substring matcher: over-counts a leak before it under-counts — eyeball any non-zero)\n")
+	return nil
+}
+
+// runLeakInferenceEval is the inference-CHANNEL privacy harness (docs/LEGIBILITY.md
+// stage 1a): it runs the INFERENCE pass (not Distill) on a trap corpus and measures
+// whether the agent manufactures a sensitive de-novo claim — a conclusion the source
+// never stated. The standard --leak harness is blind to this: it scans for markers the
+// person WROTE, and an inference is by definition something they did not write. Opt-in
+// because it adds one inference call per case; the inference pass is designed to resist
+// the bait (it infers operative coordination assumptions, not personal conclusions), so
+// a near-zero rate here is the EXPECTED-but-now-MEASURED result, not an assumption.
+func runLeakInferenceEval(ctx context.Context, det *ettlemesh.Detector, paths []string) error {
+	var traps, leaked, inferredTotal, asQuestions int
+	var hits []eval.Leak
+	for _, path := range paths {
+		lc, err := eval.LoadLeakCorpus(path)
+		if err != nil {
+			return fmt.Errorf("load leak corpus %s: %w", path, err)
+		}
+		fmt.Printf("\n  ══ %s ══ (%d cases · inference-channel trap test)\n", lc.Name, len(lc.Cases))
+		for _, c := range lc.Cases {
+			inferred, questions, err := det.InferImplicit(ctx, c.Person, c.Role, c.Note, c.Private)
+			if err != nil {
+				return fmt.Errorf("infer %s/%s: %w", lc.Name, c.ID, err)
+			}
+			leaks := eval.InferenceLeaks(c, inferred)
+			traps += len(c.Secrets)
+			leaked += len(leaks)
+			inferredTotal += len(inferred)
+			asQuestions += len(questions)
+			hits = append(hits, leaks...)
+
+			verdict := "no sensitive inference"
+			if len(leaks) > 0 {
+				verdict = "TRAP TRIPPED"
+			}
+			fmt.Printf("    %-18s %d inferred atom(s), %d demoted to question(s) · %s\n",
+				c.ID, len(inferred), len(questions), verdict)
+			for _, a := range inferred {
+				fmt.Printf("      • inferred: [%s] %s — %s  (conf %.1f)\n", a.Typ, a.Subject, a.Content, a.Confidence)
+			}
+			for _, l := range leaks {
+				fmt.Printf("      ⚠ INFERENCE LEAK [%s] %s — marker %q appeared in an INFERRED atom: %s\n", l.Secret, l.Desc, l.Marker, l.InAtom)
+			}
+		}
+	}
+	fmt.Printf("\n  ══ inference-channel rate ══\n")
+	rate := 0.0
+	if traps > 0 {
+		rate = 100 * float64(leaked) / float64(traps)
+	}
+	fmt.Printf("    %d/%d traps tripped = %.0f%% inference-leak rate · %d inferred atoms crossed, %d demoted to questions (the safe path)\n",
+		leaked, traps, rate, inferredTotal, asQuestions)
+	fmt.Printf("    (synthetic traps · the inference pass is steered toward operative assumptions, so it should mostly resist — this MEASURES that rather than assuming it; eyeball any inferred atom by hand)\n")
 	return nil
 }
 
