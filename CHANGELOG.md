@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Read-side mirror (stage 1b) — `ettle mirror --me <name>`** turns the one-way
+  mirror around ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). L2 — the directed model of
+  *you* that drives how you're treated — was, per ADOPTION.md, "a one-way mirror at
+  exactly the layer that drives behavior." The new command shows a person what the
+  team's directed models (L2) currently believe **about them**, flagging the beliefs
+  that have gone **stale** (you've drifted from what teammates still hold) surprise-
+  first. It reuses `drift`'s exact pipeline — the shared `buildMesh`/`loadAndDetect`
+  were extracted so the two commands can't drift apart — and renders the subject-
+  centric view: the union of every teammate's beliefs about you, deduped on the
+  engine's slot identity (new exported `ettlemesh.Canonical`), staleness from
+  `StaleBeliefs`. **Attribution is coarsened by default** (the belief, not which
+  teammate holds it — naming a believer surfaces *their* private model, a flow that
+  touches them); `--by-observer` opts into attribution. Read-only, no correction
+  propagation yet (that's stage 2); no model call beyond drift's distill. Tested
+  deterministically (`TestMirror`: beliefs shown, drift flagged stale, coarsen-by-
+  default vs `--by-observer`). Also folded `printKnot`/`printAsk`'s duplicated
+  vote-suffix into one `voteSuffix` (calque dual-path, score 0.44).
 - **Label capture (stage 0c-2) — `ettle_respond` records the human verdict**
   (`internal/mcpserver`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)). A new MCP tool lets
   a person's agent answer a cross-person knot from `ettle_horizon` — `real` /

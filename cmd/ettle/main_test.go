@@ -26,6 +26,48 @@ func captureStdout(t *testing.T, f func()) string {
 	return string(b)
 }
 
+// The read-side mirror (docs/LEGIBILITY.md stage 1b): bob sees what the team's L2
+// models believe ABOUT him, with stale beliefs flagged; attribution coarsened by
+// default, opt-in via --by-observer. Deterministic — build the mesh from self-models,
+// then drift bob so alice's model of him goes stale.
+func TestMirror(t *testing.T) {
+	atom := func(subj, content string) ettlemesh.Atom {
+		return ettlemesh.Atom{Typ: ettlemesh.Intent, Subject: subj, Content: content, From: "bob", Confidence: 0.9}
+	}
+	// Round 1: seed every model from each person's self-model. alice's model of bob
+	// becomes bob's round-1 beliefs.
+	bobR1 := []ettlemesh.Atom{atom("rename", "renaming GetUser to FetchUser"), atom("cache", "built a user-lookup cache")}
+	state := ettlemesh.NewMeshState()
+	state.Advance(map[string][]ettlemesh.Atom{
+		"alice": {{Typ: ettlemesh.Intent, Subject: "billing", Content: "wiring reconciliation", From: "alice", Confidence: 0.9}},
+		"bob":   bobR1,
+	})
+	// Bob drifts: the rename belief changed; the cache belief still holds.
+	bobNow := []ettlemesh.Atom{atom("rename", "actually keeping GetUser, no rename"), atom("cache", "built a user-lookup cache")}
+	currSelf := map[string][]ettlemesh.Atom{"alice": {}, "bob": bobNow}
+
+	out := captureStdout(t, func() { printMirror("bob", false, state, currSelf) })
+	if !strings.Contains(out, "what the team's models believe about bob") {
+		t.Fatalf("mirror header missing:\n%s", out)
+	}
+	if !strings.Contains(out, "built a user-lookup cache") || !strings.Contains(out, "renaming GetUser") {
+		t.Fatalf("mirror must show the beliefs held about bob:\n%s", out)
+	}
+	if !strings.Contains(out, "stale") || !strings.Contains(out, "actually keeping GetUser") {
+		t.Fatalf("the drifted belief must be flagged stale with bob's current value:\n%s", out)
+	}
+	// Coarsened by default: the observer's name is NOT attributed.
+	if strings.Contains(out, "alice's model of you") {
+		t.Fatalf("default mirror must coarsen attribution (no per-observer naming):\n%s", out)
+	}
+
+	// --by-observer opts into attribution.
+	out = captureStdout(t, func() { printMirror("bob", true, state, currSelf) })
+	if !strings.Contains(out, "alice's model of you") {
+		t.Fatalf("--by-observer must attribute beliefs to the teammate holding them:\n%s", out)
+	}
+}
+
 // Act/ask routing (docs/LEGIBILITY.md stage 0c): a cross-person knot is posed as a
 // QUESTION (the detector can't certify it); a self knot — own drift — is asserted.
 func TestSurfaceActAskRouting(t *testing.T) {

@@ -97,6 +97,13 @@ func canonical(atoms []Atom) []Atom {
 	return out
 }
 
+// Canonical collapses atoms to one per (type, subject) slot — last wins, first-seen
+// order — the same slot-dedup the L2 diff uses internally. Exported so a caller
+// building a view over MULTIPLE models (the mirror's union of every teammate's beliefs
+// ABOUT one person) dedups on the engine's slot identity rather than a re-implemented
+// one. Pure and idempotent.
+func Canonical(atoms []Atom) []Atom { return canonical(atoms) }
+
 // sameBelief reports whether two atoms occupying the same slot carry the same
 // belief — same content and same confidence. A confidence change (an inferred guess
 // the subject later stated outright, say) is itself a delta worth emitting.

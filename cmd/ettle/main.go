@@ -64,6 +64,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "mirror":
+			if err := runMirror(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		case "mcp":
 			if err := runMCP(os.Args[2:]); err != nil {
 				fmt.Fprintln(os.Stderr, "ettle:", err)
@@ -331,25 +337,26 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	fmt.Println()
 }
 
-func printKnot(k ettlemesh.Knot) {
-	vote := ""
+// voteSuffix is the shared recurrence tail (" · seen in N/M samples") on a knot line —
+// one definition so printKnot (assert) and printAsk (question) can't drift on it.
+func voteSuffix(k ettlemesh.Knot) string {
 	if k.Samples > 0 {
-		vote = fmt.Sprintf(" · seen in %d/%d samples", k.Votes, k.Samples)
+		return fmt.Sprintf(" · seen in %d/%d samples", k.Votes, k.Samples)
 	}
+	return ""
+}
+
+func printKnot(k ettlemesh.Knot) {
 	fmt.Printf("    • [%s] %s\n      %s\n      parties: %s · confidence %.1f%s\n",
-		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, vote)
+		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, voteSuffix(k))
 }
 
 // printAsk renders a cross-person knot as a QUESTION addressed to its parties, not an
 // assertion (docs/LEGIBILITY.md stage 0c) — the detector cannot certify a cross-person
 // conflict, so it poses it for the humans to confirm or wave off.
 func printAsk(k ettlemesh.Knot) {
-	vote := ""
-	if k.Samples > 0 {
-		vote = fmt.Sprintf(" · seen in %d/%d samples", k.Votes, k.Samples)
-	}
 	fmt.Printf("    ? [possible %s] %s\n      %s\n      Real, or already handled?  parties: %s · confidence %.1f%s\n",
-		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, vote)
+		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, voteSuffix(k))
 }
 
 func printResolution(r *Resolution) {
@@ -1095,6 +1102,51 @@ func abVerdict(p float64, b, c int) string {
 // is that round 2 re-sends a changed belief to exactly the teammates it affects, not
 // a whole-team rebroadcast. Same cost shape as a standup, one Distill per person per
 // round; the L2 diff itself is deterministic and free.
+// loadAndDetect loads both round dirs, warns on a roster mismatch, and builds the
+// detector — the shared front of `drift` and `mirror` (one pipeline, two views; kept
+// single so the two commands can't drift apart).
+func loadAndDetect(prevDir, currDir, model string) (prev, curr []participant, det *ettlemesh.Detector, err error) {
+	if prev, err = loadDir(prevDir); err != nil {
+		return nil, nil, nil, err
+	}
+	if curr, err = loadDir(currDir); err != nil {
+		return nil, nil, nil, err
+	}
+	if cfg, cur := names(prev), names(curr); strings.Join(cfg, ",") != strings.Join(cur, ",") {
+		// Same roster both rounds: drift is per-person across time, so a name present
+		// in only one round has no counterpart to diff. Make the mismatch loud.
+		fmt.Fprintf(os.Stderr, "ettle: WARNING round rosters differ (prev: %s; curr: %s) — a person missing from one round can't be diffed.\n",
+			strings.Join(cfg, ", "), strings.Join(cur, ", "))
+	}
+	key := apiKey()
+	if key == "" {
+		return nil, nil, nil, fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file)")
+	}
+	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
+	return prev, curr, ettlemesh.NewDetector(&client, model), nil
+}
+
+// buildMesh runs the two-round L2 pipeline shared by `drift` and `mirror`: distill
+// both rounds (reusing an unchanged note's prior atoms — the emit-gate discipline one
+// layer down, so only a truly changed note re-distills and only real deltas cross),
+// seed the mesh from round 1, and compute round 2's surprise-gated deltas. Pure of any
+// rendering — drift and mirror present this same state two ways. The only model calls
+// are the distill; the L2 projection adds none.
+func buildMesh(ctx context.Context, det *ettlemesh.Detector, prev, curr []participant) (state *ettlemesh.MeshState, currSelf map[string][]ettlemesh.Atom, seed, deltas []ettlemesh.Emission, reused []string, err error) {
+	prevSelf, err := distillRound(ctx, det, prev)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	currSelf, reused, err = distillCurrent(ctx, det, curr, prev, prevSelf)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	state = ettlemesh.NewMeshState()
+	seed = state.Advance(prevSelf)    // round 1: seed every directed model
+	deltas = state.Surprise(currSelf) // round 2: the surprise-gated deltas (read-only)
+	return state, currSelf, seed, deltas, reused, nil
+}
+
 func runDrift(args []string) error {
 	fs := flag.NewFlagSet("drift", flag.ExitOnError)
 	me := fs.String("me", "", "show the directed view for this participant; empty = whole team")
@@ -1105,51 +1157,54 @@ func runDrift(args []string) error {
 		return fmt.Errorf("usage: ettle drift [--me name] <prev-round-dir> <curr-round-dir>\n" +
 			"  each dir holds one note per participant; same filename = same person across rounds")
 	}
-	prev, err := loadDir(rest[0])
+	prev, curr, det, err := loadAndDetect(rest[0], rest[1], *model)
 	if err != nil {
 		return err
-	}
-	curr, err := loadDir(rest[1])
-	if err != nil {
-		return err
-	}
-	if cfg, cur := names(prev), names(curr); strings.Join(cfg, ",") != strings.Join(cur, ",") {
-		// Same roster both rounds: drift is per-person across time, so a name present
-		// in only one round has no counterpart to diff. Make the mismatch loud.
-		fmt.Fprintf(os.Stderr, "ettle: WARNING round rosters differ (prev: %s; curr: %s) — a person missing from one round can't be diffed.\n",
-			strings.Join(cfg, ", "), strings.Join(cur, ", "))
 	}
 	if *me != "" && !hasParticipant(curr, *me) {
 		return fmt.Errorf("--me %q matches none of the current-round participants (%s)", *me, strings.Join(names(curr), ", "))
 	}
-	key := apiKey()
-	if key == "" {
-		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file)")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	state, currSelf, seed, deltas, reused, err := buildMesh(ctx, det, prev, curr)
+	if err != nil {
+		return err
+	}
+	printDrift(*me, state, seed, deltas, currSelf, reused)
+	return nil
+}
+
+// runMirror is the read side of the one-way mirror (docs/LEGIBILITY.md stage 1b): it
+// shows one person what the team's directed models (L2) currently believe ABOUT them,
+// and which of those beliefs are stale. Same pipeline as drift, subject-centric view.
+func runMirror(args []string) error {
+	fs := flag.NewFlagSet("mirror", flag.ExitOnError)
+	me := fs.String("me", "", "whose mirror — the person the beliefs are ABOUT (required)")
+	model := fs.String("model", "claude-haiku-4-5", "model id")
+	byObserver := fs.Bool("by-observer", false, "attribute each belief to the teammate holding it (default: coarsened — the belief, not who holds it; see docs/LEGIBILITY.md)")
+	_ = fs.Parse(args)
+	rest := fs.Args()
+	if len(rest) != 2 {
+		return fmt.Errorf("usage: ettle mirror --me name [--by-observer] <prev-round-dir> <curr-round-dir>\n" +
+			"  shows what the team's directed models (L2) currently believe ABOUT you, and which beliefs are stale")
+	}
+	if *me == "" {
+		return fmt.Errorf("--me is required for mirror (it shows the beliefs held ABOUT one person)")
+	}
+	prev, curr, det, err := loadAndDetect(rest[0], rest[1], *model)
+	if err != nil {
+		return err
+	}
+	if !hasParticipant(curr, *me) {
+		return fmt.Errorf("--me %q matches none of the current-round participants (%s)", *me, strings.Join(names(curr), ", "))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
-	det := ettlemesh.NewDetector(&client, *model)
-
-	prevSelf, err := distillRound(ctx, det, prev)
+	state, currSelf, _, _, _, err := buildMesh(ctx, det, prev, curr)
 	if err != nil {
 		return err
 	}
-	// Gate L1 on note-change, not just L2 on atom-change: a note byte-identical to
-	// last round has the SAME self-model, so reuse its prior atoms verbatim instead
-	// of re-rolling the stochastic distiller (which would reword identical input and
-	// manufacture phantom drift). This is the emit-gate discipline applied one layer
-	// down — and it's what makes the surprise gate actually bite: only a note that
-	// truly changed is re-distilled, so only real deltas can cross.
-	currSelf, reused, err := distillCurrent(ctx, det, curr, prev, prevSelf)
-	if err != nil {
-		return err
-	}
-
-	state := ettlemesh.NewMeshState()
-	seed := state.Advance(prevSelf)    // round 1: seed every directed model
-	deltas := state.Surprise(currSelf) // round 2: the surprise-gated deltas (read-only; doesn't absorb)
-	printDrift(*me, state, seed, deltas, currSelf, reused)
+	printMirror(*me, *byObserver, state, currSelf)
 	return nil
 }
 
@@ -1303,6 +1358,101 @@ func printDrift(me string, state *ettlemesh.MeshState, seed, deltas []ettlemesh.
 			}
 		}
 	}
+	fmt.Println()
+}
+
+// atomIdent is a display-only identity for matching a specific atom value back to a
+// Drift (full value, not the engine's type+subject slot) — used only to mark which
+// mirror beliefs are stale, never to define slot semantics.
+func atomIdent(a ettlemesh.Atom) string {
+	return string(a.Typ) + "|" + a.Subject + "|" + a.Content
+}
+
+// printMirror is the read side of the one-way mirror (docs/LEGIBILITY.md stage 1b):
+// it shows `me` what the team's directed models (L2) currently believe ABOUT them and
+// flags the beliefs that have gone stale (me has drifted from what others still hold)
+// — surfacing them first, since a stale belief about you is the one most worth fixing.
+// The layer that drives how a person is treated, made readable to that person. Pure.
+//
+// Attribution is COARSENED by default — the belief, not which teammate holds it —
+// because "alice believes X about you" surfaces alice's private model, a flow that
+// touches her; turning the mirror around must not become a surveillance surface
+// pointed at the modelers. --by-observer (byObserver=true) opts into attribution.
+func printMirror(me string, byObserver bool, state *ettlemesh.MeshState, currSelf map[string][]ettlemesh.Atom) {
+	fmt.Printf("\n  ettle — mirror: what the team's models believe about %s\n", me)
+
+	observers := make([]string, 0, len(currSelf))
+	for o := range currSelf {
+		if !ettlemesh.SamePerson(o, me) {
+			observers = append(observers, o)
+		}
+	}
+	sort.Strings(observers)
+
+	// Collect every observer's model of me (me as SUBJECT).
+	type modelOfMe struct {
+		observer string
+		beliefs  []ettlemesh.Atom
+	}
+	var models []modelOfMe
+	for _, o := range observers {
+		if m, ok := state.ModelOf(o, me); ok && len(m.Beliefs) > 0 {
+			models = append(models, modelOfMe{observer: o, beliefs: m.Beliefs})
+		}
+	}
+	if len(models) == 0 {
+		fmt.Println("\n  no teammate holds a model of you yet — the mirror needs at least two people across two rounds.")
+		fmt.Println()
+		return
+	}
+
+	staleLine := func(d ettlemesh.Drift) string {
+		if d.Kind == ettlemesh.DriftDrifted {
+			return fmt.Sprintf("      ⚠ stale — they still hold %q; you now hold %q", d.Believed.Content, d.Actual.Content)
+		}
+		// Dropped is HEDGED (a re-distill reword looks the same as a real drop — the
+		// structural diff can't tell; see ettlemesh/directed.go beliefKey).
+		return fmt.Sprintf("      ⚠ maybe stale — they still hold %q; no matching current belief of yours (you dropped it, or a re-distill reworded it)", d.Believed.Content)
+	}
+
+	if byObserver {
+		// Attributed view (opt-in): each teammate's model of you, stale beliefs flagged.
+		for _, m := range models {
+			section(fmt.Sprintf("%s's model of you", m.observer))
+			staleByIdent := map[string]ettlemesh.Drift{}
+			for _, d := range ettlemesh.StaleBeliefs(ettlemesh.DirectedModel{Observer: m.observer, Subject: me, Beliefs: m.beliefs}, currSelf[me]) {
+				staleByIdent[atomIdent(d.Believed)] = d
+			}
+			for _, b := range ettlemesh.Canonical(m.beliefs) {
+				fmt.Printf("    • [%s] %s — %s\n", b.Typ, b.Subject, b.Content)
+				if d, ok := staleByIdent[atomIdent(b)]; ok {
+					fmt.Println(staleLine(d))
+				}
+			}
+		}
+		fmt.Println()
+		return
+	}
+
+	// Coarsened view (default): the union of beliefs held about you across all
+	// teammates, deduped on the engine's slot identity — the belief, not who holds it.
+	var union []ettlemesh.Atom
+	for _, m := range models {
+		union = append(union, m.beliefs...)
+	}
+	union = ettlemesh.Canonical(union)
+	staleByIdent := map[string]ettlemesh.Drift{}
+	for _, d := range ettlemesh.StaleBeliefs(ettlemesh.DirectedModel{Subject: me, Beliefs: union}, currSelf[me]) {
+		staleByIdent[atomIdent(d.Believed)] = d
+	}
+	section("the team's model of you (which beliefs are current, which have gone stale)")
+	for _, b := range union {
+		fmt.Printf("    • [%s] %s — %s\n", b.Typ, b.Subject, b.Content)
+		if d, ok := staleByIdent[atomIdent(b)]; ok {
+			fmt.Println(staleLine(d))
+		}
+	}
+	fmt.Printf("\n  (attribution coarsened — run with --by-observer to see which teammate holds each.)\n")
 	fmt.Println()
 }
 
