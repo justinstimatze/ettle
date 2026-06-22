@@ -99,9 +99,10 @@ func main() {
 	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide knots that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-knot recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
+	shareInferred := fs.Bool("share-inferred", false, "let INFERRED atoms (your agent's de-novo guesses about a person) cross to the team. OFF by default: an inference is a claim the person never stated, and the pass measurably fabricates sensitive ones, so it is held back and surfaced to its subject first (docs/LEGIBILITY.md stage 0b)")
 	_ = fs.Parse(os.Args[2:])
 
-	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, paths: fs.Args()}
+	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, shareInferred: *shareInferred, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
 		os.Exit(1)
@@ -119,6 +120,7 @@ type runConfig struct {
 	showAtoms                      bool
 	ground                         bool
 	groundModel                    string
+	shareInferred                  bool
 	gemotTimeout                   time.Duration
 	samples                        int
 	paths                          []string
@@ -168,15 +170,31 @@ func run(cfg runConfig) error {
 		return err
 	}
 	if cfg.showAtoms {
-		printAtoms(results)
+		printAtoms(results, cfg.shareInferred)
 	}
 	// 2: publish each person's atoms over the seam.
 	var allQuestions []authoredQuestion
+	var inferredAboutMe []ettlemesh.Atom
+	heldInferred := 0 // de-novo claims held back from the team this run (legible abstention)
 	for _, r := range results {
 		for _, q := range r.questions {
 			allQuestions = append(allQuestions, authoredQuestion{who: r.name, text: q})
 		}
-		if err := bus.Publish(ctx, transport.Envelope{Participant: r.name, Role: r.role, Atoms: r.atoms}); err != nil {
+		// Subject-gating (docs/LEGIBILITY.md stage 0b): an inferred atom is a de-novo
+		// claim ABOUT r.name that they did not state — and the inference pass measurably
+		// fabricates sensitive ones (1a-1). So by default it does NOT cross the transport
+		// to the team; it is surfaced to its own subject for review. --share-inferred
+		// opts back into the old behavior (inferred atoms flow to the team reconcile).
+		crossing := r.atoms
+		if cfg.shareInferred {
+			crossing = append(append([]ettlemesh.Atom{}, r.atoms...), r.inferred...)
+		} else {
+			heldInferred += len(r.inferred)
+			if cfg.me != "" && ettlemesh.SamePerson(r.name, cfg.me) {
+				inferredAboutMe = r.inferred
+			}
+		}
+		if err := bus.Publish(ctx, transport.Envelope{Participant: r.name, Role: r.role, Atoms: crossing}); err != nil {
 			return fmt.Errorf("publish %s: %w", r.name, err)
 		}
 	}
@@ -227,13 +245,13 @@ func run(cfg runConfig) error {
 	if cfg.gemotURL != "" {
 		resolver = crux.Gemot{URL: cfg.gemotURL, Token: os.Getenv("ETTLE_GEMOT_TOKEN"), InsecureLocal: cfg.insecureLocal, Timeout: cfg.gemotTimeout}
 	}
-	surface(ctx, cfg.me, knots, suppressed, floorHeld, atoms, allQuestions, resolver)
+	surface(ctx, cfg.me, knots, suppressed, floorHeld, atoms, allQuestions, inferredAboutMe, heldInferred, resolver)
 	return nil
 }
 
 // surface prints the knots relevant to `me` (or all, in team view), routed FIRM
 // vs SOFT, with contested knots resolved. This is the agent → its own human.
-func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, resolver crux.Resolver) {
+func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, inferredAboutMe []ettlemesh.Atom, heldInferred int, resolver crux.Resolver) {
 	// Act/ask routing (docs/LEGIBILITY.md stage 0c). The detector has no ground truth
 	// for a cross-person conflict, and recurrence is test-retest STABILITY, not
 	// validity — so a cross-person knot is never ASSERTED, only posed as a question to
@@ -327,6 +345,29 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 			printKnot(k)
 		}
 	}
+	// Subject-gated inference (docs/LEGIBILITY.md stage 0b): your agent's de-novo
+	// guesses ABOUT you, held back from the team. The inference pass measurably
+	// fabricates sensitive claims and asserts them (1a-1), so these do NOT cross until
+	// you confirm — shown here for you to keep or kill. Only your own; never a teammate's.
+	switch {
+	case len(inferredAboutMe) > 0:
+		// --me: show the subject their own inferred atoms, in full, to keep or kill.
+		section("inferred about you — held back from the team (your agent's guess, not something you stated; confirm before it travels)")
+		for _, a := range inferredAboutMe {
+			fmt.Printf("    ? [%s] %s — %s  (inferred, confidence %.1f)\n", a.Typ, a.Subject, a.Content, a.Confidence)
+		}
+		fmt.Printf("      (these did NOT cross to the team; pass --share-inferred to let inferred atoms flow.)\n")
+	case me == "" && heldInferred > 0:
+		// Team view has no single subject, so the inferred atoms can't be shown to one
+		// — but a clear horizon must not silently hide that they were held back (the
+		// same no-silent-drop discipline as legible abstention, stage 0a). A count only,
+		// never whose or what: that would leak the very de-novo claims we're gating.
+		section("inference held back")
+		fmt.Printf("    %s held back from the team (your agents' de-novo guesses about people, not stated facts).\n",
+			plural(heldInferred, "inferred atom", "inferred atoms"))
+		fmt.Printf("      (run with --me <name> to review one person's own, or --share-inferred to let them flow.)\n")
+	}
+
 	// The abstention floor's drops are noise by design (recurred in too few samples),
 	// so they are NOT listed — but a single quiet count keeps a clear horizon honest:
 	// the human knows candidates were suppressed, without the notice becoming noise.
@@ -458,11 +499,15 @@ func reportCoverage(bus transport.Transport) {
 	}
 }
 
-// personResult is one participant's distilled atoms + the questions the
-// inference step couldn't answer confidently.
+// personResult is one participant's distilled atoms + the questions the inference
+// step couldn't answer confidently. atoms are STATED (the person wrote them); inferred
+// are de-novo claims the agent inferred ABOUT the person — kept separate so the
+// standup can hold them back from the team until the subject sees them (the inference
+// pass measurably fabricates sensitive claims — docs/LEGIBILITY.md stage 0b/1a-1).
 type personResult struct {
 	name, role string
-	atoms      []ettlemesh.Atom
+	atoms      []ettlemesh.Atom // stated
+	inferred   []ettlemesh.Atom // inferred about this person (subject-gated)
 	questions  []string
 }
 
@@ -492,7 +537,7 @@ func distillAll(ctx context.Context, det *ettlemesh.Detector, people []participa
 			if err != nil {
 				return fmt.Errorf("infer %s: %w", p.Name, err)
 			}
-			results[i] = personResult{name: p.Name, role: p.Role, atoms: append(a, inf...), questions: qs}
+			results[i] = personResult{name: p.Name, role: p.Role, atoms: a, inferred: inf, questions: qs}
 			return nil
 		})
 	}
@@ -505,19 +550,24 @@ func distillAll(ctx context.Context, det *ettlemesh.Detector, people []participa
 // printAtoms shows exactly what crosses the boundary — the privacy surface. This
 // is the honest answer to "what leaves my machine": only these typed atoms, not
 // the raw note or session.
-func printAtoms(results []personResult) {
-	fmt.Printf("\n  atoms crossing the boundary (this is ALL that leaves each machine):\n")
+func printAtoms(results []personResult, shareInferred bool) {
+	fmt.Printf("\n  atoms crossing the boundary (this is what leaves each machine):\n")
+	// The inferred tag must tell the truth about whether the atom actually crosses:
+	// held back by default (stage 0b), but --share-inferred lets it flow to the team.
+	infTag := "inferred %.1f — held back from the team (does NOT cross)"
+	if shareInferred {
+		infTag = "inferred %.1f — crosses to the team (--share-inferred)"
+	}
 	for _, r := range results {
 		fmt.Printf("    %s:\n", r.name)
-		if len(r.atoms) == 0 {
+		if len(r.atoms) == 0 && len(r.inferred) == 0 {
 			fmt.Println("      (none)")
 		}
 		for _, a := range r.atoms {
-			tag := "stated"
-			if a.Inferred {
-				tag = fmt.Sprintf("inferred %.1f", a.Confidence)
-			}
-			fmt.Printf("      • [%s] %s — %s  (%s)\n", a.Typ, a.Subject, a.Content, tag)
+			fmt.Printf("      • [%s] %s — %s  (stated)\n", a.Typ, a.Subject, a.Content)
+		}
+		for _, a := range r.inferred {
+			fmt.Printf("      • [%s] %s — %s  ("+infTag+")\n", a.Typ, a.Subject, a.Content, a.Confidence)
 		}
 	}
 }
@@ -531,9 +581,13 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 	if err != nil {
 		return nil, nil, err
 	}
+	// The eval measures DETECTION, not the privacy surface — so it reconciles over
+	// stated + inferred together (the standup's subject-gating of inferred atoms is a
+	// user-surface policy, not a detector change).
 	var atoms []ettlemesh.Atom
 	for _, r := range results {
 		atoms = append(atoms, r.atoms...)
+		atoms = append(atoms, r.inferred...)
 	}
 	knots, _, err := det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {

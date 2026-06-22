@@ -68,6 +68,38 @@ func TestMirror(t *testing.T) {
 	}
 }
 
+// Subject-gated inference (docs/LEGIBILITY.md stage 0b): an inferred atom about you is
+// surfaced to you, held back from the team — your agent's guess, not a stated fact.
+func TestSurfaceInferredAboutMe(t *testing.T) {
+	ctx := context.Background()
+	inferred := []ettlemesh.Atom{{Typ: ettlemesh.Assumption, Subject: "departure", Content: "you are leaving the team", Confidence: 0.6, Inferred: true}}
+
+	out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, inferred, 0, crux.Inline{}) })
+	if !strings.Contains(out, "inferred about you") || !strings.Contains(out, "held back from the team") {
+		t.Fatalf("an inferred atom about me must be surfaced as held-back:\n%s", out)
+	}
+	if !strings.Contains(out, "you are leaving the team") {
+		t.Fatalf("the inferred claim must be shown to its subject:\n%s", out)
+	}
+	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, nil, 0, crux.Inline{}) }); strings.Contains(out, "inferred about you") {
+		t.Fatalf("no inferred section when nothing was inferred:\n%s", out)
+	}
+
+	// Team view (no --me): no subject to show, but the held-back count is surfaced —
+	// the no-silent-drop discipline — as a count only, never the claims themselves.
+	out = captureStdout(t, func() { surface(ctx, "", nil, nil, 0, nil, nil, nil, 2, crux.Inline{}) })
+	if !strings.Contains(out, "inference held back") || !strings.Contains(out, "2 inferred atoms") {
+		t.Fatalf("team view must surface the held-back inferred count:\n%s", out)
+	}
+
+	// In --me view the team aggregate must NOT appear — the subject sees their own
+	// detail instead, and others' held-back inferences stay private (not even counted).
+	out = captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, inferred, 5, crux.Inline{}) })
+	if strings.Contains(out, "inference held back") {
+		t.Fatalf("--me view shows the subject's own detail, not the team aggregate:\n%s", out)
+	}
+}
+
 // Act/ask routing (docs/LEGIBILITY.md stage 0c): a cross-person knot is posed as a
 // QUESTION (the detector can't certify it); a self knot — own drift — is asserted.
 func TestSurfaceActAskRouting(t *testing.T) {
@@ -76,7 +108,7 @@ func TestSurfaceActAskRouting(t *testing.T) {
 	self := ettlemesh.Knot{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"mabel"}, About: "deadline assumption", Explanation: "you assumed Friday", Confidence: 0.6, Votes: 5, Samples: 5}
 
 	// Cross-person knot → interrogative register, never asserted as "[collision]".
-	out := captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{cross}, nil, 0, nil, nil, crux.Inline{}) })
+	out := captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{cross}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "worth checking together") || !strings.Contains(out, "? [possible collision]") {
 		t.Fatalf("a cross-person knot must be posed as a question:\n%s", out)
 	}
@@ -88,7 +120,7 @@ func TestSurfaceActAskRouting(t *testing.T) {
 	}
 
 	// Self knot (own drift) → asserted in the act lane.
-	out = captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{self}, nil, 0, nil, nil, crux.Inline{}) })
+	out = captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{self}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "your own assumptions") || !strings.Contains(out, "• [stale-assumption]") {
 		t.Fatalf("a self knot (own drift) must be asserted, not questioned:\n%s", out)
 	}
@@ -100,7 +132,7 @@ func TestSurfaceHeldBack(t *testing.T) {
 	ctx := context.Background()
 	mine := []ettlemesh.Knot{{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "producer/consumer, not a clash", Confidence: 0.5}}
 
-	out := captureStdout(t, func() { surface(ctx, "mabel", nil, mine, 0, nil, nil, crux.Inline{}) })
+	out := captureStdout(t, func() { surface(ctx, "mabel", nil, mine, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "held back") {
 		t.Fatalf("a suppressed knot must surface a held-back section:\n%s", out)
 	}
@@ -109,25 +141,25 @@ func TestSurfaceHeldBack(t *testing.T) {
 	}
 
 	// Absent when nothing was held back.
-	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, crux.Inline{}) }); strings.Contains(out, "held back") {
+	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, nil, 0, crux.Inline{}) }); strings.Contains(out, "held back") {
 		t.Fatalf("no held-back section when nothing was suppressed:\n%s", out)
 	}
 
 	// Filtered to me: a suppression about other people must not appear in my horizon.
 	notMine := []ettlemesh.Knot{{Kind: ettlemesh.KindCollision, Parties: []string{"nash", "reed"}, About: "not mine"}}
-	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, notMine, 0, nil, nil, crux.Inline{}) }); strings.Contains(out, "held back") {
+	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, notMine, 0, nil, nil, nil, 0, crux.Inline{}) }); strings.Contains(out, "held back") {
 		t.Fatalf("held-back must be filtered to me:\n%s", out)
 	}
 
 	// Floor drops are NOT listed — they surface as a single quiet aggregate count.
-	out = captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 3, nil, nil, crux.Inline{}) })
+	out = captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 3, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "below the confidence floor") {
 		t.Fatalf("a positive floor count must surface the aggregate line:\n%s", out)
 	}
 	if !strings.Contains(out, "3 low-recurrence") {
 		t.Fatalf("floor line must report the count (3):\n%s", out)
 	}
-	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, crux.Inline{}) }); strings.Contains(out, "below the confidence floor") {
+	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, nil, 0, nil, nil, nil, 0, crux.Inline{}) }); strings.Contains(out, "below the confidence floor") {
 		t.Fatalf("no floor line when floorHeld==0:\n%s", out)
 	}
 }

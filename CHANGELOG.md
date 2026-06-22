@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Subject-gated inference (stage 0b) — inferred atoms don't cross to the team by
+  default** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). 1a-1 measured the inference pass
+  fabricating sensitive de-novo claims ("the speaker is leaving") and *asserting* them.
+  So an inferred atom — a claim about a person they never stated — is now **held at the
+  boundary**: in the CLI standup (where `distillAll` runs `Distill` + `InferImplicit`;
+  the MCP `emit` path runs `Distill` only, so there's no inference channel there),
+  `personResult` keeps inferred atoms separate from stated, and by default the inferred
+  ones **do not cross the transport** (`bus.Publish` sends stated atoms only). They are
+  surfaced to their own subject instead — "inferred about you, held back from the team;
+  confirm before it travels." `--share-inferred` opts back into the old flow-to-team
+  behavior; the eval path recombines stated+inferred so detection measurement is
+  unchanged. This is the enforcement the 1a-1 measurement justified — the de-novo claim
+  is held before crossing, not flagged after. Held-back inferred atoms stay **legible**
+  (no silent drops, the stage-0a discipline): `--me` shows the subject their own to keep
+  or kill; **team view** (no `--me`, no single subject) shows a *count only* — never
+  whose or what, which would leak the very claims being gated; and `--show-atoms` labels
+  each inferred atom honestly by whether it actually crosses (held-back vs
+  `--share-inferred`). Default stays gating-ON by principle: the measurement plus the
+  contextual-privacy invariant put the burden on the *modeler*, not the modeled. Tested
+  (`TestSurfaceInferredAboutMe`: subject detail, team-view count, `--me`-not-aggregate).
 - **Inference-channel measurement (stage 1a-1) — `ettle eval --leak-inference`**
   ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The `--leak` harness scans crossed atoms
   for markers the person *wrote*, so it is structurally blind to the inference pass —
