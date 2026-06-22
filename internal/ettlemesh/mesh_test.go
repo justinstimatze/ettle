@@ -281,7 +281,7 @@ func TestVoteKnotsConfidenceDedupesWithinRun(t *testing.T) {
 			{Kind: KindCollision, Parties: []string{"bob", "alice"}, About: "GetUser rename", Confidence: 0.5},
 		},
 	}
-	got := voteKnots(runs)
+	got, _ := voteKnots(runs)
 	if len(got) != 1 {
 		t.Fatalf("voteKnots kept %d, want 1 clustered knot: %+v", len(got), got)
 	}
@@ -457,12 +457,15 @@ func TestVoteKnots(t *testing.T) {
 			{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename collision", Confidence: 0.8},
 		},
 	}
-	got := voteKnots(runs)
+	got, floored := voteKnots(runs)
 	// Keep-all: the 3-run GetUser cluster AND the 1-run carol/dave one-off both
 	// survive (frequency ranks firm/soft, it does not drop). Output is sorted
-	// most-voted first.
+	// most-voted first. At samples=3 the floor is inert, so nothing is dropped.
 	if len(got) != 2 {
 		t.Fatalf("voteKnots kept %d, want 2 (cluster + kept one-off): %+v", len(got), got)
+	}
+	if floored != 0 {
+		t.Errorf("floor must be inert at samples=3, dropped %d", floored)
 	}
 	k := got[0]
 	if k.Votes != 3 || k.Samples != 3 {
@@ -506,13 +509,17 @@ func TestDropFloor(t *testing.T) {
 		{clear},
 		{clear},
 	}
-	got := voteKnots(runs)
+	got, floored := voteKnots(runs)
 	by := map[string]Knot{}
 	for _, k := range got {
 		by[k.Kind+"\x00"+strings.Join(k.Parties, "+")] = k
 	}
 	if _, dropped := by[KindDuplication+"\x00carol+dave"]; dropped {
 		t.Errorf("a 1/5 one-off must be DROPPED by the floor, but it survived: %+v", got)
+	}
+	// Exactly the 1/5 one-off was floored — the count is reported for legible abstention.
+	if floored != 1 {
+		t.Errorf("floorDropped = %d, want 1 (the 1/5 one-off)", floored)
 	}
 	if len(got) != 3 {
 		t.Fatalf("voteKnots kept %d, want 3 (5/5, 2/5, 2/5; the 1/5 dropped): %+v", len(got), got)
@@ -533,11 +540,14 @@ func TestDropFloor(t *testing.T) {
 	}
 
 	// Inertness at samples=3: the floor (threshold 0.75) cannot drop a Votes>=1 knot.
-	small := voteKnots([][]Knot{
+	small, smallFloored := voteKnots([][]Knot{
 		{clear, oneOff},
 		{clear},
 		{clear},
 	})
+	if smallFloored != 0 {
+		t.Errorf("floor must drop nothing at samples=3, dropped %d", smallFloored)
+	}
 	foundOneOff := false
 	for _, k := range small {
 		if k.Kind == KindDuplication {

@@ -859,19 +859,27 @@ func DedupeSelf(self, cross []Knot) []Knot {
 // IMPORTANT: recurrence is a run-to-run PARAPHRASE-STABILITY signal (test-retest),
 // not a validity one — correlated misreads can still recur. `samples` <= 1 is
 // exactly the single-run path. Cost is `samples`× the reconcile calls.
-func (d *Detector) ReconcileVoted(ctx context.Context, atoms []Atom, samples int) ([]Knot, error) {
+//
+// It also returns floorDropped: how many clustered knots the abstention floor
+// dropped (recurrence below dropFloorFraction). That count is surfaced — quietly, as
+// an aggregate, never itemized — so a "clear horizon" cannot hide that candidates
+// were suppressed (legible abstention; docs/LEGIBILITY.md). The single-run path
+// (samples<=1) applies no floor, so it reports 0.
+func (d *Detector) ReconcileVoted(ctx context.Context, atoms []Atom, samples int) (knots []Knot, floorDropped int, err error) {
 	if samples <= 1 {
-		return d.reconcileBoth(ctx, atoms)
+		k, err := d.reconcileBoth(ctx, atoms)
+		return k, 0, err
 	}
 	var runs [][]Knot
 	for i := 0; i < samples; i++ {
 		run, err := d.reconcileBoth(ctx, atoms)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		runs = append(runs, run)
 	}
-	return voteKnots(runs), nil
+	kept, dropped := voteKnots(runs)
+	return kept, dropped, nil
 }
 
 // reconcileBoth runs one pairwise + one team-wide pass and concatenates them.
@@ -893,8 +901,9 @@ func (d *Detector) reconcileBoth(ctx context.Context, atoms []Atom) ([]Knot, err
 // and keeps clusters seen in a strict majority of runs. Representative = the
 // cluster's highest-confidence member; Confidence = the mean across the cluster;
 // Votes = distinct runs it appeared in. Output is sorted (most-voted first) for
-// determinism.
-func voteKnots(runs [][]Knot) []Knot {
+// determinism. Returns (kept, floorDropped): floorDropped counts the clusters the
+// abstention floor removed, for legible-abstention surfacing (docs/LEGIBILITY.md).
+func voteKnots(runs [][]Knot) (kept []Knot, floorDropped int) {
 	type item struct {
 		k   Knot
 		run int
@@ -966,6 +975,7 @@ func voteKnots(runs [][]Knot) []Knot {
 		// it here means it is neither asserted nor asked. Inert at samples<=3 (every
 		// cluster has Votes>=1 >= frac*samples); engages at samples>=5.
 		if float64(rep.Votes) < dropFloorFraction*float64(rep.Samples) {
+			floorDropped++
 			continue
 		}
 		out = append(out, rep)
@@ -976,5 +986,5 @@ func voteKnots(runs [][]Knot) []Knot {
 		}
 		return out[i].About < out[j].About
 	})
-	return out
+	return out, floorDropped
 }

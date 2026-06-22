@@ -195,7 +195,7 @@ func run(cfg runConfig) error {
 	// Cross-person detection (pairwise + team-wide). With --samples>1, runs the
 	// passes N times and keeps only knots that recur across a majority — the
 	// stochastic detector's noise becomes a confidence signal.
-	knots, err := det.ReconcileVoted(ctx, atoms, cfg.samples)
+	knots, floorHeld, err := det.ReconcileVoted(ctx, atoms, cfg.samples)
 	if err != nil {
 		return fmt.Errorf("reconcile: %w", err)
 	}
@@ -209,8 +209,9 @@ func run(cfg runConfig) error {
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
 	// Cross-person coupling check: drop collision/duplication/teamwide knots that
 	// bridge people on a shared topic word across independent scopes (ON by default;
-	// disable with --no-ground).
-	knots, err = det.GroundKnots(ctx, knots, atoms)
+	// disable with --no-ground). Suppressed = what it held back, surfaced quietly so a
+	// human can overrule a wrong call (legible abstention; docs/LEGIBILITY.md).
+	knots, suppressed, err := det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return fmt.Errorf("ground: %w", err)
 	}
@@ -220,13 +221,13 @@ func run(cfg runConfig) error {
 	if cfg.gemotURL != "" {
 		resolver = crux.Gemot{URL: cfg.gemotURL, Token: os.Getenv("ETTLE_GEMOT_TOKEN"), InsecureLocal: cfg.insecureLocal, Timeout: cfg.gemotTimeout}
 	}
-	surface(ctx, cfg.me, knots, atoms, allQuestions, resolver)
+	surface(ctx, cfg.me, knots, suppressed, floorHeld, atoms, allQuestions, resolver)
 	return nil
 }
 
 // surface prints the knots relevant to `me` (or all, in team view), routed FIRM
 // vs SOFT, with contested knots resolved. This is the agent → its own human.
-func surface(ctx context.Context, me string, knots []ettlemesh.Knot, atoms []ettlemesh.Atom, questions []authoredQuestion, resolver crux.Resolver) {
+func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, resolver crux.Resolver) {
 	var firm, soft []ettlemesh.Knot
 	for _, k := range knots {
 		if me != "" && !partyOf(k, me) {
@@ -287,6 +288,29 @@ func surface(ctx context.Context, me string, knots []ettlemesh.Knot, atoms []ett
 		for _, q := range mine {
 			fmt.Printf("    ? %s\n", q)
 		}
+	}
+
+	// Legible abstention: what the coupling check held back, surfaced quietly OFF the
+	// agenda so a clear horizon never hides a silently-dropped call the human would
+	// have overruled (docs/LEGIBILITY.md, stage 0a). Filtered to me, like the rest.
+	var heldBack []ettlemesh.Knot
+	for _, k := range suppressed {
+		if me == "" || partyOf(k, me) {
+			heldBack = append(heldBack, k)
+		}
+	}
+	if len(heldBack) > 0 {
+		section("held back (the coupling check judged these not a real conflict — shown in case that's wrong)")
+		for _, k := range heldBack {
+			printKnot(k)
+		}
+	}
+	// The abstention floor's drops are noise by design (recurred in too few samples),
+	// so they are NOT listed — but a single quiet count keeps a clear horizon honest:
+	// the human knows candidates were suppressed, without the notice becoming noise.
+	if floorHeld > 0 {
+		fmt.Printf("\n    (+ %s below the confidence floor, not shown)\n",
+			plural(floorHeld, "low-recurrence candidate", "low-recurrence candidates"))
 	}
 	fmt.Println()
 }
@@ -476,7 +500,7 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 	for _, r := range results {
 		atoms = append(atoms, r.atoms...)
 	}
-	knots, err := det.ReconcileVoted(ctx, atoms, samples)
+	knots, _, err := det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -487,8 +511,9 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
 	// Cross-person coupling check: drop collision/duplication/teamwide knots that
 	// bridge people on a shared topic word across independent scopes (ON by default;
-	// disable with --no-ground).
-	knots, err = det.GroundKnots(ctx, knots, atoms)
+	// disable with --no-ground). The eval scores kept knots; suppressed is for the
+	// human-facing surface, not the precision/recall harness.
+	knots, _, err = det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return nil, nil, err
 	}

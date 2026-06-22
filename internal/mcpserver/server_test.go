@@ -37,17 +37,17 @@ func (f *fakeReconciler) Distill(_ context.Context, from, _, text string, _ []st
 	return out, nil
 }
 
-func (f *fakeReconciler) ReconcileVoted(_ context.Context, _ []ettlemesh.Atom, _ int) ([]ettlemesh.Knot, error) {
+func (f *fakeReconciler) ReconcileVoted(_ context.Context, _ []ettlemesh.Atom, _ int) (knots []ettlemesh.Knot, floorDropped int, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.votedCalls++
-	return f.voted, nil
+	return f.voted, 0, nil
 }
 
 // GroundKnots is a pass-through in the fake: the direction-check is exercised in
 // ettlemesh's own tests; here the server just needs the seam satisfied.
-func (f *fakeReconciler) GroundKnots(_ context.Context, knots []ettlemesh.Knot, _ []ettlemesh.Atom) ([]ettlemesh.Knot, error) {
-	return knots, nil
+func (f *fakeReconciler) GroundKnots(_ context.Context, knots []ettlemesh.Knot, _ []ettlemesh.Atom) (kept, suppressed []ettlemesh.Knot, err error) {
+	return knots, nil, nil
 }
 
 func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([]ettlemesh.Knot, error) {

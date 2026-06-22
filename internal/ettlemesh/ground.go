@@ -86,13 +86,18 @@ import (
 // decision-rights (a who-decides truth condition the coupling question would misjudge).
 // When Ground is off, or there are no checkable multi-person knots, it returns the
 // input unchanged with NO model call (cost-free when there is nothing to verify).
-func (d *Detector) GroundKnots(ctx context.Context, knots []Knot, atoms []Atom) ([]Knot, error) {
+//
+// It returns (kept, suppressed): the knots that survive, and the ones the coupling
+// check judged not-a-real-conflict. Suppressed is surfaced — quietly, off the main
+// agenda — so a human can see what was held back and overrule a wrong call (legible
+// abstention; see docs/LEGIBILITY.md). A nil suppressed means nothing was held back.
+func (d *Detector) GroundKnots(ctx context.Context, knots []Knot, atoms []Atom) (kept, suppressed []Knot, err error) {
 	if !d.Ground {
-		return knots, nil
+		return knots, nil, nil
 	}
 	idx := groundableKnots(knots)
 	if len(idx) == 0 {
-		return knots, nil
+		return knots, nil, nil
 	}
 	// One FOCUSED call per kind present (NOT one merged 3-kind prompt): each call shows
 	// only that kind's coupling test, so the collision instruction measured to drive
@@ -122,13 +127,14 @@ func (d *Detector) GroundKnots(ctx context.Context, knots []Knot, atoms []Atom) 
 		var p groundPayload
 		if err := verifier.callTool(ctx, groundSys, buildGroundPrompt(kind, idxs, knots, atoms), "ground_knots",
 			"Record, per knot index, whether the parties are genuinely coupled on one concrete thing.", groundSchema(), &p); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, v := range p.Verdicts {
 			grounded[v.Index] = v.Coupled
 		}
 	}
-	return applyGroundingVerdicts(knots, grounded), nil
+	kept, suppressed = applyGroundingVerdicts(knots, grounded)
+	return kept, suppressed, nil
 }
 
 // groundKindOrder fixes a deterministic order over the checkable kinds so the per-kind
@@ -192,19 +198,21 @@ const groundSys = "You are the coordination layer's coupling check: an independe
 // knot — callTool's retry already makes that rare). The pure half of GroundKnots,
 // unit-tested without a model. verdicts is keyed by the index a knot had in the
 // SAME slice passed here.
-func applyGroundingVerdicts(knots []Knot, verdicts map[int]bool) []Knot {
-	out := knots[:0:0] // fresh backing array; never alias the input
+func applyGroundingVerdicts(knots []Knot, verdicts map[int]bool) (kept, suppressed []Knot) {
+	kept = knots[:0:0] // fresh backing array; never alias the input
 	for i, k := range knots {
 		if !multiPerson(k.Parties) {
-			out = append(out, k)
+			kept = append(kept, k)
 			continue
 		}
 		grounded, judged := verdicts[i]
 		if !judged || grounded { // fail open: unjudged knots survive
-			out = append(out, k)
+			kept = append(kept, k)
+		} else {
+			suppressed = append(suppressed, k)
 		}
 	}
-	return out
+	return kept, suppressed
 }
 
 // multiPerson reports whether a knot's parties denote at least two DISTINCT

@@ -37,9 +37,9 @@ import (
 // but it can supply its own fake reconciler.
 type reconciler interface {
 	Distill(ctx context.Context, from, role, text string, private []string) ([]ettlemesh.Atom, error)
-	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) ([]ettlemesh.Knot, error)
+	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) (knots []ettlemesh.Knot, floorDropped int, err error)
 	ReconcileSelf(ctx context.Context, atoms []ettlemesh.Atom) ([]ettlemesh.Knot, error)
-	GroundKnots(ctx context.Context, knots []ettlemesh.Knot, atoms []ettlemesh.Atom) ([]ettlemesh.Knot, error)
+	GroundKnots(ctx context.Context, knots []ettlemesh.Knot, atoms []ettlemesh.Atom) (kept, suppressed []ettlemesh.Knot, err error)
 }
 
 // defaultSamples matches the CLI default (voting on); 1 disables voting.
@@ -181,6 +181,13 @@ type horizonOut struct {
 	Participants []string   `json:"participants"`
 	Firm         []knotView `json:"firm"`
 	Soft         []knotView `json:"soft"`
+	// HeldBack: knots the coupling check judged not-a-real-conflict, surfaced off the
+	// agenda so the lead surface can show what was suppressed (legible abstention;
+	// docs/LEGIBILITY.md). Omitted when empty.
+	HeldBack []knotView `json:"held_back,omitempty"`
+	// FloorHeld: how many low-recurrence candidates the abstention floor dropped —
+	// a count, not a list (they're noise by design), so a clear horizon stays honest.
+	FloorHeld int `json:"floor_held,omitempty"`
 }
 
 func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizonIn) (*mcp.CallToolResult, horizonOut, error) {
@@ -203,14 +210,15 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if samples == 0 {
 		samples = defaultSamples
 	}
-	knots, err := s.det.ReconcileVoted(ctx, atoms, samples)
+	knots, floorHeld, err := s.det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
 	// Cross-person coupling check: drop collision/duplication/teamwide knots that
 	// bridge people on a shared topic word across independent scopes (no-op if the
-	// detector has Ground off).
-	knots, err = s.det.GroundKnots(ctx, knots, atoms)
+	// detector has Ground off). suppressed = what it held back, surfaced off the
+	// agenda so the lead surface stays honest (legible abstention; docs/LEGIBILITY.md).
+	knots, suppressed, err := s.det.GroundKnots(ctx, knots, atoms)
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
@@ -225,12 +233,35 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 			out.Soft = append(out.Soft, v)
 		}
 	}
+	for _, k := range suppressed {
+		if in.Me != "" && !partiesInclude(k.Parties, in.Me) {
+			continue
+		}
+		out.HeldBack = append(out.HeldBack, toKnotView(k))
+	}
+	out.FloorHeld = floorHeld
 	scope := "team"
 	if in.Me != "" {
 		scope = in.Me
 	}
-	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft knot(s) across %d participant(s).",
-		scope, len(out.Firm), len(out.Soft), len(parts))), out, nil
+	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft knot(s) across %d participant(s)%s.",
+		scope, len(out.Firm), len(out.Soft), len(parts), heldBackNote(len(out.HeldBack), floorHeld))), out, nil
+}
+
+// heldBackNote renders the optional suppression tail on the horizon summary so a
+// caller reading only the text line still learns candidates were held back — the
+// coupling-check kills itemized in HeldBack, the floor drops as an aggregate count.
+func heldBackNote(coupling, floor int) string {
+	switch {
+	case coupling > 0 && floor > 0:
+		return fmt.Sprintf("; %d held back by the coupling check, %d below the floor", coupling, floor)
+	case coupling > 0:
+		return fmt.Sprintf("; %d held back by the coupling check", coupling)
+	case floor > 0:
+		return fmt.Sprintf("; %d held back below the confidence floor", floor)
+	default:
+		return ""
+	}
 }
 
 // --- ettle_self_check (N=1) ---

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Legible abstention (stage 0a) — the coupling check stops dropping silently**
+  (`GroundKnots` now returns `(kept, suppressed)`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
+  A clear horizon that silently hid a suppressed call trains the human to stop
+  watching — the exact failure a structured adversarial pressure-test (legibility /
+  extraction-skepticism lenses) flagged. Knots the coupling check judges
+  *not a real conflict* are now surfaced
+  **off the agenda**, in a "held back — shown in case that's wrong" section (CLI
+  `surface`) / a `held_back` field + summary tail (MCP `horizon`), filtered to `me`.
+  Coupling-check kills are *listed* (high-recurrence, a human might overrule them);
+  the abstention-floor drops (≤1/5 samples, noise by design) surface as a single
+  quiet **aggregate count** ("+N below the confidence floor, not shown") so the
+  notice doesn't get trained into the ignore pile — `ReconcileVoted`/`voteKnots` now
+  return that count alongside the kept knots. Deterministically tested
+  (`TestSurfaceHeldBack` captures both the listed section and the floor line;
+  `TestDropFloor` asserts the count; `applyGroundingVerdicts` returns the suppressed
+  set). First increment of the
+  legibility program drafted in `docs/LEGIBILITY.md` (the response to the panel:
+  turn the model's output from a private assertion into a legible, contestable
+  signal). No detection-accuracy change — the eval still scores only kept knots.
 - **Cross-person coupling check — generalizes the collision direction-check to
   duplication + teamwide-divergence** (`GroundKnots`/`groundableKnots` in
   `internal/ettlemesh/ground.go`). The collision pass (below) closed the *collision*

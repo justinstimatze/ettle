@@ -79,7 +79,7 @@ func TestApplyGroundingVerdictsDropsUngroundedCrossPerson(t *testing.T) {
 		ck(KindStaleAssumption, "cleo"),   // 2: self knot → always keep
 	}
 	verdicts := map[int]bool{0: true, 1: false}
-	out := applyGroundingVerdicts(knots, verdicts)
+	out, suppressed := applyGroundingVerdicts(knots, verdicts)
 	if len(out) != 2 {
 		t.Fatalf("expected 2 knots (alice×bob + cleo self), got %d: %+v", len(out), out)
 	}
@@ -88,22 +88,29 @@ func TestApplyGroundingVerdictsDropsUngroundedCrossPerson(t *testing.T) {
 			t.Fatalf("the ungrounded alice×dao knot should have been dropped")
 		}
 	}
+	// The dropped knot is RETURNED as suppressed (for legible abstention), not lost.
+	if len(suppressed) != 1 || !SamePerson(suppressed[0].Parties[1], "dao") {
+		t.Fatalf("expected the alice×dao knot in suppressed, got %+v", suppressed)
+	}
 }
 
 func TestApplyGroundingVerdictsFailsOpen(t *testing.T) {
 	// A multi-person knot with NO returned verdict must be KEPT (protects recall
 	// if the verifier garbles or omits it).
 	knots := []Knot{ck(KindCollision, "alice", "bob")}
-	out := applyGroundingVerdicts(knots, map[int]bool{}) // no verdict for index 0
+	out, suppressed := applyGroundingVerdicts(knots, map[int]bool{}) // no verdict for index 0
 	if len(out) != 1 {
 		t.Fatalf("unjudged knot must survive (fail open), got %d", len(out))
+	}
+	if len(suppressed) != 0 {
+		t.Fatalf("fail-open must not suppress an unjudged knot, got %+v", suppressed)
 	}
 }
 
 func TestApplyGroundingVerdictsSelfKnotsNeverChecked(t *testing.T) {
 	// A self knot keeps even with a (mistaken) false verdict against its index.
 	knots := []Knot{ck(KindStaleAssumption, "alice")}
-	out := applyGroundingVerdicts(knots, map[int]bool{0: false})
+	out, _ := applyGroundingVerdicts(knots, map[int]bool{0: false})
 	if len(out) != 1 {
 		t.Fatalf("a single-author knot must never be dropped by grounding, got %d", len(out))
 	}
@@ -114,7 +121,7 @@ func TestApplyGroundingVerdictsDoesNotAliasInput(t *testing.T) {
 		ck(KindCollision, "alice", "dao"), // will be dropped
 		ck(KindCollision, "alice", "bob"), // kept
 	}
-	_ = applyGroundingVerdicts(knots, map[int]bool{0: false, 1: true})
+	_, _ = applyGroundingVerdicts(knots, map[int]bool{0: false, 1: true})
 	// The original slice must be untouched (out used a fresh backing array).
 	if len(knots) != 2 || !SamePerson(knots[0].Parties[1], "dao") {
 		t.Fatalf("input slice was mutated by applyGroundingVerdicts: %+v", knots)
