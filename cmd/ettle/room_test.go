@@ -109,6 +109,59 @@ func TestRenderRoomStatus(t *testing.T) {
 	}
 }
 
+// TestRoomInitFlagAfterURL regression-guards the flag-stops-at-positional bug:
+// `room init <url> --as bob` must honor --as, not fall back to $USER. Go's flag
+// package stops parsing at the first non-flag token, so this only works because
+// roomInit lifts the URL out first (liftURL). Uses a local bare repo as the URL.
+func TestRoomInitFlagAfterURL(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("USER", "someoneelse") // the default that must NOT win
+
+	bare := t.TempDir() + "/crew.git"
+	if out, err := exec.Command("git", "init", "--bare", "-b", "main", bare).CombinedOutput(); err != nil {
+		t.Fatalf("init bare: %v\n%s", err, out)
+	}
+	// Seed the bare so clone yields a born HEAD (roomInit's ensureSeed pushes).
+	if err := roomInit([]string{bare, "--as", "bob", "--name", "crew"}); err != nil {
+		t.Fatalf("roomInit: %v", err)
+	}
+	rc, err := loadRoom("crew")
+	if err != nil {
+		t.Fatalf("loadRoom: %v", err)
+	}
+	if rc.Agent != "bob" {
+		t.Fatalf("--as after URL ignored: agent = %q, want bob", rc.Agent)
+	}
+	if rc.Remote != "origin" {
+		t.Fatalf("cloned room should have remote origin, got %q", rc.Remote)
+	}
+}
+
+func TestLiftURL(t *testing.T) {
+	cases := []struct {
+		args     []string
+		wantURL  string
+		wantRest []string
+	}{
+		{[]string{"git@h:crew.git", "--as", "bob"}, "git@h:crew.git", []string{"--as", "bob"}},
+		{[]string{"--as", "bob", "git@h:crew.git"}, "", []string{"--as", "bob", "git@h:crew.git"}},
+		{[]string{"--as", "bob"}, "", []string{"--as", "bob"}},
+		{nil, "", nil},
+	}
+	for _, c := range cases {
+		url, rest := liftURL(c.args)
+		if url != c.wantURL {
+			t.Errorf("liftURL(%v) url = %q, want %q", c.args, url, c.wantURL)
+		}
+		if strings.Join(rest, " ") != strings.Join(c.wantRest, " ") {
+			t.Errorf("liftURL(%v) rest = %v, want %v", c.args, rest, c.wantRest)
+		}
+	}
+}
+
 func TestRoomNameFromURL(t *testing.T) {
 	cases := map[string]string{
 		"git@github.com:crew/standup-room.git":     "standup-room",

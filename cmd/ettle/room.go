@@ -137,6 +137,10 @@ func roomStatus(args []string) error {
 	if w, ok := bus.(interface{ Warnings() []string }); ok {
 		warnings = w.Warnings()
 	}
+	// NOTE: the leat bus reads via Collect, which drops identity spoofs SILENTLY
+	// (only Receive records warnings), so today this is effectively always empty —
+	// the spoof is still dropped (security holds), just not surfaced here. The
+	// rendering below is forward-compatible for when the transport reports them.
 	fmt.Print(renderRoomStatus(name, envs, warnings, time.Now()))
 	return nil
 }
@@ -244,10 +248,13 @@ func roomInit(args []string) error {
 	fs := flag.NewFlagSet("room init", flag.ContinueOnError)
 	as := fs.String("as", defaultAgent(), "your agent id in this room (becomes your lane filename)")
 	name := fs.String("name", "", "room name (default: derived from the git URL, or \"local\")")
-	if err := fs.Parse(args); err != nil {
+	url, rest := liftURL(args)
+	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	url := fs.Arg(0)
+	if url == "" {
+		url = fs.Arg(0)
+	}
 	agent := transport.SanitizeID(*as)
 
 	rname := transport.SanitizeID(*name)
@@ -303,10 +310,13 @@ func roomJoin(args []string) error {
 	fs := flag.NewFlagSet("room join", flag.ContinueOnError)
 	as := fs.String("as", defaultAgent(), "your agent id in this room (becomes your lane filename)")
 	name := fs.String("name", "", "room name (default: derived from the git URL)")
-	if err := fs.Parse(args); err != nil {
+	url, rest := liftURL(args)
+	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	url := fs.Arg(0)
+	if url == "" {
+		url = fs.Arg(0)
+	}
 	if url == "" {
 		return fmt.Errorf("usage: ettle room join <git-url> [--as <id>] [--name <room>]")
 	}
@@ -375,6 +385,19 @@ func roomList() error {
 }
 
 // --- helpers ---------------------------------------------------------------
+
+// liftURL pulls a leading positional URL out of args before flag parsing,
+// because Go's flag package stops at the first non-flag token — so without this
+// `room init <url> --as alice` would silently ignore --as. Returns the URL (""
+// if the first arg is a flag) and the remaining args to hand to fs.Parse. The
+// caller still falls back to fs.Arg(0) for the flags-first form
+// (`room init --as alice <url>`).
+func liftURL(args []string) (url string, rest []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
+	}
+	return "", args
+}
 
 func defaultAgent() string {
 	for _, k := range []string{"USER", "USERNAME", "LOGNAME"} {
