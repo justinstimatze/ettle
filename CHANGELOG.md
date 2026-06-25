@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **leat transport — a distributed atom bus over a private git repo, no server**
+  ([github.com/justinstimatze/leat](https://github.com/justinstimatze/leat)). `--transport
+  leat://<repoDir>` rides leat, a git repo used as an append-only, per-author-lane message
+  bus (durable, cross-machine, identity-hardened, `git log` = the audit trail). ettle is a
+  *consumer* of leat — the canonical Go impl of a shared git-transport wire contract owned by
+  mcp-dispatch; ettle does not own or reimplement the transport. The adapter
+  (`internal/transport/leat.go`, always compiled — leat is stdlib-only, so unlike NATS it
+  needs no build tag) maps one LWW record per participant (`Type=atom`, `Chan=room`,
+  `Key=participant`, `Body=`the marshaled Envelope) and folds `Collect`'s latest-per-`(From,Key)`
+  atom records back into Envelopes. Wired via the build-tag-independent `dirBusFor` hook
+  (`leat://` alongside `file://`, single source so it can't drift across the nats/!nats `busFor`
+  copies). Config from env: `LEAT_AGENT` (lane id, required), `LEAT_REMOTE` (push/fetch remote),
+  `ETTLE_TEAM` (room channel). leat adds only itself to `go.mod` (no transitive deps). Tested
+  (`TestLeatRoundTrip`: publish→collect round-trip + LWW-per-participant, hermetic over a local
+  git repo). README/DEPLOY now lead the distributed story with leat (NATS demoted to the heavier
+  alternative). See [DEPLOY.md](docs/DEPLOY.md) Tier 1b.
+
 - **Subject-gated inference (stage 0b) — inferred atoms don't cross to the team by
   default** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). 1a-1 measured the inference pass
   fabricating sensitive de-novo claims ("the speaker is leaving") and *asserting* them.

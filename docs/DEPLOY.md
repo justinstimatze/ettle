@@ -76,8 +76,43 @@ synced. Eventual-consistency lag (seconds–minutes) is fine here; it would only
 a continuous live-emit loop, which is deliberately unbuilt ([SCALING.md](SCALING.md)).
 **Honest limit:** a teammate whose file never reached your copy of the folder is
 invisible — coverage reports who/how-stale among files *present*, not against an
-out-of-band roster. For low-latency exchange or a hard membership guarantee, use
-the NATS bus below.
+out-of-band roster. For real identity + an audit trail with the same no-server
+model, use the leat git-repo bus below; for low-latency exchange or a hard
+membership guarantee, use the NATS bus.
+
+## Tier 1b — a private git repo (leat, no server)
+
+The git-native upgrade of the shared folder: point each agent at a **private git
+repo** with `--transport leat://<local-clone>`. Still **no server to run** — your
+git host (GitHub / GitLab / self-hosted) already provides auth, TLS, and
+replication. leat ([github.com/justinstimatze/leat](https://github.com/justinstimatze/leat),
+a stdlib-only Go package owned by mcp-dispatch, which ettle consumes) treats the
+repo as an append-only, per-author-lane bus: each agent only ever appends to the
+one lane file it owns (`channels/<team>/<agent>.jsonl`), so concurrent pushes are
+always fast-forwards and never conflict. Sharing the repo URL is the whole
+onboarding — it's the invite.
+
+```sh
+# each teammate, on their own machine, against a clone of the same private repo:
+export LEAT_AGENT=alice          # this agent's id == its lane filename == commit author
+export LEAT_REMOTE=origin        # the git remote to push/fetch (omit for local-only)
+export ETTLE_TEAM=payments       # the room channel (isolates this team's lanes)
+go run ./cmd/ettle standup --me alice --transport leat://$HOME/clones/team-x notes.md
+```
+
+| Property | Behavior |
+|---|---|
+| Storage | append-only per-author lanes; `Collect` folds the latest atoms per participant (LWW). `git log` of a lane is the **audit trail** — and the basis for the future drift/provenance feature |
+| Identity | **hardened**: a line whose author != its lane owner is dropped as a spoof (surfaced via warnings) — stronger than the folder tier's filename-convention, though still resting on git-host access control, not per-line signatures (reserved) |
+| Transit | git over HTTPS/SSH — TLS + auth come from the host; only boundary-distilled atoms cross, never raw notes |
+| Membership | the room repo *is* the boundary — who can clone/push is who's in the room |
+
+**When this fits:** the same batch model as the folder tier — run `standup` on
+demand against whatever has been fetched — but when you want non-spoofable
+identity and a durable, replayable record (which the folder tier can't give) at
+zero server cost. **Honest limit:** like the folder, it's pull-based — "freshness"
+is last-fetch, so it's async-standup latency, not live; and `leat://` expects an
+existing local clone (clone the room repo first).
 
 ## Tier 2 — a shared atom bus (NATS)
 

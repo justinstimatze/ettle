@@ -31,7 +31,7 @@ flowchart TB
     end
     AD -- "typed atoms only" --> BUS
     BD -- "typed atoms only" --> BUS
-    BUS{{"atom bus — NATS<br/>(TLS + auth)"}}
+    BUS{{"atom bus — leat (a git repo)<br/>· or NATS · or in-process"}}
     BUS --> L2["L2 directed models<br/>per-pair, across rounds<br/>surprise-gated emit"]
     L2 --> RC["L3 reconcile<br/>pairwise + team-wide<br/>= knot detection"]
     RC --> CONF{"knot<br/>confidence?"}
@@ -192,10 +192,18 @@ as a *question* — "worth a question" — rather than asserted as fact.) Add
 `--show-atoms` to any run to see exactly what crosses the boundary (typed atoms,
 never the raw session).
 
-Going distributed and secure is opt-in behind the same seams:
+Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo:
 
 ```sh
-# atoms over a NATS bus (TLS + auth); needs the build tag
+# a private git repo AS the bus — no broker, no infra: leat (a stdlib-only Go
+# package). Each agent appends only its own lane, so pushes never conflict;
+# identity is hardened (a line whose author != its lane is dropped) and git log
+# IS the audit trail. Share the repo URL like any invite; point at a local clone.
+LEAT_AGENT=alice LEAT_REMOTE=origin ETTLE_TEAM=crew \
+  go run ./cmd/ettle standup --me alice \
+  --transport leat:///path/to/your/clone testdata/standup/*.md
+
+# heavier alternative — atoms over a NATS bus (TLS + auth); needs the build tag
 go run -tags nats ./cmd/ettle standup --transport nats --me alice notes.md
 
 # route contested knots to a real gemot deliberation (TLS + bearer token)
@@ -223,7 +231,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 ## Relationship to sibling projects
 
 - **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer per-person model (deeper L1 telemetry) can feed this layer from outside this repo; ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that a single-user layer never had.
-- **the atom bus** — a [NATS](https://nats.io) bus moves typed atoms between participants' machines (TLS + auth, pub/sub, replay). Behind a transport seam, so a zero-infra in-process adapter covers local testing and other rails (Slack, Matrix, A2A) can drop in later.
+- **the atom bus** — behind a transport seam, so it swaps freely. Default is zero-infra in-process (local runs/tests). For a distributed team the light path is **[leat](https://github.com/justinstimatze/leat)** — a private git repo used as an append-only, per-author-lane message bus (durable, cross-machine, identity-hardened, `git log` = the audit trail; a stdlib-only Go package owned by [mcp-dispatch](https://github.com/justinstimatze/mcp-dispatch), the canonical impl of a shared git-transport wire contract, which ettle consumes). A [NATS](https://nats.io) bus (TLS + auth, pub/sub, replay) is the heavier alternative behind `-tags nats`; other rails (Slack, Matrix, A2A) can drop in later.
 - **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant knot back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.
 - **[gemot](https://github.com/justinstimatze/gemot)** — structured deliberation (positions → cruxes → binding compromise, with EigenTrust reputation). The inter-agent negotiation organ for *contested* knots: it locates the crux (where friction belongs) and binds the rest, and its reputation deltas become the team-tier calibration signal. Reached over TLS with auth — the crux is the most sensitive payload on the wire.
