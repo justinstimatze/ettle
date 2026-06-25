@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Verdict labels now record the knot's recurrence (calibration capture polish).**
+  `ettle_respond` already logged a human verdict (`real` / `not_real` / `handled`) on
+  a surfaced knot; the captured `Label` now also carries the knot's **recurrence
+  (`Votes`/`Samples`) + kind + firm/soft tier** — the exact per-kind feature a future
+  calibration loop would threshold on, which was previously discarded at capture time.
+  Populated by joining the verdict to the horizon the same server just surfaced (a
+  cross-session verdict keeps the kind, recovered from the key, with zero recurrence).
+  Backward-compatible (`omitempty`, so pre-enrichment log lines still parse). **The
+  learning loop itself is deliberately NOT built** — with no real users there are no
+  accrued labels yet, so it would only fit a synthetic corpus; this change just stops
+  the feature being lost so the data is learnable if it accrues. Labels stay **local**
+  per machine (pooling across a team would leak coordination-judgment metadata).
+  Tests: `TestRespondEnrichesLabelFromHorizon`, `TestLabelBackwardCompatThinLine`.
+
 - **`ettle room status` — the presence view (L0 co-presence).** Shows who's in a
   room and what each person is currently working on, read straight off the bus (the
   atoms standup already published) with **no knot detection and no model call**.

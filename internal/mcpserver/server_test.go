@@ -106,6 +106,66 @@ func TestRespondCapturesLabel(t *testing.T) {
 	}
 }
 
+// Capture polish: a verdict on a knot the horizon just surfaced carries that knot's
+// recurrence (Votes/Samples) + kind + firm tier — the features a future calibration
+// loop would need. A verdict on a key never surfaced this session degrades to
+// kind-from-key with zero recurrence (no fabricated votes).
+func TestRespondEnrichesLabelFromHorizon(t *testing.T) {
+	sink := &memLabelSink{}
+	f := &fakeReconciler{
+		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
+		voted: []ettlemesh.Knot{
+			{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6, Votes: 4, Samples: 5},
+		},
+	}
+	s := &server{det: f, h: newHorizon(), labels: sink}
+	ctx := context.Background()
+
+	// Seed an atom so the horizon doesn't short-circuit, then surface it.
+	_, _, _ = s.emit(ctx, nil, emitIn{Participant: "alice", Notes: "n"})
+	_, ho, err := s.horizon(ctx, nil, horizonIn{})
+	if err != nil {
+		t.Fatalf("horizon: %v", err)
+	}
+	if len(ho.Firm) != 1 {
+		t.Fatalf("setup: expected the collision surfaced firm, got %+v", ho)
+	}
+	key := ho.Firm[0].Key // exactly the key an agent would pass back
+
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Knot: key, Verdict: "real"}); err != nil {
+		t.Fatalf("respond: %v", err)
+	}
+	if len(sink.got) != 1 {
+		t.Fatalf("want 1 label, got %d", len(sink.got))
+	}
+	if l := sink.got[0]; l.Kind != ettlemesh.KindCollision || l.Votes != 4 || l.Samples != 5 || !l.Firm {
+		t.Fatalf("label not enriched from the surfaced horizon: %+v", l)
+	}
+
+	// A key never surfaced this session (different session / restart) → kind only.
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Knot: "duplication|alice+carol", Verdict: "not_real"}); err != nil {
+		t.Fatalf("respond unsurfaced: %v", err)
+	}
+	if l := sink.got[1]; l.Kind != "duplication" || l.Votes != 0 || l.Samples != 0 || l.Firm {
+		t.Fatalf("unsurfaced verdict should recover kind from key with zero recurrence: %+v", l)
+	}
+}
+
+// A pre-enrichment ("thin") log line lacks the new fields; it must still unmarshal,
+// with zero values — omitempty keeps the JSONL format backward-compatible on read.
+func TestLabelBackwardCompatThinLine(t *testing.T) {
+	var l Label
+	if err := json.Unmarshal([]byte(`{"key":"collision|a+b","verdict":"real","by":"a","ts":"2026-01-01T00:00:00Z"}`), &l); err != nil {
+		t.Fatalf("old thin label must still parse: %v", err)
+	}
+	if l.Key != "collision|a+b" || l.Verdict != "real" {
+		t.Fatalf("core fields lost: %+v", l)
+	}
+	if l.Kind != "" || l.Votes != 0 || l.Samples != 0 || l.Firm {
+		t.Fatalf("absent enrichment fields should be zero, got %+v", l)
+	}
+}
+
 // The knot key an agent answers must match the key the horizon hands out (wording-
 // independent: same kind + parties => same key regardless of order/case/About).
 func TestKnotKeyStableAndCrossCallMatch(t *testing.T) {

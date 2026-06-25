@@ -84,6 +84,40 @@ type server struct {
 	det    reconciler
 	h      *horizon
 	labels labelSink // where ettle_respond writes verdicts; nil disables the tool
+
+	// lastSurfaced remembers the features of the knots shown by the most recent
+	// horizon() call, keyed by knotKey, so a later ettle_respond can join a verdict
+	// to the knot's recurrence/tier (label enrichment). Last horizon wins; guarded
+	// by mu because horizon and respond can be called concurrently.
+	mu           sync.Mutex
+	lastSurfaced map[string]knotFeat
+}
+
+// knotFeat is the calibration-relevant slice of a surfaced knot: its kind, the
+// recurrence (Votes of Samples) from voting, and whether it was shown firm or soft.
+type knotFeat struct {
+	Kind    string
+	Votes   int
+	Samples int
+	Firm    bool
+}
+
+// rememberSurfaced records one horizon call's surfaced-knot features, replacing the
+// previous set (only knots actually shown are labelable, so this mirrors exactly
+// what crossed to the agent).
+func (s *server) rememberSurfaced(feats map[string]knotFeat) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastSurfaced = feats
+}
+
+// surfacedFeat returns the remembered features for a knot key from the most recent
+// horizon, if it was shown there.
+func (s *server) surfacedFeat(key string) (knotFeat, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, ok := s.lastSurfaced[key]
+	return f, ok
 }
 
 // --- shareable projections (exactly what crosses, as plain JSON) ---
@@ -255,17 +289,24 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
+	// Remember exactly what we surface (firm AND soft are both shown, so both are
+	// labelable) so a later ettle_respond can join its verdict to the knot's
+	// recurrence. The coupling-suppressed and floor-dropped knots are not surfaced,
+	// so they are correctly absent here.
+	feats := map[string]knotFeat{}
 	for _, k := range knots {
 		if in.Me != "" && !partiesInclude(k.Parties, in.Me) {
 			continue // agent surfaces only its own human's knots, not a shared feed
 		}
 		v := toKnotView(k)
+		feats[v.Key] = knotFeat{Kind: k.Kind, Votes: k.Votes, Samples: k.Samples, Firm: k.Firm()}
 		if k.Firm() {
 			out.Firm = append(out.Firm, v)
 		} else {
 			out.Soft = append(out.Soft, v)
 		}
 	}
+	s.rememberSurfaced(feats)
 	for _, k := range suppressed {
 		if in.Me != "" && !partiesInclude(k.Parties, in.Me) {
 			continue
@@ -348,6 +389,29 @@ type Label struct {
 	By      string `json:"by"`      // the responder (their own knot)
 	Note    string `json:"note,omitempty"`
 	TS      string `json:"ts"` // RFC3339, UTC
+	// Kind/Votes/Samples/Firm are the surfaced knot's features at capture time — the
+	// recurrence signal (Votes of Samples) a future per-kind calibration loop would
+	// threshold on, plus the kind and the firm/soft tier it was shown as. Populated
+	// when ettle_respond runs against the server that surfaced the knot (the common,
+	// same-session path); a cross-session verdict carries Kind only (recovered from
+	// the key) with zero recurrence. The loop itself is deliberately unbuilt — this
+	// only stops the feature being discarded so the data is learnable if it accrues.
+	// omitempty keeps pre-enrichment log lines (which lack these) parseable on read.
+	Kind    string `json:"kind,omitempty"`
+	Votes   int    `json:"votes,omitempty"`
+	Samples int    `json:"samples,omitempty"`
+	Firm    bool   `json:"firm,omitempty"`
+}
+
+// kindFromKey recovers the knot Kind from a knotKey ("kind|parties"). The Kind is
+// always present even when the surfaced-horizon join misses (a verdict from a
+// different session, or after a restart), so a label still carries its kind — just
+// without the recurrence that only the surfacing server held.
+func kindFromKey(key string) string {
+	if i := strings.IndexByte(key, '|'); i >= 0 {
+		return key[:i]
+	}
+	return ""
 }
 
 // labelSink persists verdicts. A file sink is the default; tests inject an in-memory
@@ -413,6 +477,15 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 		return nil, respondOut{}, fmt.Errorf("verdict must be one of real | not_real | handled, got %q", in.Verdict)
 	}
 	lbl := Label{Key: key, Verdict: v, By: me, Note: in.Note, TS: time.Now().UTC().Format(time.RFC3339)}
+	// Enrich with the surfaced knot's features so the verdict is learnable. Same
+	// session (the common path: an agent answers the horizon it just read) → full
+	// recurrence; otherwise recover the kind from the key and leave recurrence zero
+	// rather than fabricate it.
+	if feat, ok := s.surfacedFeat(key); ok {
+		lbl.Kind, lbl.Votes, lbl.Samples, lbl.Firm = feat.Kind, feat.Votes, feat.Samples, feat.Firm
+	} else if kind := kindFromKey(key); kind != "" {
+		lbl.Kind = kind
+	}
 	if err := s.labels.record(lbl); err != nil {
 		return nil, respondOut{}, fmt.Errorf("record label: %w", err)
 	}
