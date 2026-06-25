@@ -192,16 +192,18 @@ as a *question* — "worth a question" — rather than asserted as fact.) Add
 `--show-atoms` to any run to see exactly what crosses the boundary (typed atoms,
 never the raw session).
 
-Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo:
+Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo. The git URL is the invite:
 
 ```sh
-# a private git repo AS the bus — no broker, no infra: leat (a stdlib-only Go
-# package). Each agent appends only its own lane, so pushes never conflict;
-# identity is hardened (a line whose author != its lane is dropped) and git log
-# IS the audit trail. Share the repo URL like any invite; point at a local clone.
-LEAT_AGENT=alice LEAT_REMOTE=origin ETTLE_TEAM=crew \
-  go run ./cmd/ettle standup --me alice \
-  --transport leat:///path/to/your/clone testdata/standup/*.md
+# the bus is a private git repo. one person starts it, everyone else joins:
+go run ./cmd/ettle room init git@github.com:crew/standup-room.git   # first person — creates + seeds it
+go run ./cmd/ettle room join git@github.com:crew/standup-room.git   # everyone else, on their own machine
+# then day-to-day there are no env vars, no paths, no flags to remember:
+go run ./cmd/ettle standup --room standup-room --me alice notes.md
+# (under the hood --room rides leat: each agent appends only its own lane so
+#  pushes never conflict, identity is hardened — a line whose author != its lane
+#  is dropped — and git log is the audit trail. --room resolves to the leat://
+#  transport, so the raw form is also available: --transport leat://<clone>.)
 
 # heavier alternative — atoms over a NATS bus (TLS + auth); needs the build tag
 go run -tags nats ./cmd/ettle standup --transport nats --me alice notes.md

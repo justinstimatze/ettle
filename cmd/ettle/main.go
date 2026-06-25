@@ -76,6 +76,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "room":
+			if err := runRoom(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -100,9 +106,10 @@ func main() {
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide knots that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-knot recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
 	shareInferred := fs.Bool("share-inferred", false, "let INFERRED atoms (your agent's de-novo guesses about a person) cross to the team. OFF by default: an inference is a claim the person never stated, and the pass measurably fabricates sensitive ones, so it is held back and surfaced to its subject first (docs/LEGIBILITY.md stage 0b)")
+	room := fs.String("room", "", "use a configured leat room (created by `ettle room init|join`) as the transport — resolves that room's repo, agent, and remote; overrides --transport")
 	_ = fs.Parse(os.Args[2:])
 
-	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, shareInferred: *shareInferred, paths: fs.Args()}
+	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, room: *room, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, shareInferred: *shareInferred, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
 		os.Exit(1)
@@ -115,15 +122,15 @@ type participant struct {
 }
 
 type runConfig struct {
-	me, model, gemotURL, transport string
-	insecureLocal                  bool
-	showAtoms                      bool
-	ground                         bool
-	groundModel                    string
-	shareInferred                  bool
-	gemotTimeout                   time.Duration
-	samples                        int
-	paths                          []string
+	me, model, gemotURL, transport, room string
+	insecureLocal                        bool
+	showAtoms                            bool
+	ground                               bool
+	groundModel                          string
+	shareInferred                        bool
+	gemotTimeout                         time.Duration
+	samples                              int
+	paths                                []string
 }
 
 func run(cfg runConfig) error {
@@ -157,7 +164,7 @@ func run(cfg runConfig) error {
 	det.Ground = cfg.ground
 	det.GroundModel = cfg.groundModel
 
-	bus, err := busFor(cfg.transport, cfg.insecureLocal)
+	bus, err := selectBus(cfg)
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ type LeatBus struct {
 // (local-only — single host or tests) or a git remote name (e.g. "origin") to
 // push/fetch for cross-machine coordination.
 func NewLeatBus(repoDir, agentID, remote, room string) (*LeatBus, error) {
-	room = sanitizeChan(room)
+	room = SanitizeID(room)
 	var opts []leat.Option
 	if remote != "" {
 		opts = append(opts, leat.WithRemote(remote))
@@ -113,13 +113,14 @@ func (b *LeatBus) Close() error { return b.bus.Close() }
 // identity spoofs — a line whose author != lane owner — and malformed lines).
 func (b *LeatBus) Warnings() []string { return b.bus.Warnings() }
 
-// sanitizeChan makes a room name a valid leat channel id: letters, digits, '-'
-// or '_', and not starting with '-' (leat's id rule). Mirrors the spirit of the
-// NATS team sanitizer; kept local because that one lives behind the nats build
-// tag and this adapter is always compiled.
-func sanitizeChan(room string) string {
+// SanitizeID coerces a string into a valid leat id: letters, digits, '-' or '_',
+// not starting with '-', capped at 128 runes (leat's id rule, shared by channel
+// names and agent ids). Used here for the room channel and by the room command
+// for agent ids, so the rule lives in exactly one place. Empty input yields
+// "default".
+func SanitizeID(s string) string {
 	var sb strings.Builder
-	for _, r := range strings.TrimSpace(room) {
+	for _, r := range strings.TrimSpace(s) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
 			sb.WriteRune(r)
@@ -127,12 +128,15 @@ func sanitizeChan(room string) string {
 			sb.WriteRune('_')
 		}
 	}
-	s := sb.String()
-	if s == "" {
+	out := sb.String()
+	if out == "" {
 		return "default"
 	}
-	if s[0] == '-' { // leat ids may not start with '-'
-		s = "_" + s
+	if out[0] == '-' { // leat ids may not start with '-'
+		out = "_" + out
 	}
-	return s
+	if len(out) > 128 {
+		out = out[:128]
+	}
+	return out
 }

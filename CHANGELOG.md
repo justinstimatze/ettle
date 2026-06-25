@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **`ettle room` — one-command join for distributed mode.** Collapses the leat
+  setup ceremony (clone a git repo, seed a HEAD, remember three env vars + an
+  absolute path) into `room init <git-url>` (first person — creates/seeds/pushes)
+  and `room join <git-url>` (everyone else — clones), with `room list`. The git URL
+  is the invite. A room is saved under `<user-config>/ettle/rooms/<name>/` (a
+  `config.json` + the managed clone), and `standup --room <name>` resolves that
+  room's repo/agent/remote — so day-to-day use needs no `LEAT_*` env vars or
+  `--transport` string. `--as <id>` sets your lane id (default `$USER`, coerced to a
+  valid leat id by the shared `transport.SanitizeID`). Local-only rooms (no git URL)
+  work for single-host/testing. Tested (`TestRoomInitLocalAndBus` round-trips an
+  envelope through a resolved room; `TestRoomNameFromURL`). The leat sanitizer is now
+  the exported single-source `transport.SanitizeID` (was `sanitizeChan`), reused by
+  the room command so the id rule lives in one place.
+
 - **leat transport — a distributed atom bus over a private git repo, no server**
   ([github.com/justinstimatze/leat](https://github.com/justinstimatze/leat)). `--transport
   leat://<repoDir>` rides leat, a git repo used as an append-only, per-author-lane message

@@ -92,6 +92,22 @@ one lane file it owns (`channels/<team>/<agent>.jsonl`), so concurrent pushes ar
 always fast-forwards and never conflict. Sharing the repo URL is the whole
 onboarding — it's the invite.
 
+**Easiest — `ettle room`.** It does the boring parts (clone, seed a HEAD, remember
+the repo path / agent / remote) so day-to-day use is just `standup --room`:
+
+```sh
+# first person starts the room (creates + seeds the repo); the URL is the invite:
+go run ./cmd/ettle room init git@github.com:payments/standup-room.git
+# everyone else joins on their own machine:
+go run ./cmd/ettle room join git@github.com:payments/standup-room.git --as alice
+# then, no env vars or paths to remember:
+go run ./cmd/ettle standup --room standup-room --me alice notes.md
+# (ettle room list shows configured rooms; --as sets your lane id, default $USER)
+```
+
+**Or wire it by hand** (what `--room` resolves to — a `leat://` clone plus three
+env vars):
+
 ```sh
 # each teammate, on their own machine, against a clone of the same private repo:
 export LEAT_AGENT=alice          # this agent's id == its lane filename == commit author
