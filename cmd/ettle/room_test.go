@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -56,6 +58,54 @@ func TestRoomInitLocalAndBus(t *testing.T) {
 	}
 	if len(got) != 1 || len(got[0].Atoms) != 1 || got[0].Atoms[0].Content != "wiring the room" {
 		t.Fatalf("round-trip through the room failed: %+v", got)
+	}
+}
+
+// TestRenderRoomStatus pins the presence view: participants sorted, atoms framed
+// by type ("working on" for intent), and per-person freshness from EmittedAt.
+func TestRenderRoomStatus(t *testing.T) {
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	envs := []transport.Envelope{
+		{
+			Participant: "bob", Role: "checkout",
+			EmittedAt: now.Add(-3 * 24 * time.Hour).Format(time.RFC3339),
+			Atoms: []ettlemesh.Atom{
+				{Typ: ettlemesh.Dependency, Subject: "pricing", Content: "calls pricing in-process"},
+			},
+		},
+		{
+			Participant: "alice", Role: "user-service",
+			EmittedAt: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			Atoms: []ettlemesh.Atom{
+				{Typ: ettlemesh.Intent, Subject: "rename", Content: "renaming GetUser"},
+			},
+		},
+	}
+	out := renderRoomStatus("crew", envs, nil, now)
+
+	if !strings.Contains(out, `room "crew" — 2 present`) {
+		t.Fatalf("header/count missing:\n%s", out)
+	}
+	// alice (active) must sort before bob (3d ago).
+	if strings.Index(out, "alice") > strings.Index(out, "bob") {
+		t.Fatalf("participants not sorted:\n%s", out)
+	}
+	if !strings.Contains(out, "alice (user-service) · active") {
+		t.Fatalf("freshness 'active' missing for alice:\n%s", out)
+	}
+	if !strings.Contains(out, "3d ago") {
+		t.Fatalf("freshness '3d ago' missing for bob:\n%s", out)
+	}
+	if !strings.Contains(out, "working on:") || !strings.Contains(out, "renaming GetUser") {
+		t.Fatalf("intent must render as 'working on':\n%s", out)
+	}
+	if !strings.Contains(out, "depends on:") {
+		t.Fatalf("dependency must render as 'depends on':\n%s", out)
+	}
+
+	// Empty room gives the join hint, not a bare header.
+	if empty := renderRoomStatus("crew", nil, nil, now); !strings.Contains(empty, "nobody has published yet") {
+		t.Fatalf("empty room should hint how to publish:\n%s", empty)
 	}
 }
 

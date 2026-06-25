@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **`ettle room status` — the presence view (L0 co-presence).** Shows who's in a
+  room and what each person is currently working on, read straight off the bus (the
+  atoms standup already published) with **no knot detection and no model call**.
+  Participants are sorted, atoms framed by type (intent → "working on", commitment →
+  "committed", dependency → "depends on", assumption → "assuming"), each with a coarse
+  freshness cue (active / today / yesterday / Nd ago). To make freshness survive the
+  leat path, the leat adapter now stamps `EmittedAt` on publish if unset (display-only,
+  never used for ordering — leat's per-lane seq is authoritative). The render is a pure
+  function (`renderRoomStatus`, clock injected) and unit-tested (`TestRenderRoomStatus`).
+  This is the co-presence layer the project had skipped on the way to knot detection: a
+  room is useful — "what is my crew's agents doing right now" — before any reconciliation.
+
 - **`ettle room` — one-command join for distributed mode.** Collapses the leat
   setup ceremony (clone a git repo, seed a HEAD, remember three env vars + an
   absolute path) into `room init <git-url>` (first person — creates/seeds/pushes)

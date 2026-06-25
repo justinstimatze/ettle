@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -103,8 +107,134 @@ func runRoom(args []string) error {
 		return roomJoin(args[1:])
 	case "list":
 		return roomList()
+	case "status", "who":
+		return roomStatus(args[1:])
 	default:
-		return fmt.Errorf("unknown room subcommand %q (init | join | list)", args[0])
+		return fmt.Errorf("unknown room subcommand %q (init | join | list | status)", args[0])
+	}
+}
+
+// roomStatus is the presence view: who's in the room and what each is currently
+// working on — read straight off the bus (the atoms standup already published),
+// no knot detection and no model call. This is the L0 co-presence layer: useful
+// before any reconciliation, just "what is my crew's agents doing right now."
+func roomStatus(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: ettle room status <name>")
+	}
+	name := args[0]
+	bus, err := roomBus(name)
+	if err != nil {
+		return err
+	}
+	defer bus.Close()
+
+	envs, err := bus.Collect(context.Background())
+	if err != nil {
+		return err
+	}
+	var warnings []string
+	if w, ok := bus.(interface{ Warnings() []string }); ok {
+		warnings = w.Warnings()
+	}
+	fmt.Print(renderRoomStatus(name, envs, warnings, time.Now()))
+	return nil
+}
+
+// renderRoomStatus formats the presence view. Pure (now is injected) so it is
+// testable without a clock or a bus.
+func renderRoomStatus(name string, envs []transport.Envelope, warnings []string, now time.Time) string {
+	sort.Slice(envs, func(i, j int) bool {
+		return strings.ToLower(envs[i].Participant) < strings.ToLower(envs[j].Participant)
+	})
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n  room %q — %d present\n", name, len(envs))
+	if len(envs) == 0 {
+		fmt.Fprintf(&b, "    nobody has published yet — run: ettle standup --room %s --me you notes.md\n", name)
+	}
+	// Stable type order, friendly framing — presence reads as "what are you doing".
+	order := []ettlemesh.AtomType{ettlemesh.Intent, ettlemesh.Commitment, ettlemesh.Dependency, ettlemesh.Assumption}
+	for _, e := range envs {
+		who := e.Participant
+		if e.Role != "" {
+			who += " (" + e.Role + ")"
+		}
+		if fresh := freshnessLabel(e.EmittedAt, now); fresh != "" {
+			who += " · " + fresh
+		}
+		fmt.Fprintf(&b, "\n    %s\n", who)
+		if len(e.Atoms) == 0 {
+			fmt.Fprintln(&b, "      (no atoms)")
+			continue
+		}
+		for _, typ := range order {
+			var items []ettlemesh.Atom
+			for _, a := range e.Atoms {
+				if a.Typ == typ {
+					items = append(items, a)
+				}
+			}
+			if len(items) == 0 {
+				continue
+			}
+			fmt.Fprintf(&b, "      %s:\n", workLabel(typ))
+			for _, a := range items {
+				fmt.Fprintf(&b, "        • %s\n", roomAtomLine(a))
+			}
+		}
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintf(&b, "\n    ⚠ %d transport warning(s) (dropped identity spoofs / malformed lines):\n", len(warnings))
+		for _, w := range warnings {
+			fmt.Fprintf(&b, "      - %s\n", w)
+		}
+	}
+	return b.String()
+}
+
+func workLabel(t ettlemesh.AtomType) string {
+	switch t {
+	case ettlemesh.Intent:
+		return "working on"
+	case ettlemesh.Commitment:
+		return "committed"
+	case ettlemesh.Dependency:
+		return "depends on"
+	case ettlemesh.Assumption:
+		return "assuming"
+	default:
+		return string(t)
+	}
+}
+
+func roomAtomLine(a ettlemesh.Atom) string {
+	if strings.TrimSpace(a.Subject) != "" {
+		return a.Subject + " — " + a.Content
+	}
+	return a.Content
+}
+
+// freshnessLabel turns an envelope's emit time into a coarse presence cue. Empty
+// or unparseable yields "" (no cue) rather than a wrong one.
+func freshnessLabel(emittedAt string, now time.Time) string {
+	if emittedAt == "" {
+		return ""
+	}
+	t, err := time.Parse(time.RFC3339, emittedAt)
+	if err != nil {
+		return ""
+	}
+	switch d := now.Sub(t); {
+	case d < 0:
+		return "active"
+	case d < 2*time.Hour:
+		return "active"
+	case d < 24*time.Hour:
+		return "today"
+	case d < 48*time.Hour:
+		return "yesterday"
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours())/24)
 	}
 }
 

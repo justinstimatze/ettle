@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/justinstimatze/leat"
 )
@@ -68,6 +69,12 @@ func NewLeatBus(repoDir, agentID, remote, room string) (*LeatBus, error) {
 // Publish appends this participant's atoms to the room as one LWW record keyed
 // by the participant, so their latest set replaces any earlier one.
 func (b *LeatBus) Publish(ctx context.Context, env Envelope) error {
+	// Stamp emit time if unset so the room view can show per-person freshness
+	// (the standup publish path leaves it empty; this is display-only, never used
+	// for ordering — leat's own per-lane seq is authoritative there).
+	if env.EmittedAt == "" {
+		env.EmittedAt = time.Now().UTC().Format(time.RFC3339)
+	}
 	body, err := json.Marshal(env)
 	if err != nil {
 		return fmt.Errorf("transport/leat: marshal envelope: %w", err)

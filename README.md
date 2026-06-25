@@ -200,6 +200,9 @@ go run ./cmd/ettle room init git@github.com:crew/standup-room.git   # first pers
 go run ./cmd/ettle room join git@github.com:crew/standup-room.git   # everyone else, on their own machine
 # then day-to-day there are no env vars, no paths, no flags to remember:
 go run ./cmd/ettle standup --room standup-room --me alice notes.md
+# or just see who's in the room and what each is working on — the presence view,
+# read straight off the bus, no knot detection and no model call:
+go run ./cmd/ettle room status standup-room
 # (under the hood --room rides leat: each agent appends only its own lane so
 #  pushes never conflict, identity is hardened — a line whose author != its lane
 #  is dropped — and git log is the audit trail. --room resolves to the leat://

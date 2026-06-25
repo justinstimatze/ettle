@@ -102,6 +102,8 @@ go run ./cmd/ettle room init git@github.com:payments/standup-room.git
 go run ./cmd/ettle room join git@github.com:payments/standup-room.git --as alice
 # then, no env vars or paths to remember:
 go run ./cmd/ettle standup --room standup-room --me alice notes.md
+# presence — who's in the room and what each is working on (no knots, no model call):
+go run ./cmd/ettle room status standup-room
 # (ettle room list shows configured rooms; --as sets your lane id, default $USER)
 ```
 
