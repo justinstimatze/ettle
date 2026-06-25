@@ -21,6 +21,6 @@ func busFor(name string, _ bool) (transport.Transport, error) {
 	case "nats":
 		return nil, fmt.Errorf("nats transport needs the tagged build: go run -tags nats ./cmd/ettle ...")
 	default:
-		return nil, fmt.Errorf("unknown transport %q (inproc | file://<path> | nats)", name)
+		return nil, fmt.Errorf("unknown transport %q (inproc | file://<path> | leat://<repoDir> | nats)", name)
 	}
 }

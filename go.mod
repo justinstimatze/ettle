@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.50.2
+	github.com/justinstimatze/leat v0.1.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.52.0
