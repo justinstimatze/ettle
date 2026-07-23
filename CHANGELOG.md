@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **The key-free teammate path actually works now — found by dry-running the tool
+  as a new coworker** (clean `GOBIN`, a separate `HOME` per machine, a stand-in
+  git remote, nothing from the checkout on `PATH`). Three defects, all inside the
+  first four minutes:
+  - `ettle mcp` **required an API key to start**, which made the key-free path
+    unreachable by exactly the person it was built for. Client-side distillation
+    exists so a teammate never needs a key; `ettle_emit` with `atoms` and
+    `ettle_respond` make no model call at all. The key is now optional: without
+    one the server serves that half and the model-calling tools return
+    `mcpserver.ErrNoKey`, which names the alternative (`ettle_distill` + `atoms`)
+    rather than reporting a bare missing key.
+  - `ettle mcp` **had no `--room`** and kept the horizon in a process-local map,
+    so two people on two machines never saw each other's atoms over MCP — the
+    distributed path and the key-free path did not intersect anywhere. The
+    horizon now rides the same `transport.Transport` seam the CLI uses
+    (`ettle mcp --room <name>`, or `--transport`), with a fold-by-participant at
+    the read side so a re-emit overwrites on an append-only bus. Default is
+    unchanged: in-process, this server only.
+  - `ettle room join` **printed the one command guaranteed to fail** for a
+    keyless joiner (`use it: ettle standup --room …`). It now branches on whether
+    a key is present and leads with what will actually work. `ettle room` with no
+    args gained a real usage block.
+
+  Verified end to end after the fix: a keyless "Bob" drove `ettle mcp --room`,
+  emitted client-distilled atoms into a git-backed room, and the key-holding
+  "Alice" reconcile caught the resulting collision (5/5 samples) across the bus.
+
 - **README install path made self-consistent, and the forge metadata refreshed.**
   The quickstart now leads with `go install …@latest`, states the substitution in
   the direction the examples are actually written (`ettle` *for* `go run

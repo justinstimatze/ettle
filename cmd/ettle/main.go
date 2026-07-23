@@ -1715,20 +1715,62 @@ func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
+	room := fs.String("room", "", "serve the horizon over a configured leat room (see `ettle room join`) so teammates on other machines share it; empty = in-process, this process only")
+	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | nats")
+	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	_ = fs.Parse(args)
 
+	// The key is OPTIONAL. Client-side distillation exists so a teammate never needs
+	// one: ettle_emit with `atoms` and ettle_respond make no model call. Refusing to
+	// start without a key made that path unreachable by exactly the people it is for.
+	var det mcpserverReconciler = mcpserver.NoKey{}
 	key := apiKey()
-	if key == "" {
-		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file)")
+	if key != "" {
+		client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
+		d := ettlemesh.NewDetector(&client, *model)
+		d.Ground = !*noGround
+		det = d
 	}
-	client := anthropic.NewClient(option.WithAPIKey(key), option.WithMaxRetries(4))
-	det := ettlemesh.NewDetector(&client, *model)
-	det.Ground = !*noGround
+
+	bus, err := selectBus(runConfig{room: *room, transport: *transportName, insecureLocal: *insecureLocal})
+	if err != nil {
+		return err
+	}
 
 	// The stdio MCP server owns stdout (the JSON-RPC channel); diagnostics go to
 	// stderr. Run until the client disconnects or the process is interrupted.
-	fmt.Fprintf(os.Stderr, "ettle mcp: serving on stdio (model %s) — tools: ettle_emit, ettle_horizon, ettle_self_check\n", *model)
-	return mcpserver.Serve(context.Background(), det, buildVersion())
+	fmt.Fprintf(os.Stderr, "ettle mcp: serving on stdio (%s, horizon: %s)\n", modelNote(key, *model), horizonNote(*room, *transportName))
+	fmt.Fprintln(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond · prompt: ettle_distill")
+	return mcpserver.Serve(context.Background(), det, bus, buildVersion())
+}
+
+// mcpserverReconciler mirrors the (unexported) interface mcpserver.Serve takes, so
+// this package can hold either a real detector or the key-free stand-in in one var.
+type mcpserverReconciler interface {
+	Distill(ctx context.Context, from, role, text string, private []string) ([]ettlemesh.Atom, error)
+	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) ([]ettlemesh.Tangle, int, error)
+	ReconcileSelf(ctx context.Context, atoms []ettlemesh.Atom) ([]ettlemesh.Tangle, error)
+	GroundTangles(ctx context.Context, tangles []ettlemesh.Tangle, atoms []ettlemesh.Atom) (kept, suppressed []ettlemesh.Tangle, err error)
+}
+
+// modelNote says plainly which half of the protocol this server can serve, so a
+// keyless start is legible as a deliberate mode rather than a silent degradation.
+func modelNote(key, model string) string {
+	if key == "" {
+		return "no API key: emit-with-atoms + respond only"
+	}
+	return "model " + model
+}
+
+func horizonNote(room, transportName string) string {
+	switch {
+	case room != "":
+		return "room " + room + " — shared with teammates"
+	case transportName != "":
+		return transportName
+	default:
+		return "in-process, this server only"
+	}
 }
 
 // loadParticipants reads one participant per input. A `.jsonl` input is a Claude

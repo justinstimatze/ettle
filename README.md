@@ -126,13 +126,16 @@ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 # reconciles the team's atoms into tangles — no hand-assembled note files
 claude mcp add ettle -- ettle mcp          # installed binary (what a teammate uses)
 claude mcp add ettle -- go run ./cmd/ettle mcp   # from a clone
+# add --room <name> so the horizon is the TEAM's, not just this process's:
+claude mcp add ettle -- ettle mcp --room standup-room
 
 # ...and if you already live in Claude Code, you don't need an API key to take
 # part: ask for the `ettle_distill` prompt and YOUR agent distills your notes
 # locally, then calls ettle_emit with `atoms` instead of `notes`. The raw notes
 # never leave your machine and the server makes no model call for your emit.
 # Only whoever runs reconcile (ettle_horizon) needs a key — one per room, not
-# one per person.
+# one per person. `ettle mcp` starts WITHOUT a key and serves that half; the
+# key-needing tools say so, and say what to run instead.
 
 # multiplayer with NO broker: point at a folder the team already shares
 # (Dropbox/Drive/git/Syncthing). Each agent writes only its own file under

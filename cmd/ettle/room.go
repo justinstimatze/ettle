@@ -98,7 +98,14 @@ func selectBus(cfg runConfig) (transport.Transport, error) {
 
 func runRoom(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: ettle room <init|join|list|status> ...")
+		return fmt.Errorf(`usage: ettle room <init|join|list|status>
+
+  ettle room init <git-url>    start a room (creates + seeds it); the URL is the invite
+  ettle room join <git-url>    join one on your machine        [--as <id>] [--name <room>]
+  ettle room list              rooms this machine has joined
+  ettle room status <room>     who's here and what they're on (no key, no model call)
+
+the bus is a private git repo — no server. day-to-day: ettle standup --room <room> --me <you> notes.md`)
 	}
 	switch args[0] {
 	case "init":
@@ -301,8 +308,28 @@ func roomInit(args []string) error {
 	} else {
 		fmt.Printf("  local-only (no remote yet) — add one with:  git -C %s remote add origin <url>\n", repoDir)
 	}
-	fmt.Printf("  use it:            ettle standup --room %s --me %s notes.md\n", rname, agent)
+	printRoomNextSteps(rname, agent)
 	return nil
+}
+
+// printRoomNextSteps tells a fresh member what to run NEXT — branching on whether
+// they have an API key, because the two paths are genuinely different and the
+// wrong one is a dead end. Printing the CLI form unconditionally used to hand a
+// keyless joiner the single command guaranteed to fail for them, two steps into
+// their first minute with the tool.
+func printRoomNextSteps(rname, agent string) {
+	if apiKey() != "" {
+		fmt.Println("  use it:")
+		fmt.Printf("    ettle standup --room %s --me %s notes.md   # reconcile the room (uses your key)\n", rname, agent)
+		fmt.Printf("    ettle room status %s                      # or just see who's here (no model call)\n", rname)
+		return
+	}
+	// No key. Say so before the commands, so the ordering reads as deliberate.
+	fmt.Println("  no ANTHROPIC_API_KEY here — you don't need one to take part:")
+	fmt.Printf("    ettle room status %s                       # who's in the room, what they're on\n", rname)
+	fmt.Printf("    claude mcp add ettle -- ettle mcp --room %s  # your agent distills locally and emits\n", rname)
+	fmt.Println("      (then ask your agent for the `ettle_distill` prompt; your raw notes never leave this machine)")
+	fmt.Println("  reconciling the room (ettle standup / ettle_horizon) does need a key — one per room, not one per person.")
 }
 
 // roomJoin joins an existing room by cloning its git URL and saving the config.
@@ -345,7 +372,7 @@ func roomJoin(args []string) error {
 	}
 
 	fmt.Printf("joined room %q (you are %q)\n", rname, agent)
-	fmt.Printf("  use it:  ettle standup --room %s --me %s notes.md\n", rname, agent)
+	printRoomNextSteps(rname, agent)
 	return nil
 }
 

@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
+	"github.com/justinstimatze/ettle/internal/transport"
 )
 
 // fakeReconciler implements the reconciler seam with canned returns — no API
@@ -59,6 +61,16 @@ func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([
 }
 
 func newServerWith(f *fakeReconciler) *server { return &server{det: f, h: newHorizon()} }
+
+// snap reads the horizon the way the tools do, failing the test on a bus error.
+func snap(t *testing.T, s *server) []transport.Envelope {
+	t.Helper()
+	envs, err := s.h.snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	return envs
+}
 
 // memLabelSink captures verdicts in memory for tests — no filesystem.
 type memLabelSink struct {
@@ -202,7 +214,7 @@ func TestEmitDistillsStoresAndDropsRaw(t *testing.T) {
 	if f.lastNotes != "secret raw reasoning" {
 		t.Errorf("Distill should receive the raw notes, got %q", f.lastNotes)
 	}
-	envs := s.h.snapshot()
+	envs := snap(t, s)
 	if len(envs) != 1 || len(envs[0].Atoms) != 2 {
 		t.Fatalf("horizon should hold Alice's 2 atoms, got %+v", envs)
 	}
@@ -217,7 +229,7 @@ func TestEmitUpsertReplaces(t *testing.T) {
 	_, _, _ = s.emit(context.Background(), nil, emitIn{Participant: "alice", Notes: "first"})
 	_, _, _ = s.emit(context.Background(), nil, emitIn{Participant: "Alice ", Notes: "second"})
 	// Same person (folded) → one entry, not two.
-	if envs := s.h.snapshot(); len(envs) != 1 {
+	if envs := snap(t, s); len(envs) != 1 {
 		t.Fatalf("upsert should fold alice/'Alice ' to one participant, got %d", len(envs))
 	}
 }
@@ -305,7 +317,7 @@ func TestSelfCheckSinglePartyAndStateless(t *testing.T) {
 		t.Errorf("self-check should call ReconcileSelf only, got self=%d voted=%d", f.selfCalls, f.votedCalls)
 	}
 	// Stateless: it must NOT touch the shared horizon.
-	if envs := s.h.snapshot(); len(envs) != 0 {
+	if envs := snap(t, s); len(envs) != 0 {
 		t.Errorf("self-check should not store to the horizon, got %d participants", len(envs))
 	}
 }
@@ -400,7 +412,7 @@ func TestConcurrentEmitIsRaceFree(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	if envs := s.h.snapshot(); len(envs) != n {
+	if envs := snap(t, s); len(envs) != n {
 		t.Errorf("expected %d distinct participants after concurrent emit, got %d", n, len(envs))
 	}
 }
@@ -438,14 +450,15 @@ func TestEmitAcceptsClientDistilledAtomsWithoutAModelCall(t *testing.T) {
 		t.Errorf("omitted confidence should default to 1.0 (stated), got %v", out.Atoms[1].Confidence)
 	}
 	// It actually landed on the horizon, not just echoed back.
-	if got := transportAtomCount(s); got != 2 {
+	if got := transportAtomCount(t, s); got != 2 {
 		t.Errorf("horizon should hold 2 atoms, holds %d", got)
 	}
 }
 
-func transportAtomCount(s *server) int {
+func transportAtomCount(t *testing.T, s *server) int {
+	t.Helper()
 	n := 0
-	for _, e := range s.h.snapshot() {
+	for _, e := range snap(t, s) {
 		n += len(e.Atoms)
 	}
 	return n
@@ -476,7 +489,7 @@ func TestEmitSealsClientAtomsAndForcesAttribution(t *testing.T) {
 	if out.Count != 2 {
 		t.Fatalf("want 2 surviving atoms (junk type + empty subject dropped), got %d: %+v", out.Count, out.Atoms)
 	}
-	for _, e := range s.h.snapshot() {
+	for _, e := range snap(t, s) {
 		for _, a := range e.Atoms {
 			if a.From != "alice" {
 				t.Errorf("every atom must be attributed to the emitter, got From=%q", a.From)
@@ -552,11 +565,101 @@ func TestEmitScrubsSecretsInClientSuppliedAtoms(t *testing.T) {
 	if strings.Contains(out.Atoms[0].Content, secret) {
 		t.Fatalf("credential crossed the boundary unredacted: %q", out.Atoms[0].Content)
 	}
-	for _, e := range s.h.snapshot() {
+	for _, e := range snap(t, s) {
 		for _, a := range e.Atoms {
 			if strings.Contains(a.Content, secret) || strings.Contains(a.Subject, secret) {
 				t.Fatalf("credential stored on the horizon: %+v", a)
 			}
 		}
+	}
+}
+
+// The key-free half of the protocol must actually SERVE without a key: client-side
+// distillation exists so a teammate never needs one, and requiring a key to start
+// made that path unreachable by exactly the people it is for. NoKey stands in for
+// the detector; emit-with-atoms goes all the way through the boundary and lands on
+// the horizon, while anything needing a model fails with an actionable message.
+func TestNoKeyServesTheKeyFreeHalf(t *testing.T) {
+	sink := &memLabelSink{}
+	s := &server{det: NoKey{}, h: newHorizon(), labels: sink}
+	ctx := context.Background()
+
+	_, out, err := s.emit(ctx, nil, emitIn{
+		Participant: "bob", Role: "backend",
+		Atoms: []atomIn{{Type: "assumption", Subject: "pricing", Content: "stays in-process this week"}},
+	})
+	if err != nil {
+		t.Fatalf("emit with client-distilled atoms must work without a key: %v", err)
+	}
+	if out.Count != 1 {
+		t.Fatalf("want the atom on the horizon, got count=%d", out.Count)
+	}
+	if n := transportAtomCount(t, s); n != 1 {
+		t.Fatalf("atom should have landed on the horizon, holds %d", n)
+	}
+
+	// Verdict capture is local bookkeeping — also no model call.
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "bob", Tangle: "collision|alice+bob", Verdict: "real"}); err != nil {
+		t.Fatalf("respond must work without a key: %v", err)
+	}
+
+	// The model-calling half fails, and says what to do instead.
+	if _, _, err := s.emit(ctx, nil, emitIn{Participant: "bob", Notes: "raw notes"}); !errors.Is(err, ErrNoKey) {
+		t.Fatalf("emit with notes should report ErrNoKey, got %v", err)
+	}
+	_, _, err = s.horizon(ctx, nil, horizonIn{})
+	if !errors.Is(err, ErrNoKey) {
+		t.Fatalf("horizon should report ErrNoKey, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "ettle_distill") {
+		t.Errorf("the error must point at the key-free path, got %q", err)
+	}
+}
+
+// The horizon rides the transport seam, so two servers pointed at one shared bus
+// see each other's participants — the property that makes `ettle mcp --room` work
+// across machines. A DirBus stands in for the room (same seam, no git needed).
+func TestHorizonIsSharedAcrossServersOnOneBus(t *testing.T) {
+	root := t.TempDir()
+	busA, err := transport.NewDirBus(root)
+	if err != nil {
+		t.Fatalf("bus a: %v", err)
+	}
+	busB, err := transport.NewDirBus(root)
+	if err != nil {
+		t.Fatalf("bus b: %v", err)
+	}
+	alice := &server{det: NoKey{}, h: newHorizonOn(busA)}
+	bob := &server{det: NoKey{}, h: newHorizonOn(busB)}
+	ctx := context.Background()
+
+	emit := func(s *server, who, subject string) {
+		t.Helper()
+		if _, _, err := s.emit(ctx, nil, emitIn{
+			Participant: who,
+			Atoms:       []atomIn{{Type: "commitment", Subject: subject, Content: "this week"}},
+		}); err != nil {
+			t.Fatalf("emit %s: %v", who, err)
+		}
+	}
+	emit(alice, "alice", "pricing extraction")
+	emit(bob, "bob", "rate limiter")
+
+	// Each side now sees BOTH people — a horizon neither process alone could build.
+	for _, s := range []*server{alice, bob} {
+		envs := snap(t, s)
+		if len(envs) != 2 {
+			t.Fatalf("each server should see both participants, saw %d", len(envs))
+		}
+	}
+
+	// A re-emit replaces that person rather than accumulating a second copy.
+	emit(alice, "alice", "pricing extraction, now with a shim")
+	envs := snap(t, bob)
+	if len(envs) != 2 {
+		t.Fatalf("re-emit should overwrite, not add: %d participants", len(envs))
+	}
+	if n := transportAtomCount(t, bob); n != 2 {
+		t.Fatalf("want one atom per person after the re-emit, got %d", n)
 	}
 }

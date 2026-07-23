@@ -48,37 +48,53 @@ type reconciler interface {
 // defaultSamples matches the CLI default (voting on); 1 disables voting.
 const defaultSamples = 5
 
-// horizon is the in-memory shared coordination state for ONE team/process: each
-// participant's distilled atoms, keyed by a folded (lowercased, trimmed) name.
-type horizon struct {
-	mu   sync.Mutex
-	envs map[string]transport.Envelope
-}
+// horizon is the shared coordination state the tools read and write. It is backed
+// by the same transport seam the CLI uses, so an MCP server started with --room
+// shares a horizon with teammates on other machines; the default in-process bus
+// keeps the single-process behavior for local runs and tests.
+type horizon struct{ bus transport.Transport }
 
-func newHorizon() *horizon { return &horizon{envs: map[string]transport.Envelope{}} }
+// newHorizon backs the horizon with the zero-infra in-process bus (one process,
+// no sharing) — the default for a local `ettle mcp` and for tests.
+func newHorizon() *horizon { return newHorizonOn(transport.NewInProcess()) }
+
+// newHorizonOn backs the horizon with a caller-chosen transport (e.g. a leat room).
+func newHorizonOn(bus transport.Transport) *horizon { return &horizon{bus: bus} }
 
 func foldName(p string) string { return strings.ToLower(strings.TrimSpace(p)) }
 
-// upsert replaces this participant's atoms. Re-emit overwrites (the emit-delta
-// refinement — re-emit only what changed — is a later step).
-func (h *horizon) upsert(env transport.Envelope) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.envs[foldName(env.Participant)] = env
+// upsert publishes this participant's atoms to the bus. Re-emit overwrites at the
+// read side (see snapshot) — the emit-delta refinement, re-emit only what changed,
+// is a later step.
+func (h *horizon) upsert(ctx context.Context, env transport.Envelope) error {
+	return h.bus.Publish(ctx, env)
 }
 
-// snapshot returns a copy of every participant's envelope, taken under the lock.
-// The (model-calling) reconcile runs on the copy OUTSIDE the lock — the mutex is
-// never held across an API call.
-func (h *horizon) snapshot() []transport.Envelope {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]transport.Envelope, 0, len(h.envs))
-	for _, e := range h.envs {
+// snapshot collects every participant's envelope from the bus, folded to one per
+// participant with the latest winning. The fold lives here rather than in the
+// transports because they disagree: the in-process bus is append-only (a re-emit
+// is a second envelope), while a leat lane is already last-writer-wins per author.
+// The (model-calling) reconcile then runs on the returned copy.
+func (h *horizon) snapshot(ctx context.Context) ([]transport.Envelope, error) {
+	envs, err := h.bus.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	at := map[string]int{}
+	out := make([]transport.Envelope, 0, len(envs))
+	for _, e := range envs {
+		k := foldName(e.Participant)
+		if i, ok := at[k]; ok {
+			out[i] = e // later emit wins
+			continue
+		}
+		at[k] = len(out)
 		out = append(out, e)
 	}
-	return out
+	return out, nil
 }
+
+func (h *horizon) close() error { return h.bus.Close() }
 
 type server struct {
 	det    reconciler
@@ -278,7 +294,9 @@ func (s *server) emit(ctx context.Context, _ *mcp.CallToolRequest, in emitIn) (*
 		}
 		how = "raw notes dropped"
 	}
-	s.h.upsert(transport.Envelope{Participant: in.Participant, Role: in.Role, Atoms: atoms})
+	if err := s.h.upsert(ctx, transport.Envelope{Participant: in.Participant, Role: in.Role, Atoms: atoms}); err != nil {
+		return nil, emitOut{}, fmt.Errorf("publish %s: %w", in.Participant, err)
+	}
 	out := emitOut{Participant: in.Participant, Count: len(atoms), Atoms: atomViews(atoms)}
 	return text(fmt.Sprintf("%s emitted %d atom(s) to the horizon (%s).", in.Participant, len(atoms), how)), out, nil
 }
@@ -304,7 +322,10 @@ type horizonOut struct {
 }
 
 func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizonIn) (*mcp.CallToolResult, horizonOut, error) {
-	envs := s.h.snapshot()
+	envs, err := s.h.snapshot(ctx)
+	if err != nil {
+		return nil, horizonOut{}, fmt.Errorf("collect: %w", err)
+	}
 	parts := make([]string, 0, len(envs))
 	for _, e := range envs {
 		parts = append(parts, e.Participant)
@@ -609,7 +630,11 @@ func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPrompt
 // version is passed in because mcpserver cannot import package main (where
 // buildVersion lives). Stdio discipline: stdout is the JSON-RPC channel, so
 // callers must keep all logging on stderr.
-func Serve(ctx context.Context, det reconciler, version string) error {
+//
+// bus is the horizon's backing transport: pass transport.NewInProcess() for a
+// local single-process server, or a room's bus so the agents driving this server
+// share a horizon with teammates on other machines. Serve closes it on return.
+func Serve(ctx context.Context, det reconciler, bus transport.Transport, version string) error {
 	// Label capture is local-first: an append-only JSONL file in the working dir,
 	// overridable by ETTLE_LABELS_PATH. The verdicts are the calibration loop's future
 	// input (stage 2); writing them now means the data exists before the loop does.
@@ -617,6 +642,7 @@ func Serve(ctx context.Context, det reconciler, version string) error {
 	if path == "" {
 		path = "ettle-labels.jsonl"
 	}
-	s := &server{det: det, h: newHorizon(), labels: newFileLabelSink(path)}
+	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(path)}
+	defer func() { _ = s.h.close() }()
 	return newMCPServer(s, version).Run(ctx, &mcp.StdioTransport{})
 }
