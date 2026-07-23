@@ -72,15 +72,15 @@ person*: teammates driving ettle from their own agent (Claude Code, Cursor) can
 distill locally and never need a key of their own. See the `ettle_distill` note
 at the end of this block.
 
-Install the binary:
+Install the binary — it self-describes its version (`ettle version`):
 
 ```sh
 go install github.com/justinstimatze/ettle/cmd/ettle@latest
 ```
 
-It self-describes its version (`ettle version`). If you'd rather read the code
-first — or want the bundled `testdata/` the examples below use — clone instead
-and swap `ettle` for `go run ./cmd/ettle` in every command:
+The examples below run from a clone, because they use the bundled `testdata/`
+fixtures. **If you installed the binary, use `ettle` wherever they say
+`go run ./cmd/ettle`.**
 
 ```sh
 git clone https://github.com/justinstimatze/ettle && cd ettle
@@ -124,7 +124,8 @@ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 # serve the engine over MCP so any agent (Claude Code, Cursor) drives it directly:
 # each person's own agent calls ettle_emit with that person's notes, ettle_horizon
 # reconciles the team's atoms into tangles — no hand-assembled note files
-claude mcp add ettle -- go run ./cmd/ettle mcp
+claude mcp add ettle -- ettle mcp          # installed binary (what a teammate uses)
+claude mcp add ettle -- go run ./cmd/ettle mcp   # from a clone
 
 # ...and if you already live in Claude Code, you don't need an API key to take
 # part: ask for the `ettle_distill` prompt and YOUR agent distills your notes
@@ -224,14 +225,15 @@ never the raw session).
 Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo. The git URL is the invite:
 
 ```sh
+# (installed-binary form — the distributed path needs no bundled testdata)
 # the bus is a private git repo. one person starts it, everyone else joins:
-go run ./cmd/ettle room init git@github.com:crew/standup-room.git   # first person — creates + seeds it
-go run ./cmd/ettle room join git@github.com:crew/standup-room.git   # everyone else, on their own machine
+ettle room init git@github.com:crew/standup-room.git   # first person — creates + seeds it
+ettle room join git@github.com:crew/standup-room.git   # everyone else, on their own machine
 # then day-to-day there are no env vars, no paths, no flags to remember:
-go run ./cmd/ettle standup --room standup-room --me alice notes.md
+ettle standup --room standup-room --me alice notes.md
 # or just see who's in the room and what each is working on — the presence view,
 # read straight off the bus, no tangle detection and no model call:
-go run ./cmd/ettle room status standup-room
+ettle room status standup-room
 # (under the hood --room rides leat: each agent appends only its own lane so
 #  pushes never conflict, identity is hardened — a line whose author != its lane
 #  is dropped — and git log is the audit trail. --room resolves to the leat://

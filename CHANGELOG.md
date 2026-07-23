@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **README install path made self-consistent, and the forge metadata refreshed.**
+  The quickstart now leads with `go install …@latest`, states the substitution in
+  the direction the examples are actually written (`ettle` *for* `go run
+  ./cmd/ettle`, not the reverse), and shows the installed-binary form in the
+  `ettle room` block — the distributed flow needs no bundled `testdata/`, so that
+  is the block a teammate actually copies. `claude mcp add` is given both ways.
+  GitHub description, topics, and homepage updated: the old description predated
+  rooms and the key-free path, and `homepage` was unset.
+
 ## v0.2.0 — 2026-07-22
 
 The distributed release: ettle stopped being a single-host demo. A team can now
