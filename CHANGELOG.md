@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **Client-side distillation — a teammate no longer needs an API key to take part.**
+  `ettle_emit` now accepts already-typed `atoms` as an alternative to raw `notes`
+  (exactly one of the two; supplying both is an error rather than a silent
+  precedence rule), and a new **`ettle_distill` MCP prompt** hands the caller's own
+  agent the distillation rules so it can produce those atoms locally. An agent that
+  already holds its human's notes and has its own model — anyone driving ettle from
+  Claude Code or Cursor — can now contribute with **no key and no server-side model
+  call**; only whoever runs `ettle_horizon` needs one. One key per room, not one per
+  person, which was the single biggest barrier to a team trying this.
+  **This strengthens the privacy boundary rather than relaxing it.** The boundary was
+  never between a person and their own agent; it is between that person and the team.
+  Distilling client-side makes "raw notes never cross" *structural* — they never leave
+  the person's machine — instead of a promise the server asks to be trusted on. The
+  semantic half of the boundary (the contextual-integrity prompt) now runs somewhere
+  unverifiable, so the deterministic half still runs server-side on arrival: new
+  `ettlemesh.SealAtoms` puts caller-supplied atoms through the *same* chokepoint
+  (structural caps, secret-shape scanner, per-person privacy override) that
+  server-side distillation uses, drops unknown types, and **forces attribution** —
+  `atomIn` has no `from` field at all, so a client cannot put words in a teammate's
+  mouth by construction rather than by validation. The prompt itself is shared:
+  `ettlemesh.DistillSystemPrompt` is now exported and used by both paths, so they
+  cannot drift on what may cross.
+  Tests: `TestEmitAcceptsClientDistilledAtomsWithoutAModelCall` (a reconciler whose
+  `Distill` panics proves the key-free path makes no model call),
+  `TestEmitSealsClientAtomsAndForcesAttribution`,
+  `TestEmitScrubsSecretsInClientSuppliedAtoms` (a client-sent credential is still
+  redacted before storage), `TestEmitRejectsBothOrNeither`,
+  `TestDistillPromptCarriesTheSameBoundaryRules`.
+  *Not* built: MCP **sampling**, which would have been the obvious way to borrow the
+  caller's model. Claude Code has never implemented it as a client
+  ([anthropics/claude-code#1785](https://github.com/anthropics/claude-code/issues/1785),
+  open since June 2025) and
+  [SEP-2577](https://modelcontextprotocol.io/seps/2577-deprecate-roots-sampling-and-logging)
+  (Final, 2026-04-14) deprecates `sampling/createMessage` protocol-wide. Client-side
+  distillation reaches the same goal using only current, non-deprecated MCP.
+
 - **Prior art: Dust's "pods" (`docs/PRIOR_ART.md` §10).** A close read of one primary
   source (an MLOps Community Podcast episode with a Dust co-founder) rather than a
   search pass — the clearest public statement of ettle's single-player→multiplayer

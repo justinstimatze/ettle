@@ -67,7 +67,10 @@ The opening paragraphs above describe the **design**; what's **deliberately unbu
 
 ## Quickstart
 
-Requires **Go ≥ 1.25** and one Anthropic API key.
+Requires **Go ≥ 1.25** and one Anthropic API key — *one per room, not one per
+person*: teammates driving ettle from their own agent (Claude Code, Cursor) can
+distill locally and never need a key of their own. See the `ettle_distill` note
+at the end of this block.
 
 ```sh
 # one Anthropic API key in .env (see .env.example)
@@ -103,6 +106,13 @@ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 # each person's own agent calls ettle_emit with that person's notes, ettle_horizon
 # reconciles the team's atoms into knots — no hand-assembled note files
 claude mcp add ettle -- go run ./cmd/ettle mcp
+
+# ...and if you already live in Claude Code, you don't need an API key to take
+# part: ask for the `ettle_distill` prompt and YOUR agent distills your notes
+# locally, then calls ettle_emit with `atoms` instead of `notes`. The raw notes
+# never leave your machine and the server makes no model call for your emit.
+# Only whoever runs reconcile (ettle_horizon) needs a key — one per room, not
+# one per person.
 
 # multiplayer with NO broker: point at a folder the team already shares
 # (Dropbox/Drive/git/Syncthing). Each agent writes only its own file under

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -401,5 +402,161 @@ func TestConcurrentEmitIsRaceFree(t *testing.T) {
 	wg.Wait()
 	if envs := s.h.snapshot(); len(envs) != n {
 		t.Errorf("expected %d distinct participants after concurrent emit, got %d", n, len(envs))
+	}
+}
+
+// --- client-side distillation (the key-free emit path) ---
+
+// A fakeReconciler whose Distill panics: the atoms path must never reach a model
+// call. If it does, this test fails loudly rather than silently costing a call.
+type noDistillReconciler struct{ fakeReconciler }
+
+func (n *noDistillReconciler) Distill(context.Context, string, string, string, []string) ([]ettlemesh.Atom, error) {
+	panic("emit with atoms must not call Distill — that is the whole point of the key-free path")
+}
+
+func TestEmitAcceptsClientDistilledAtomsWithoutAModelCall(t *testing.T) {
+	s := &server{det: &noDistillReconciler{}, h: newHorizon()}
+	_, out, err := s.emit(context.Background(), nil, emitIn{
+		Participant: "alice",
+		Role:        "backend",
+		Atoms: []atomIn{
+			{Type: "intent", Subject: "auth migration", Content: "moving sessions to JWT", Confidence: 1.0},
+			{Type: "Dependency", Subject: "userservice", Content: "reads the sessions table"}, // case-folded, default confidence
+		},
+	})
+	if err != nil {
+		t.Fatalf("emit with atoms: %v", err)
+	}
+	if out.Count != 2 || len(out.Atoms) != 2 {
+		t.Fatalf("want 2 atoms through, got count=%d len=%d", out.Count, len(out.Atoms))
+	}
+	if out.Atoms[1].Type != "dependency" {
+		t.Errorf("type should be case-folded to the canonical form, got %q", out.Atoms[1].Type)
+	}
+	if out.Atoms[1].Confidence != 1.0 {
+		t.Errorf("omitted confidence should default to 1.0 (stated), got %v", out.Atoms[1].Confidence)
+	}
+	// It actually landed on the horizon, not just echoed back.
+	if got := transportAtomCount(s); got != 2 {
+		t.Errorf("horizon should hold 2 atoms, holds %d", got)
+	}
+}
+
+func transportAtomCount(s *server) int {
+	n := 0
+	for _, e := range s.h.snapshot() {
+		n += len(e.Atoms)
+	}
+	return n
+}
+
+// The security property of the key-free path: the semantic half of the boundary
+// ran on a client we cannot verify, so the deterministic half must still hold.
+func TestEmitSealsClientAtomsAndForcesAttribution(t *testing.T) {
+	s := &server{det: &noDistillReconciler{}, h: newHorizon()}
+	_, out, err := s.emit(context.Background(), nil, emitIn{
+		Participant: "alice",
+		Atoms: []atomIn{
+			// A client trying to attribute an atom to a teammate: atomIn has no
+			// `from` field at all, so the forgery is unrepresentable — every atom
+			// comes back attributed to the emitting participant.
+			{Type: "intent", Subject: "bob's plan", Content: "bob is rewriting billing"},
+			// Junk types are dropped rather than stored.
+			{Type: "gossip", Subject: "x", Content: "y"},
+			// Empty fields are dropped.
+			{Type: "intent", Subject: "", Content: "no subject"},
+			// Out-of-range confidence is clamped, not trusted.
+			{Type: "assumption", Subject: "deadline", Content: "friday holds", Confidence: 42},
+		},
+	})
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	if out.Count != 2 {
+		t.Fatalf("want 2 surviving atoms (junk type + empty subject dropped), got %d: %+v", out.Count, out.Atoms)
+	}
+	for _, e := range s.h.snapshot() {
+		for _, a := range e.Atoms {
+			if a.From != "alice" {
+				t.Errorf("every atom must be attributed to the emitter, got From=%q", a.From)
+			}
+			if a.Confidence <= 0 || a.Confidence > 1 {
+				t.Errorf("confidence must be clamped into (0,1], got %v", a.Confidence)
+			}
+		}
+	}
+}
+
+func TestEmitRejectsBothOrNeither(t *testing.T) {
+	s := &server{det: &fakeReconciler{}, h: newHorizon()}
+	if _, _, err := s.emit(context.Background(), nil, emitIn{Participant: "alice"}); err == nil {
+		t.Error("neither notes nor atoms should be an error")
+	}
+	_, _, err := s.emit(context.Background(), nil, emitIn{
+		Participant: "alice",
+		Notes:       "some notes",
+		Atoms:       []atomIn{{Type: "intent", Subject: "s", Content: "c"}},
+	})
+	if err == nil {
+		t.Error("supplying both notes and atoms should be an error, not a silent precedence rule")
+	}
+}
+
+func TestDistillPromptCarriesTheSameBoundaryRules(t *testing.T) {
+	res, err := distillPrompt(context.Background(), &mcp.GetPromptRequest{
+		Params: &mcp.GetPromptParams{Arguments: map[string]string{
+			"participant": "alice", "role": "backend", "private": "comp adjustment, relocating to Lisbon",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("distillPrompt: %v", err)
+	}
+	if len(res.Messages) != 1 {
+		t.Fatalf("want 1 message, got %d", len(res.Messages))
+	}
+	body := res.Messages[0].Content.(*mcp.TextContent).Text
+	// The client-side distiller must get the SAME contextual-integrity rules the
+	// server-side one runs under, or the two paths diverge on what may cross.
+	if !strings.Contains(body, ettlemesh.DistillSystemPrompt) {
+		t.Error("prompt must carry the shared DistillSystemPrompt verbatim")
+	}
+	for _, want := range []string{"alice", "backend", "comp adjustment", "relocating to Lisbon", "ettle_emit"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("prompt missing %q", want)
+		}
+	}
+	if _, err := distillPrompt(context.Background(), &mcp.GetPromptRequest{
+		Params: &mcp.GetPromptParams{Arguments: map[string]string{}},
+	}); err == nil {
+		t.Error("participant is required")
+	}
+}
+
+// The claim the key-free path rests on: the SEMANTIC boundary ran on a client we
+// cannot audit, so the DETERMINISTIC boundary must still catch what it would have
+// caught server-side. A client that sends a credential does not get to store one.
+func TestEmitScrubsSecretsInClientSuppliedAtoms(t *testing.T) {
+	s := &server{det: &noDistillReconciler{}, h: newHorizon()}
+	const secret = "sk-ant-api03-QDf8vN2mZk4LpR7yTw1xBc9HjEs6UaGtVoIn5Md0"
+	_, out, err := s.emit(context.Background(), nil, emitIn{
+		Participant: "alice",
+		Atoms:       []atomIn{{Type: "dependency", Subject: "deploy key", Content: "the pipeline uses " + secret}},
+	})
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	if out.Count != 1 {
+		t.Fatalf("the atom should survive, redacted, not vanish: %+v", out.Atoms)
+	}
+	if strings.Contains(out.Atoms[0].Content, secret) {
+		t.Fatalf("credential crossed the boundary unredacted: %q", out.Atoms[0].Content)
+	}
+	for _, e := range s.h.snapshot() {
+		for _, a := range e.Atoms {
+			if strings.Contains(a.Content, secret) || strings.Contains(a.Subject, secret) {
+				t.Fatalf("credential stored on the horizon: %+v", a)
+			}
+		}
 	}
 }

@@ -209,7 +209,23 @@ func text(s string) *mcp.CallToolResult {
 type emitIn struct {
 	Participant string `json:"participant" jsonschema:"the name of the person whose notes these are — YOUR OWN human, never a teammate"`
 	Role        string `json:"role,omitempty" jsonschema:"the person's role on the team (optional, e.g. 'backend')"`
-	Notes       string `json:"notes" jsonschema:"the person's raw working notes or reasoning-in-progress; distilled server-side into typed atoms — only the typed atoms are stored, the raw text is dropped"`
+	Notes       string `json:"notes,omitempty" jsonschema:"the person's raw working notes or reasoning-in-progress; distilled server-side into typed atoms (needs the server's API key) — only the typed atoms are stored, the raw text is dropped. Supply this OR atoms, not both"`
+	// Atoms is the key-free path: the caller's own agent already applied the
+	// distillation rules (get them from the `ettle_distill` prompt) and sends the
+	// typed result, so the raw note never leaves that person's machine and the
+	// server makes no model call. Still sealed server-side — see ettlemesh.SealAtoms.
+	Atoms []atomIn `json:"atoms,omitempty" jsonschema:"already-distilled typed atoms, if YOUR agent did the distillation locally (see the ettle_distill prompt). Needs no API key. Supply this OR notes, not both"`
+}
+
+// atomIn is a caller-supplied atom. It deliberately has no `from` field: the
+// server attributes every atom to `participant`, so a caller cannot put words in
+// a teammate's mouth by construction rather than by validation.
+type atomIn struct {
+	Type       string  `json:"type" jsonschema:"one of: intent | assumption | commitment | dependency"`
+	Subject    string  `json:"subject" jsonschema:"a short noun phrase — what the atom is about"`
+	Content    string  `json:"content" jsonschema:"one clause stating it"`
+	Confidence float64 `json:"confidence,omitempty" jsonschema:"1.0 if the person stated it outright; 0.3-0.7 if the agent inferred it. Default 1.0"`
+	Inferred   bool    `json:"inferred,omitempty" jsonschema:"true if the person did not state this and the agent inferred it"`
 }
 
 type emitOut struct {
@@ -222,19 +238,49 @@ func (s *server) emit(ctx context.Context, _ *mcp.CallToolRequest, in emitIn) (*
 	if strings.TrimSpace(in.Participant) == "" {
 		return nil, emitOut{}, fmt.Errorf("participant is required")
 	}
-	if strings.TrimSpace(in.Notes) == "" {
-		return nil, emitOut{}, fmt.Errorf("notes is required")
+	hasNotes, hasAtoms := strings.TrimSpace(in.Notes) != "", len(in.Atoms) > 0
+	switch {
+	case hasNotes && hasAtoms:
+		return nil, emitOut{}, fmt.Errorf("supply notes OR atoms, not both: notes are distilled server-side, atoms are already distilled")
+	case !hasNotes && !hasAtoms:
+		return nil, emitOut{}, fmt.Errorf("one of notes or atoms is required (use the ettle_distill prompt to produce atoms locally without an API key)")
 	}
-	// Distill applies the privacy boundary (contextual-integrity prompt + the
-	// deterministic secret scrub + structural caps). Only the typed atoms are
-	// kept; the raw notes are never stored.
-	atoms, err := s.det.Distill(ctx, in.Participant, in.Role, in.Notes, nil)
-	if err != nil {
-		return nil, emitOut{}, err
+
+	var (
+		atoms []ettlemesh.Atom
+		how   string
+	)
+	if hasAtoms {
+		// Key-free path: the caller's agent already applied the distillation rules.
+		// The SEMANTIC half of the boundary ran on the client where it cannot be
+		// verified; the DETERMINISTIC half (caps, secret scanner, privacy override,
+		// forced attribution) runs here where it can. Never trust the client for it.
+		raw := make([]ettlemesh.Atom, 0, len(in.Atoms))
+		for _, a := range in.Atoms {
+			raw = append(raw, ettlemesh.Atom{
+				Typ: ettlemesh.AtomType(a.Type), Subject: a.Subject, Content: a.Content,
+				Confidence: a.Confidence, Inferred: a.Inferred,
+			})
+		}
+		atoms = ettlemesh.SealAtoms(in.Participant, raw, nil)
+		if len(atoms) == 0 {
+			return nil, emitOut{}, fmt.Errorf("no usable atoms: each needs a type of intent|assumption|commitment|dependency plus a non-empty subject and content")
+		}
+		how = "distilled by your agent; raw notes never left your machine"
+	} else {
+		// Distill applies the privacy boundary (contextual-integrity prompt + the
+		// deterministic secret scrub + structural caps). Only the typed atoms are
+		// kept; the raw notes are never stored.
+		var err error
+		atoms, err = s.det.Distill(ctx, in.Participant, in.Role, in.Notes, nil)
+		if err != nil {
+			return nil, emitOut{}, err
+		}
+		how = "raw notes dropped"
 	}
 	s.h.upsert(transport.Envelope{Participant: in.Participant, Role: in.Role, Atoms: atoms})
 	out := emitOut{Participant: in.Participant, Count: len(atoms), Atoms: atomViews(atoms)}
-	return text(fmt.Sprintf("%s emitted %d atom(s) to the horizon (raw notes dropped).", in.Participant, len(atoms))), out, nil
+	return text(fmt.Sprintf("%s emitted %d atom(s) to the horizon (%s).", in.Participant, len(atoms), how)), out, nil
 }
 
 // --- ettle_horizon ---
@@ -500,8 +546,21 @@ func newMCPServer(s *server, version string) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_emit",
-		Description: "Emit YOUR OWN human's working notes to the team coordination horizon. The server distills them through the privacy boundary into typed atoms (only the atoms are stored; raw notes are dropped) and returns exactly what crossed. Emit only your own person — never a teammate.",
+		Description: "Emit YOUR OWN human to the team coordination horizon, two ways. Pass `notes` and the server distills them through the privacy boundary into typed atoms (needs the server's API key; only the atoms are stored, raw notes are dropped). Or pass `atoms` you distilled yourself with the `ettle_distill` prompt — no API key, and the raw notes never leave this machine. Either way it returns exactly what crossed. Emit only your own person — never a teammate.",
 	}, s.emit)
+
+	// The key-free path made discoverable. An agent that already has its human's
+	// notes and its own model has everything needed to distill locally; this prompt
+	// is the rule set that makes its output the same shape the server would produce.
+	srv.AddPrompt(&mcp.Prompt{
+		Name:        "ettle_distill",
+		Description: "The rules for distilling YOUR OWN human's notes into typed coordination atoms locally, so you can call ettle_emit with `atoms` instead of `notes` — no API key, and the raw notes never leave this machine.",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "participant", Description: "the name of the person whose notes you are distilling — your own human", Required: true},
+			{Name: "role", Description: "their role on the team (optional, e.g. 'backend')"},
+			{Name: "private", Description: "comma-separated phrases the person marked private, which must never appear in an atom (optional)"},
+		},
+	}, distillPrompt)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_horizon",
@@ -519,6 +578,31 @@ func newMCPServer(s *server, version string) *mcp.Server {
 	}, s.respond)
 
 	return srv
+}
+
+// distillPrompt hands the caller's agent the same boundary rules the server-side
+// distiller runs under, so client-side distillation is a relocation of the work
+// and not a weakening of it. The instructions never include the note — the agent
+// already holds it, which is the whole point.
+func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	args := req.Params.Arguments
+	who := strings.TrimSpace(args["participant"])
+	if who == "" {
+		return nil, fmt.Errorf("participant is required")
+	}
+	var private []string
+	for _, p := range strings.Split(args["private"], ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			private = append(private, p)
+		}
+	}
+	sys, instructions := ettlemesh.DistillGuide(who, args["role"], private)
+	return &mcp.GetPromptResult{
+		Description: "Distill " + who + "'s notes into typed atoms locally, then call ettle_emit with `atoms`.",
+		Messages: []*mcp.PromptMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: sys + "\n\n---\n\n" + instructions}},
+		},
+	}, nil
 }
 
 // Serve registers the tools and runs the server over stdio until ctx is done.
