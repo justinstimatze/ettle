@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Prior art: Dust's "pods" (`docs/PRIOR_ART.md` §10).** A close read of one primary
+  source (an MLOps Community Podcast episode with a Dust co-founder) rather than a
+  search pass — the clearest public statement of ettle's single-player→multiplayer
+  diagnosis by a team shipping the *opposite* answer: pooled shared state (a shared
+  filesystem across humans, agents, and sessions) instead of bounded per-person state
+  with cross-person reconciliation. Records the load-bearing disagreement (coordination
+  failure is caused by distributed private information, not long task horizons — which
+  is why *useful at N=1* holds), the two self-refutations in the interview
+  (filesystem-concurrency → reaching for git; anthropomorphic-tools → building
+  agent-native infra anyway), and two things worth taking (bidirectional access as an
+  explicit invariant; the "fog of AI" three-month-direction planning posture).
+
 - **Verdict labels now record the knot's recurrence (calibration capture polish).**
   `ettle_respond` already logged a human verdict (`real` / `not_real` / `handled`) on
   a surfaced knot; the captured `Label` now also carries the knot's **recurrence
