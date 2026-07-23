@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.2.1 — 2026-07-22
+
+The onboarding release. v0.2.0 shipped a key-free teammate path that could not
+actually be reached by a teammate without a key — anyone installing `@latest`
+before this tag gets that build, so this is the version to point a new coworker at.
 
 - **The key-free teammate path actually works now — found by dry-running the tool
   as a new coworker** (clean `GOBIN`, a separate `HOME` per machine, a stand-in
