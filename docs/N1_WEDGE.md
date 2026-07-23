@@ -1,6 +1,6 @@
 # ettle — the N=1 wedge
 
-The critical path ([CONCEPT.md](CONCEPT.md)) is the one thing a single-user agent layer never did even for a single user: **act on the model, and check whether the action was right.** This document specs that — one behavior, its trigger, its outcome signal, and its offline criterion — concretely enough to build. Everything multiplayer (L2 directed models, L3 knot-detection) reuses this object; the spec calls out the reuse seam at each step.
+The critical path ([CONCEPT.md](CONCEPT.md)) is the one thing a single-user agent layer never did even for a single user: **act on the model, and check whether the action was right.** This document specs that — one behavior, its trigger, its outcome signal, and its offline criterion — concretely enough to build. Everything multiplayer (L2 directed models, L3 tangle-detection) reuses this object; the spec calls out the reuse seam at each step.
 
 > **Scope note.** This N=1 wedge is a *spec*, not built here — it builds on a private predecessor agent's hooks (its closed-decision cells) that are **not in this repo**. The runnable thing in this repo is the multiplayer PoC ([`cmd/ettle`](../cmd/ettle)), which is **standalone** and does not depend on that layer. This document is the design lineage for the calibration loop the multiplayer tier reuses.
 
@@ -18,7 +18,7 @@ Three candidates were considered. Scored against the invariants (useful at N=1; 
 
 | Candidate | Useful at N=1 | Models person | Clean signal | Generalizes |
 |---|---|---|---|---|
-| **Prior-decision guard** | Yes — saves re-deciding | Yes — their past decisions | **Yes — next turn confirms/rejects** | Yes — L2 knot is the same record |
+| **Prior-decision guard** | Yes — saves re-deciding | Yes — their past decisions | **Yes — next turn confirms/rejects** | Yes — L2 tangle is the same record |
 | Predict-next-file pre-read | Marginal (saves seconds) | No — models the task | Weak (invisible, low-stakes) | No |
 | Ownership prompt ("touched X 3×, owning it?") | Forced — ownership is meaningless solo | Partly | Medium | Yes, but only meaningful *with* teammates |
 
@@ -67,7 +67,7 @@ outcome       enum{ pending, helped, overridden, false_interrupt }
 resolved_in   int                    // turns from fire to outcome
 ```
 
-This resolves open question #1 (decision-delta atom schema), in its N=1 form. The multiplayer atom is the same `GuardEvent` with `trigger` pointing at *another participant's* closed cell — that is the L2 knot record, surfaced by L3. Build it once here.
+This resolves open question #1 (decision-delta atom schema), in its N=1 form. The multiplayer atom is the same `GuardEvent` with `trigger` pointing at *another participant's* closed cell — that is the L2 tangle record, surfaced by L3. Build it once here.
 
 ## The did-it-help signal
 

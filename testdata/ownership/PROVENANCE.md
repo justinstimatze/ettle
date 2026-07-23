@@ -17,8 +17,8 @@ so the per-kind threshold is exercised against a clean positive and a clean deco
 
 - **D1 (decoy).** Jana weighs streaming vs in-memory for her *own* export. It is
   a real open decision but **self-only** — no second party claims it. A
-  decision-rights knot requires contested ownership; a private deliberation is
-  not a cross-person knot. Surfacing it is the over-emit trap of reading any
+  decision-rights tangle requires contested ownership; a private deliberation is
+  not a cross-person tangle. Surfacing it is the over-emit trap of reading any
   "decision" language as a coordination conflict.
 
 ## How to read the result

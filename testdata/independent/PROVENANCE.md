@@ -9,7 +9,7 @@ The dupbug and standup corpora prove ettle *catches* real collisions (recall).
 They do not prove it *stays silent* when nothing should cross — and over-emit is
 the central design risk (the attention commons; see `docs/COMMONS.md`). This
 corpus is the mousetrap for that failure mode: four people doing genuinely
-independent work, with **zero real coordination knots**.
+independent work, with **zero real coordination tangles**.
 
 The catch: the notes are seeded with surface-token overlaps that a keyword
 matcher would fire on, while the underlying work shares nothing —
@@ -22,7 +22,7 @@ matcher would fire on, while the underlying work shares nothing —
   *unrelated* dates. Surface overlap, no shared timeline to diverge on. → decoy
   `D3`.
 
-All three expected knots are `real: false`. The correct horizon is **empty**.
+All three expected tangles are `real: false`. The correct horizon is **empty**.
 
 ## How to read the result
 
@@ -30,7 +30,7 @@ All three expected knots are `real: false`. The correct horizon is **empty**.
 go run ./cmd/ettle eval testdata/eval/independent-work.json
 ```
 
-The headline is the **specificity** line: firm + soft knots surfaced on
-independent work, with a target of 0. Any firm knot that matches a decoy is
+The headline is the **specificity** line: firm + soft tangles surfaced on
+independent work, with a target of 0. Any firm tangle that matches a decoy is
 reported as `FELL FOR TRAP D{1,2,3}` — ettle inventing a collision out of a
 shared word is the exact failure this corpus exists to catch.

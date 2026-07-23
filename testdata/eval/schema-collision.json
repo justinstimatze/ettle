@@ -1,7 +1,7 @@
 {
   "name": "schema-collision",
   "inputs": ["testdata/schema/bex.md", "testdata/schema/cyrus.md", "testdata/schema/dana.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["bex", "cyrus"],

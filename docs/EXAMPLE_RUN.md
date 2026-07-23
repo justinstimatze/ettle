@@ -13,7 +13,7 @@ $ go run ./cmd/ettle standup testdata/standup/*.md
 
 ```
   ettle — coordination horizon for the team
-  20 atoms across 3 people; 8 knots surfaced
+  20 atoms across 3 people; 8 tangles surfaced
 
   worth a look (firm)
     • [collision] GetUser→FetchUser signature change timing
@@ -44,36 +44,36 @@ $ go run ./cmd/ettle standup testdata/standup/*.md
       parties: alice, bob, carol · confidence 0.4
 ```
 
-(The `stale-assumption` knot with a single party — `parties: alice` — is the
+(The `stale-assumption` tangle with a single party — `parties: alice` — is the
 **self pass**: Alice's own stated commitment to absorb the churn by Thursday
 contradicts an assumption her plan rests on. No teammate is needed to surface it;
 see the N=1 run below.)
 
 ## How to read it
 
-- **worth a look (firm)** — knots resting on what people actually stated
+- **worth a look (firm)** — tangles resting on what people actually stated
   (confidence ≥ 0.5): the breaking-change collision, the deadline conflict, the
   single-party self-assumption, the unscheduled-review authority gap — all
   surfaced before anyone shipped, no meeting.
-- **the crux** — a `decision-rights` (or `teamwide-divergence`) knot is
+- **the crux** — a `decision-rights` (or `teamwide-divergence`) tangle is
   *contested*: a real authority/values call, not a positive-sum coordination. It
   routes to a resolver and is pre-staged as an either/or for a human, rather than
   the mesh deciding it. Here the inline fallback frames the branches; with
   `--gemot` it becomes a real deliberation with a binding compromise (below).
-- **worth a question (soft)** — knots that depend on an *inferred* assumption
+- **worth a question (soft)** — tangles that depend on an *inferred* assumption
   (here, the unstated deadlines), at confidence 0.4. ettle surfaces these as
   questions, not facts — friction in the right spot.
-- **`--me alice`** would show only the knots involving Alice — her agent
+- **`--me alice`** would show only the tangles involving Alice — her agent
   surfacing to her, not a shared feed everyone reads.
 
 The detector is stochastic, so the exact wording, the firm/soft split, and which
-party-pairs a recurring knot lands on vary run to run; the dominant real knots
+party-pairs a recurring tangle lands on vary run to run; the dominant real tangles
 (the breaking-change collision, the cache duplication, the deadline divergence)
 recur every run.
 
 ## Stabilizing the noise: `--samples`
 
-`--samples K` runs the reconcile passes K times and keeps only knots that recur
+`--samples K` runs the reconcile passes K times and keeps only tangles that recur
 across a majority, stamping each with how many samples it appeared in — the
 run-to-run variance becomes a confidence signal:
 
@@ -81,7 +81,7 @@ run-to-run variance becomes a confidence signal:
 $ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 
   ettle — coordination horizon for alice
-  20 atoms across 3 people; 4 knots surfaced
+  20 atoms across 3 people; 4 tangles surfaced
 
   worth a look (firm)
     • [collision] GetUser signature stability
@@ -105,14 +105,14 @@ majority and is dropped. Cost is K× the reconcile passes, so it is opt-in.
 
 ## Useful at N=1: a single person's own stale assumption
 
-The pairwise and team passes are blind to a knot inside one person's own plan, so
+The pairwise and team passes are blind to a tangle inside one person's own plan, so
 a self pass catches it — which is what makes ettle useful with one note file:
 
 ```
 $ go run ./cmd/ettle standup testdata/solo/dana.md
 
   ettle — coordination horizon for the team
-  6 atoms across 1 person; 1 knot surfaced
+  6 atoms across 1 person; 1 tangle surfaced
 
   worth a question (soft — rests on an inference)
     • [stale-assumption] retry logic scope
@@ -120,18 +120,18 @@ $ go run ./cmd/ettle standup testdata/solo/dana.md
       parties: dana · confidence 0.4
 ```
 
-Dana's notes never mention a teammate; the knot is the gap between an assumption
+Dana's notes never mention a teammate; the tangle is the gap between an assumption
 she's relying on (synchronous billing) and a decision she made later (async
 queue). Run-to-run it routes firm or soft depending on whether it leans on the
 inferred deadline — `--samples` would stabilize that too.
 
-## With gemot: a contested knot becomes a binding compromise
+## With gemot: a contested tangle becomes a binding compromise
 
-Run with `--gemot <url>` and the contested knots (decision-rights, team-wide
+Run with `--gemot <url>` and the contested tangles (decision-rights, team-wide
 divergence) route to a real [gemot](https://github.com/justinstimatze/gemot)
 deliberation instead of the inline either/or. From a live local run against
 gemot (the whole stack on docker — see [deploy/](../deploy)), the cache-ownership
-decision-rights knot came back as a scored crux and a concrete binding
+decision-rights tangle came back as a scored crux and a concrete binding
 compromise:
 
 ```
@@ -152,6 +152,6 @@ compromise:
         documented, agreed change process. ...ships within the Friday deadline.
 ```
 
-That's the bind-vs-surface split working: the routine knots are surfaced for a
+That's the bind-vs-surface split working: the routine tangles are surfaced for a
 human to glance at; the genuine ownership choice gets a real deliberation with a
 controversy score and a binding proposal, with the human still the decider.

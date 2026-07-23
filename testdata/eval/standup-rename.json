@@ -1,7 +1,7 @@
 {
   "name": "standup-rename",
   "inputs": ["testdata/standup/alice.md", "testdata/standup/bob.md", "testdata/standup/carol.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["alice", "bob"],
@@ -26,7 +26,7 @@
     {
       "id": "D1",
       "parties": ["bob"],
-      "about": "provider-A vs provider-B payment choice — bob's own open question, not a cross-person knot",
+      "about": "provider-A vs provider-B payment choice — bob's own open question, not a cross-person tangle",
       "keywords": ["provider", "payment", "webhook", "integration"],
       "real": false
     },

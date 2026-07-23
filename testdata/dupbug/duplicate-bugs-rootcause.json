@@ -8,7 +8,7 @@
     "testdata/dupbug/tess.md",
     "testdata/dupbug/umi.md"
   ],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "W1",
       "parties": ["noor", "petra"],

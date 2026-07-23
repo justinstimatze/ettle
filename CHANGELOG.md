@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Renamed the core object: `knot` → `tangle`.** A knot can be tied in a *single*
+  thread; a tangle is several threads interfering by definition — which is exactly
+  what the object is (a cross-person condition), so the name now carries the
+  semantics that distinguish ettle from a per-person summarizer. Also drops knot's
+  jargon collisions (knot theory, nautical, node/knot in graph contexts). Same
+  fabric/thread vocabulary, better fit.
+  Mechanical across code, docs, and the committed eval fixtures (`expected_knots`
+  → `expected_tangles`). **Two compatibility guarantees:** the `ettle_respond` MCP
+  input still accepts the old `knot` field as a deprecated alias (`tangle` wins if
+  both are set), so an agent holding a pre-rename horizon can still answer it; and
+  the *key format* is unchanged (`kind|parties` never contained the word), so every
+  verdict label captured so far stays valid calibration data.
+  Changelog entries above this one are left in the old vocabulary on purpose —
+  they describe what shipped when it shipped, and rewriting them would make the
+  history lie about what the tool said at the time.
+  Test: `TestRespondAcceptsDeprecatedKnotAlias`.
+
 - **Client-side distillation — a teammate no longer needs an API key to take part.**
   `ettle_emit` now accepts already-typed `atoms` as an alternative to raw `notes`
   (exactly one of the two; supplying both is an error rather than a silent

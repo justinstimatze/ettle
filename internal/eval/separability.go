@@ -12,38 +12,38 @@ import (
 // building. Three failed in-call attempts (grounding verifier, prompt-hardening,
 // party-count quorum) established that cross-group fabrication is a model BIAS,
 // not a prompt or capability gap. Before building either a calibration loop or an
-// upstream-grounding pass, the question is: do fabricated knots LOOK DIFFERENT
+// upstream-grounding pass, the question is: do fabricated tangles LOOK DIFFERENT
 // from real ones on any signal we already have? If yes, there is a threshold to
 // learn and the cheap fixes (voting, a confidence gate) apply. If no, the atom
 // representation is too thin and grounding must move upstream to distill time.
 //
 // We get both signals from ONE batch of K single-shot joint runs over a
 // superposition corpus — no extra model calls:
-//   - FREQUENCY: how many of K runs each knot recurred in. This SIMULATES majority
-//     voting offline: a knot seen in f/K runs survives a samples=S majority vote
-//     iff f/K exceeds 1/2 (in expectation). If fabricated knots are low-frequency
+//   - FREQUENCY: how many of K runs each tangle recurred in. This SIMULATES majority
+//     voting offline: a tangle seen in f/K runs survives a samples=S majority vote
+//     iff f/K exceeds 1/2 (in expectation). If fabricated tangles are low-frequency
 //     and real ones high, the voting we ALREADY have (ReconcileVoted) is the fix.
-//   - CONFIDENCE: the model's self-reported confidence per knot. If fabricated
-//     knots are systematically lower-confidence, an abstention threshold works.
+//   - CONFIDENCE: the model's self-reported confidence per tangle. If fabricated
+//     tangles are systematically lower-confidence, an abstention threshold works.
 //
-// A knot is REAL if its parties lie within ONE group (an intra-group knot, the
+// A tangle is REAL if its parties lie within ONE group (an intra-group tangle, the
 // only kind a solo run could also produce) and FABRICATED if they span both
 // groups (provably invented — the people were never in a run together). Orphans
 // (a party in neither group) indicate a roster bug and are reported separately.
 
-// KnotClass labels a joint-run knot by where its parties fall relative to the two
+// TangleClass labels a joint-run tangle by where its parties fall relative to the two
 // independent groups.
-type KnotClass int
+type TangleClass int
 
 const (
-	ClassIntra         KnotClass = iota // all parties within one group → REAL
-	ClassCrossBoundary                  // parties span both groups → FABRICATED
-	ClassOrphan                         // a party in neither group → roster/identity bug
+	ClassIntra         TangleClass = iota // all parties within one group → REAL
+	ClassCrossBoundary                    // parties span both groups → FABRICATED
+	ClassOrphan                           // a party in neither group → roster/identity bug
 )
 
-// ClassifyKnot decides a knot's class from its parties and the two group rosters
-// (both lowercased name sets, matching KnotKey's folding).
-func ClassifyKnot(parties []string, groupA, groupB map[string]bool) KnotClass {
+// ClassifyTangle decides a tangle's class from its parties and the two group rosters
+// (both lowercased name sets, matching TangleKey's folding).
+func ClassifyTangle(parties []string, groupA, groupB map[string]bool) TangleClass {
 	inA, inB, known := false, false, false
 	for _, p := range parties {
 		lp := strings.ToLower(strings.TrimSpace(p))
@@ -64,8 +64,8 @@ func ClassifyKnot(parties []string, groupA, groupB map[string]bool) KnotClass {
 	}
 }
 
-// KnotStat is one distinct knot's behavior across the K runs.
-type KnotStat struct {
+// TangleStat is one distinct tangle's behavior across the K runs.
+type TangleStat struct {
 	Key      string
 	Kind     string
 	Parties  []string
@@ -74,43 +74,43 @@ type KnotStat struct {
 	MeanConf float64 // mean model confidence across the runs it appeared in
 }
 
-// SeparabilityReport contrasts fabricated vs real knots on frequency and
+// SeparabilityReport contrasts fabricated vs real tangles on frequency and
 // confidence — the data that picks the fork.
 type SeparabilityReport struct {
 	Runs       int
-	Fabricated []KnotStat // cross-boundary, frequency-desc
-	Real       []KnotStat // intra-group, frequency-desc
-	Orphan     []KnotStat
+	Fabricated []TangleStat // cross-boundary, frequency-desc
+	Real       []TangleStat // intra-group, frequency-desc
+	Orphan     []TangleStat
 
-	// Separation summaries (medians/means over the distinct knots in each class).
+	// Separation summaries (medians/means over the distinct tangles in each class).
 	RealFreqMedian float64
 	FabFreqMedian  float64
 	RealConfMean   float64
 	FabConfMean    float64
 }
 
-// ComputeSeparability aggregates per-run joint knots into the report. runs[i] is
-// every knot (firm+soft) surfaced by joint run i.
-func ComputeSeparability(runs [][]ettlemesh.Knot, groupA, groupB map[string]bool) SeparabilityReport {
+// ComputeSeparability aggregates per-run joint tangles into the report. runs[i] is
+// every tangle (firm+soft) surfaced by joint run i.
+func ComputeSeparability(runs [][]ettlemesh.Tangle, groupA, groupB map[string]bool) SeparabilityReport {
 	type acc struct {
 		kind    string
 		parties []string
-		class   KnotClass
+		class   TangleClass
 		seen    int     // distinct runs it appeared in (the frequency for voting)
 		occ     int     // total emitted instances (a run can emit it twice: pairwise+teamwide)
 		confSum float64 // summed over occ
 	}
 	byKey := map[string]*acc{}
 	for _, run := range runs {
-		// Dedupe within a run: a knot found by both the pairwise and team-wide pass
+		// Dedupe within a run: a tangle found by both the pairwise and team-wide pass
 		// in one run still counts once toward its frequency, but every instance's
 		// confidence folds into the mean.
 		seenThisRun := map[string]bool{}
 		for _, k := range run {
-			key := KnotKey(k)
+			key := TangleKey(k)
 			a := byKey[key]
 			if a == nil {
-				a = &acc{kind: k.Kind, parties: k.Parties, class: ClassifyKnot(k.Parties, groupA, groupB)}
+				a = &acc{kind: k.Kind, parties: k.Parties, class: ClassifyTangle(k.Parties, groupA, groupB)}
 				byKey[key] = a
 			}
 			if !seenThisRun[key] {
@@ -128,7 +128,7 @@ func ComputeSeparability(runs [][]ettlemesh.Knot, groupA, groupB map[string]bool
 		if a.occ > 0 {
 			mean = a.confSum / float64(a.occ)
 		}
-		st := KnotStat{Key: key, Kind: a.kind, Parties: a.parties, Seen: a.seen, Runs: len(runs), MeanConf: mean}
+		st := TangleStat{Key: key, Kind: a.kind, Parties: a.parties, Seen: a.seen, Runs: len(runs), MeanConf: mean}
 		switch a.class {
 		case ClassCrossBoundary:
 			rep.Fabricated = append(rep.Fabricated, st)
@@ -149,7 +149,7 @@ func ComputeSeparability(runs [][]ettlemesh.Knot, groupA, groupB map[string]bool
 	return rep
 }
 
-func sortByFreq(s []KnotStat) {
+func sortByFreq(s []TangleStat) {
 	sort.Slice(s, func(i, j int) bool {
 		if s[i].Seen != s[j].Seen {
 			return s[i].Seen > s[j].Seen
@@ -158,7 +158,7 @@ func sortByFreq(s []KnotStat) {
 	})
 }
 
-func medianSeen(s []KnotStat) float64 {
+func medianSeen(s []TangleStat) float64 {
 	if len(s) == 0 {
 		return 0
 	}
@@ -174,7 +174,7 @@ func medianSeen(s []KnotStat) float64 {
 	return float64(v[n/2-1]+v[n/2]) / 2
 }
 
-func meanConf(s []KnotStat) float64 {
+func meanConf(s []TangleStat) float64 {
 	if len(s) == 0 {
 		return 0
 	}
@@ -190,7 +190,7 @@ func meanConf(s []KnotStat) float64 {
 type VotePoint struct {
 	Samples             int
 	Majority            int
-	FabMean             float64 // expected fabricated cross-group knots per voted detection
+	FabMean             float64 // expected fabricated cross-group tangles per voted detection
 	FabCILow, FabCIHigh float64 // 2.5/97.5 percentile bootstrap interval
 }
 
@@ -198,27 +198,27 @@ type VotePoint struct {
 // fabricate at each samples size S. We already paid for K independent single-shot
 // joint runs; those ARE the empirical distribution of one detection's output. To
 // project samples=S, Monte-Carlo it: draw S of the K runs (with replacement),
-// keep knots that recur in a strict majority (S/2+1) — exactly voteKnots' identity
-// (KnotKey: kind+parties) — and count cross-boundary survivors. Repeat `bootstraps`
+// keep tangles that recur in a strict majority (S/2+1) — exactly voteTangles' identity
+// (TangleKey: kind+parties) — and count cross-boundary survivors. Repeat `bootstraps`
 // times; report the mean and a percentile interval. samples=1 reproduces the raw
 // single-shot fabrication mean (a built-in sanity check). The interval is Monte-
 // Carlo estimation uncertainty given K runs, NOT a claim that K runs is plenty —
 // read it alongside the underlying K.
-func ProjectVotingCurve(runs [][]ettlemesh.Knot, groupA, groupB map[string]bool, sampleSizes []int, bootstraps int, seed int64) []VotePoint {
+func ProjectVotingCurve(runs [][]ettlemesh.Tangle, groupA, groupB map[string]bool, sampleSizes []int, bootstraps int, seed int64) []VotePoint {
 	k := len(runs)
 	if k == 0 || bootstraps <= 0 {
 		return nil
 	}
-	// Precompute each run's distinct knot keys and which keys are cross-boundary
+	// Precompute each run's distinct tangle keys and which keys are cross-boundary
 	// (classification is a function of parties, so a key's class is run-invariant).
 	runKeys := make([]map[string]bool, k)
 	crossKey := map[string]bool{}
 	for i, run := range runs {
 		s := map[string]bool{}
 		for _, kn := range run {
-			key := KnotKey(kn)
+			key := TangleKey(kn)
 			s[key] = true
-			if ClassifyKnot(kn.Parties, groupA, groupB) == ClassCrossBoundary {
+			if ClassifyTangle(kn.Parties, groupA, groupB) == ClassCrossBoundary {
 				crossKey[key] = true
 			}
 		}

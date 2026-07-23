@@ -24,7 +24,7 @@ so they're designed in, not bolted on.
   changed. Scales O(emitters-who-changed), not O(team).
 - **Reconcile** — the expensive shared step (it reasons over everyone's atoms).
   This is the one that must not be replicated or re-triggered carelessly.
-- **Crux (gemot)** — most expensive, but reached only for *contested* knots,
+- **Crux (gemot)** — most expensive, but reached only for *contested* tangles,
   which are rare by construction. Naturally throttled.
 
 So the whole game is: **keep the number of reconciles bounded, and keep emits
@@ -40,23 +40,23 @@ hardest of them (firewall 1's single shared reconciler) is also an unsolved
 distributed-systems problem in its own right (leader election, failover, and a
 reconciler that necessarily sees every atom — a privacy-concentration point).
 
-### 1. Atoms flow up, knots flow down — reconcile is O(1)/tick, not O(M)
+### 1. Atoms flow up, tangles flow down — reconcile is O(1)/tick, not O(M)
 
 The single biggest lever. Do **not** have every agent independently re-reconcile
 the shared atom set (that's O(M) identical LLM calls for one answer — and it's
 the one redundancy the current multi-process path actually exhibits). Instead:
 one reconcile per tick (a designated reconciler — leader-elected, or a small
-bus-side service), broadcasting the resulting **knot-set** back down. Each agent
-then filters that knot-set to its own human locally — free, no tokens. The bus
-carries atoms up and knots down; the expensive step happens once.
+bus-side service), broadcasting the resulting **tangle-set** back down. Each agent
+then filters that tangle-set to its own human locally — free, no tokens. The bus
+carries atoms up and tangles down; the expensive step happens once.
 
-### 2. L3 emits knots, never atoms — the loop-breaker
+### 2. L3 emits tangles, never atoms — the loop-breaker
 
 **Hard invariant (the design intent; the live loop that would test it is unbuilt
 — see the status note at the end).** The only source of atoms is human-paced
-reasoning (L1). Reconciliation produces knots *for humans to see*; it never writes
+reasoning (L1). Reconciliation produces tangles *for humans to see*; it never writes
 a new atom back onto the bus. The point is to **throttle any cascade to human
-decision rate** rather than claim one is impossible: a surfaced knot can still
+decision rate** rather than claim one is impossible: a surfaced tangle can still
 cause a human to change course → a new atom, so the loop isn't broken, it's
 clamped to the rate a person actually decides things — exactly the rate the system
 is supposed to run at. (It's "structurally impossible" only in the trivial sense
@@ -75,13 +75,13 @@ needless reconcile triggers; this kills it at the source.
 
 Before spending a reconcile call, a free check: do the new/changed atoms even
 *share a subject or party* with anything else? Embedding/keyword/party overlap is
-deterministic and ~free. No overlap → no possible knot → no LLM call. Only atoms
-that could plausibly knot reach the model.
+deterministic and ~free. No overlap → no possible tangle → no LLM call. Only atoms
+that could plausibly tangle reach the model.
 
 ### 5. Content-hash skip + prompt caching
 
 Hash the atom set feeding a reconcile; if it's unchanged since the last tick,
-return the cached knots — zero tokens. The shared reconcile system prompt is
+return the cached tangles — zero tokens. The shared reconcile system prompt is
 `cache_control`-marked (already true in the engine), so even a real call only
 re-bills the variable atom tail, not the framing.
 
@@ -99,18 +99,18 @@ flags keep scoring `false_interrupt` / low "did-it-help", gets a **tighter
 budget and a longer debounce** — graduated sanction via the calibration signal.
 Overgrazing self-throttles; well-calibrated agents earn more bandwidth.
 
-### 8. Knot suppression
+### 8. Tangle suppression
 
-A knot already surfaced (or adjudicated) does not re-fire every tick. It's
+A tangle already surfaced (or adjudicated) does not re-fire every tick. It's
 suppressed until its *supporting atoms materially change* (shape-keyed, like the
 adjudication sidecar). Resolved coordination doesn't keep costing.
 
 ## Why this converges
 
 Per tick: **one** reconcile (firewall 1), only if the atom set changed (5) and
-only over atoms that could knot (4); emits are bounded by surprise (3) and a
+only over atoms that could tangle (4); emits are bounded by surprise (3) and a
 hard budget (7); reconciliation cannot trigger more emissions (2); and resolved
-knots stop costing (8). Total burn per unit time is bounded by
+tangles stop costing (8). Total burn per unit time is bounded by
 `(ticks/period) × one-reconcile + (humans-actually-deciding) × distill` — both
 human-paced and budget-capped. There is no machine-speed term. That's the whole
 point: **the system runs at the speed of human decisions, not at the speed of
@@ -121,7 +121,7 @@ the bus.**
 - **Today (one-shot CLI):** bounded by construction (`2N+3`, single reconcile by
   default; `--samples K` multiplies only the reconcile passes and is opt-in);
   the reconcile prompt is already cache-marked; the cost is printed in usage; L3
-  already emits only knots, never atoms (firewall 2 holds in the code now).
+  already emits only tangles, never atoms (firewall 2 holds in the code now).
 - **Required before the live loop ships:** firewalls 1, 3, 4, 5, 6, 7, 8. None
   is built yet. The live "production hook path" (the deliberately-unbuilt
   continuous loop) is explicitly gated on them — calibration-before-speed means a runaway-safe emit

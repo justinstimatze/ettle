@@ -27,7 +27,7 @@ go run -tags nats ./cmd/ettle standup --me alice \
   testdata/standup/*.md
 ```
 
-Atoms flow over the JetStream bus; the contested knots route to the local gemot
+Atoms flow over the JetStream bus; the contested tangles route to the local gemot
 for a real crux + binding compromise (gemot's analysis takes a couple of
 minutes — `--gemot-timeout` controls the wait, default 180s).
 

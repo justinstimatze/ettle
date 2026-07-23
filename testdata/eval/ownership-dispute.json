@@ -1,7 +1,7 @@
 {
   "name": "ownership-dispute",
   "inputs": ["testdata/ownership/hana.md", "testdata/ownership/ivo.md", "testdata/ownership/jana.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["hana", "ivo"],
@@ -12,7 +12,7 @@
     {
       "id": "D1",
       "parties": ["jana"],
-      "about": "Jana weighs streaming vs in-memory for her own export feature — an open question, but entirely within her own scope with no second party claiming it; a self-only deliberation, not a cross-person decision-rights knot",
+      "about": "Jana weighs streaming vs in-memory for her own export feature — an open question, but entirely within her own scope with no second party claiming it; a self-only deliberation, not a cross-person decision-rights tangle",
       "keywords": ["streaming", "export", "decision", "in-memory"],
       "real": false
     }

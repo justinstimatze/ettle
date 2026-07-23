@@ -1,7 +1,7 @@
 {
   "name": "shared-deadline-null",
   "inputs": ["testdata/q3/finn.md", "testdata/q3/gwen.md", "testdata/q3/hugo.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "D1",
       "parties": ["finn", "gwen", "hugo"],

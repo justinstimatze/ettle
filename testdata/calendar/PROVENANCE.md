@@ -8,8 +8,8 @@ this repo. No real person, project, or data.
 `KindTeamwideDivergence` (three+ people holding incompatible beliefs about a
 shared fact) appears in `standup-rename` but never alone. This corpus isolates it
 and, critically, pairs with `shared-deadline-null`: that corpus has a shared
-deadline everyone *agrees* on (no knot); this one has a shared freeze everyone
-reads *differently* (a real knot). Together they pin the exact discrimination —
+deadline everyone *agrees* on (no tangle); this one has a shared freeze everyone
+reads *differently* (a real tangle). Together they pin the exact discrimination —
 divergence is about disagreement, not co-occurrence.
 
 - **K1 (real).** Jun thinks the freeze is the 27th, Kara thinks it moved to the

@@ -8,7 +8,7 @@ This is downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's w
 
 - **L1** — each human (a Haiku persona with hidden in-progress reasoning) thinks out loud to their own agent. The raw reasoning is private and **never crosses the boundary**.
 - **emit** — each agent distills that into typed **decision-delta atoms** (`intent` / `assumption` / `commitment` / `dependency`). Only the atoms cross. This is the contextual-privacy invariant in its cheap form — the answer to "modeling people without a panopticon."
-- **L3** — the collective layer reconciles the atoms and detects **knots** ahead of time: collisions, duplicated work, stale assumptions. Optionally it **names the operative pattern from a private pattern substrate** (see below).
+- **L3** — the collective layer reconciles the atoms and detects **tangles** ahead of time: collisions, duplicated work, stale assumptions. Optionally it **names the operative pattern from a private pattern substrate** (see below).
 - **deliberate (gemot-shaped: positions → crux → bind or surface)** — the agents have names (Ada, Banks, Cass) and they take positions, then the layer decides **where friction belongs**:
   - **Bindable coordination** (sequencing, interface contract, ownership handoff — anything positive-sum) → the agents **hash it out agent-to-agent** to a concrete, final decision and the humans never need to know. The toil is gone. The privacy boundary holds *during* coordination: each agent sees its own human's full context but only the other's typed atoms.
   - **A genuine values/priority crux** (zero-sum — whose external deadline wins, accepting risk someone would refuse, who loses ownership) → the agents **must not decide it for you**. They pre-stage both branches and hand the humans a clean either/or.
@@ -55,11 +55,11 @@ Three engineers on a shared service, with the three classic coordination frictio
 - **Bob** (billing) is about to call `GetUser` in a tight loop, assuming the signature is stable. → **collision** + **stale-assumption** with Alice.
 - **Carol** (notifications) is about to build a user-lookup cache — not knowing Alice already has one. → **duplication** with Alice.
 
-The L3 layer catches all of these from the typed atoms alone, before any of it ships. A representative run dissolved several knots ahead, 0 coordination meetings attended. The closing narration is the point: *"By 9:15 all three are deep in their own work. The 9:30 standup gets cancelled — no one had anything to sync."*
+The L3 layer catches all of these from the typed atoms alone, before any of it ships. A representative run dissolved several tangles ahead, 0 coordination meetings attended. The closing narration is the point: *"By 9:15 all three are deep in their own work. The 9:30 standup gets cancelled — no one had anything to sync."*
 
 ## Pattern-substrate enrichment (optional, private)
 
-The collective layer can name the structural/cognitive move under each knot using a **private pattern substrate**. It's wired so:
+The collective layer can name the structural/cognitive move under each tangle using a **private pattern substrate**. It's wired so:
 
 - It loads from the private substrate dir at runtime; **absent in public/CI it silently no-ops** (empty graph). **No substrate content is committed to the repo.**
 - Because substrate vocabulary rarely appears verbatim in task prose (the predecessor's own dogfood finding), it uses the LLM-gated lookup the predecessor already pivoted to: the model picks from the atom-name menu and the picks are validated back against the real graph, so nothing is hallucinated. Names only — never the private lineage.
@@ -72,4 +72,4 @@ Run the team sim locally; it needs `ANTHROPIC_API_KEY` in an env file.
 
 ## Honesty about what this is
 
-It's a simulation with agents playing humans and a hand-seeded scenario chosen to contain the frictions. It demonstrates the *shape* of the payoff and that the pieces compose; it is not evidence the knot-detection works on real, messy, un-seeded team state. The invariants still gate the real thing: the calibration loop (does Bob agree the knot was real?) and the privacy boundary are what separate this bright version from the Bicameral shadow (SF_LINEAGE.md). The N=1 wedge's did-it-help loop is the calibration ancestor; the team layer needs its own, per-pair, before this is trustworthy rather than just pretty.
+It's a simulation with agents playing humans and a hand-seeded scenario chosen to contain the frictions. It demonstrates the *shape* of the payoff and that the pieces compose; it is not evidence the tangle-detection works on real, messy, un-seeded team state. The invariants still gate the real thing: the calibration loop (does Bob agree the tangle was real?) and the privacy boundary are what separate this bright version from the Bicameral shadow (SF_LINEAGE.md). The N=1 wedge's did-it-help loop is the calibration ancestor; the team layer needs its own, per-pair, before this is trustworthy rather than just pretty.

@@ -6,12 +6,12 @@ import (
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 )
 
-func TestClassifyKnot(t *testing.T) {
+func TestClassifyTangle(t *testing.T) {
 	a := map[string]bool{"alice": true, "bob": true}
 	b := map[string]bool{"cleo": true, "dao": true}
 	cases := []struct {
 		parties []string
-		want    KnotClass
+		want    TangleClass
 	}{
 		{[]string{"alice", "bob"}, ClassIntra},
 		{[]string{"cleo", "dao"}, ClassIntra},
@@ -20,8 +20,8 @@ func TestClassifyKnot(t *testing.T) {
 		{[]string{"zane"}, ClassOrphan},
 	}
 	for _, tc := range cases {
-		if got := ClassifyKnot(tc.parties, a, b); got != tc.want {
-			t.Errorf("ClassifyKnot(%v) = %d, want %d", tc.parties, got, tc.want)
+		if got := ClassifyTangle(tc.parties, a, b); got != tc.want {
+			t.Errorf("ClassifyTangle(%v) = %d, want %d", tc.parties, got, tc.want)
 		}
 	}
 }
@@ -29,20 +29,20 @@ func TestClassifyKnot(t *testing.T) {
 func TestComputeSeparabilitySplitsAndScores(t *testing.T) {
 	a := map[string]bool{"alice": true, "bob": true}
 	b := map[string]bool{"cleo": true, "dao": true}
-	real := ettlemesh.Knot{Kind: "collision", Parties: []string{"alice", "bob"}, Confidence: 0.9}
-	fab := ettlemesh.Knot{Kind: "duplication", Parties: []string{"alice", "dao"}, Confidence: 0.4}
+	real := ettlemesh.Tangle{Kind: "collision", Parties: []string{"alice", "bob"}, Confidence: 0.9}
+	fab := ettlemesh.Tangle{Kind: "duplication", Parties: []string{"alice", "dao"}, Confidence: 0.4}
 	// real recurs in all 3 runs; fabricated in only 1.
-	runs := [][]ettlemesh.Knot{
+	runs := [][]ettlemesh.Tangle{
 		{real, fab},
 		{real},
 		{real},
 	}
 	rep := ComputeSeparability(runs, a, b)
 	if len(rep.Real) != 1 || rep.Real[0].Seen != 3 {
-		t.Fatalf("real knot should be seen 3/3: %+v", rep.Real)
+		t.Fatalf("real tangle should be seen 3/3: %+v", rep.Real)
 	}
 	if len(rep.Fabricated) != 1 || rep.Fabricated[0].Seen != 1 {
-		t.Fatalf("fabricated knot should be seen 1/3: %+v", rep.Fabricated)
+		t.Fatalf("fabricated tangle should be seen 1/3: %+v", rep.Fabricated)
 	}
 	if rep.RealFreqMedian != 3 || rep.FabFreqMedian != 1 {
 		t.Errorf("freq medians: real %v fab %v, want 3 and 1", rep.RealFreqMedian, rep.FabFreqMedian)
@@ -52,14 +52,14 @@ func TestComputeSeparabilitySplitsAndScores(t *testing.T) {
 	}
 }
 
-// A knot found twice in ONE run (pairwise + teamwide pass) counts once toward
+// A tangle found twice in ONE run (pairwise + teamwide pass) counts once toward
 // frequency, but both confidences fold into its mean.
 func TestComputeSeparabilityDedupesWithinRun(t *testing.T) {
 	a := map[string]bool{"alice": true, "bob": true, "cleo": true}
 	b := map[string]bool{"dao": true}
-	k1 := ettlemesh.Knot{Kind: "teamwide-divergence", Parties: []string{"alice", "bob", "cleo"}, Confidence: 0.6}
-	k2 := ettlemesh.Knot{Kind: "teamwide-divergence", Parties: []string{"cleo", "bob", "alice"}, Confidence: 0.8}
-	rep := ComputeSeparability([][]ettlemesh.Knot{{k1, k2}}, a, b)
+	k1 := ettlemesh.Tangle{Kind: "teamwide-divergence", Parties: []string{"alice", "bob", "cleo"}, Confidence: 0.6}
+	k2 := ettlemesh.Tangle{Kind: "teamwide-divergence", Parties: []string{"cleo", "bob", "alice"}, Confidence: 0.8}
+	rep := ComputeSeparability([][]ettlemesh.Tangle{{k1, k2}}, a, b)
 	if len(rep.Real) != 1 {
 		t.Fatalf("party-order variants are the same key: %+v", rep.Real)
 	}
@@ -74,12 +74,12 @@ func TestComputeSeparabilityDedupesWithinRun(t *testing.T) {
 func TestProjectVotingCurve(t *testing.T) {
 	a := map[string]bool{"alice": true, "bob": true}
 	b := map[string]bool{"cleo": true, "dao": true}
-	fab := ettlemesh.Knot{Kind: "collision", Parties: []string{"alice", "dao"}, Confidence: 0.6}
-	real := ettlemesh.Knot{Kind: "collision", Parties: []string{"alice", "bob"}, Confidence: 0.9}
-	// 10 runs: fabricated knot in 2/10 (low freq), real knot in all 10.
-	var runs [][]ettlemesh.Knot
+	fab := ettlemesh.Tangle{Kind: "collision", Parties: []string{"alice", "dao"}, Confidence: 0.6}
+	real := ettlemesh.Tangle{Kind: "collision", Parties: []string{"alice", "bob"}, Confidence: 0.9}
+	// 10 runs: fabricated tangle in 2/10 (low freq), real tangle in all 10.
+	var runs [][]ettlemesh.Tangle
 	for i := 0; i < 10; i++ {
-		run := []ettlemesh.Knot{real}
+		run := []ettlemesh.Tangle{real}
 		if i < 2 {
 			run = append(run, fab)
 		}
@@ -93,7 +93,7 @@ func TestProjectVotingCurve(t *testing.T) {
 	if pts[0].Samples != 1 || pts[0].FabMean < 0.1 || pts[0].FabMean > 0.3 {
 		t.Errorf("samples=1 should reproduce raw mean ~0.2, got %.3f", pts[0].FabMean)
 	}
-	// samples=5 (majority 3): a 2/10 knot almost never clears the vote → ~0.
+	// samples=5 (majority 3): a 2/10 tangle almost never clears the vote → ~0.
 	if pts[1].Samples != 5 || pts[1].Majority != 3 {
 		t.Fatalf("samples=5 majority should be 3, got %d", pts[1].Majority)
 	}

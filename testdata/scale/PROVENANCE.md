@@ -6,10 +6,10 @@ by hand for this repo. No real person, project, or data.
 ## What it tests (signal survival at scale — the buried needle)
 
 Every other corpus is small (2–4 people) where almost everyone is involved in
-the one knot. Real teams aren't like that: most pairs are unrelated and the one
+the one tangle. Real teams aren't like that: most pairs are unrelated and the one
 real collision is buried in cross-talk. This corpus is five people, **ten
-pairs**, exactly **one** real coordination knot — and four of the five notes are
-seeded with the same config/CI/deploy vocabulary the real knot uses, so a
+pairs**, exactly **one** real coordination tangle — and four of the five notes are
+seeded with the same config/CI/deploy vocabulary the real tangle uses, so a
 keyword matcher has nine plausible-looking wrong answers to choose from.
 
 - **K1 (real).** Ravi and Lena both edit `gateway/routes.yaml` in the same

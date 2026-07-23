@@ -12,7 +12,7 @@ make them obvious:
    atom. The atom contents are the privacy surface, and (roadmap) a `--show-atoms`
    preview + structural caps are how that surface gets enforced rather than trusted.
 2. **There is no shared channel humans read.** The collective layer is for the
-   *agents*. Each person's own agent surfaces back to them only the knots
+   *agents*. Each person's own agent surfaces back to them only the tangles
    relevant to *them*. You never read the team feed; your agent does.
 3. **Friction is kept on purpose — but only at the cruxes.** Routine coordination
    gets bound automatically; a genuine values/priority choice is pre-staged as a
@@ -39,9 +39,9 @@ place so the two can't drift). This page is its reading guide.
   today in its structural (deterministic) form: `ettle drift`. The single-round
   standup is its degenerate case (everyone learns everyone); the layer earns its
   keep across rounds, where it sends a couple of deltas instead of the whole state.
-- **FIRM vs SOFT** is confidence propagation: a knot resting on an *inferred*
+- **FIRM vs SOFT** is confidence propagation: a tangle resting on an *inferred*
   (uncertain) atom is SOFT — surfaced as a question, not asserted as fact.
-- **gemot only sees contested knots.** Most coordination is bindable and never
+- **gemot only sees contested tangles.** Most coordination is bindable and never
   reaches it. When a real values choice is at stake, gemot finds the crux and
   proposes a binding compromise; the human still makes the call. The crux is the
   most sensitive payload on the wire, so gemot is reached over TLS with auth.
@@ -52,7 +52,7 @@ place so the two can't drift). This page is its reading guide.
 ## What runs today
 
 The PoC (`cmd/ettle`) implements the solid path: distill → atoms → reconcile
-(pairwise + team-wide) → FIRM/SOFT routing → contested knots to a resolver
+(pairwise + team-wide) → FIRM/SOFT routing → contested tangles to a resolver
 (gemot, or an inline either/or) → surface to `--me`. The directed-model layer (L2)
 runs in its structural form on its own command — `ettle drift` builds the per-pair
 models, carries them across two rounds, and emits only the surprise-gated deltas.

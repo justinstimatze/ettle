@@ -21,9 +21,9 @@ the cost of one of these will be declined no matter how clean the code.
 ## Where help matters most (ranked by leverage)
 
 1. **The calibration loop (the biggest unbuilt thing).** Today the detector runs
-   but nothing measures whether a surfaced knot was *real to the humans
-   involved*. The honest first version: a "did this knot help?" signal per
-   surfaced knot, per pair, accumulated into a per-relationship trust estimate.
+   but nothing measures whether a surfaced tangle was *real to the humans
+   involved*. The honest first version: a "did this tangle help?" signal per
+   surfaced tangle, per pair, accumulated into a per-relationship trust estimate.
    This is the invariant the whole project rests on; it is also the hardest part.
    See the calibration framing in CONCEPT.md and the necessity-prediction prior
    art in [CALO_LINEAGE.md §5](docs/CALO_LINEAGE.md).
@@ -43,14 +43,14 @@ the cost of one of these will be declined no matter how clean the code.
 
 3. **Strengthen the existing calibration harness.** `internal/eval` scores the
    detector against a small committed corpus (`testdata/eval/*.json`). It needs:
-   more scenarios; more `Real=false` distractors (plausible-but-wrong knots — see
+   more scenarios; more `Real=false` distractors (plausible-but-wrong tangles — see
    the existing ones for the shape); and a confidence-calibration / ECE readout
-   that bins firm knots by confidence and checks whether the rate of real matches
+   that bins firm tangles by confidence and checks whether the rate of real matches
    tracks the stated confidence.
 
 4. **Wire a public dataset as a real corpus.** [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
    catalogs candidates. The tractable first step is duplicate-bug-report pairs as
-   a duplication-knot corpus. The honest caveat (artifacts vs.
+   a duplication-tangle corpus. The honest caveat (artifacts vs.
    reasoning-in-progress) is documented there; a contribution that names its own
    limits is worth more than one that overclaims.
 
@@ -69,8 +69,8 @@ the cost of one of these will be declined no matter how clean the code.
    reworded subject on a still-held belief reads as drop+new — a false "stale" signal
    and lost per-belief savings (demonstrated in [`testdata/drift/adversarial`](testdata/drift/adversarial)).
    The fix is a deterministic slot match that tolerates rewording — most naturally by
-   reusing the knot-identity machinery already in the package (`tokenSet` / `jaccard`,
-   the same fuzzy identity `SameKnot` uses) so L2 and L3 share one "same thing?"
+   reusing the tangle-identity machinery already in the package (`tokenSet` / `jaccard`,
+   the same fuzzy identity `SameTangle` uses) so L2 and L3 share one "same thing?"
    notion rather than deriving two. Wants a small fixture to tune the threshold
    against; deterministic, no model call (keep the O(1) / no-machine-speed invariant).
 

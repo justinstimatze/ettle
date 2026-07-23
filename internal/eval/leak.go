@@ -2,7 +2,7 @@ package eval
 
 // Leak-rate benchmark: the privacy-boundary half of the harness.
 //
-// `Adjudicate` (eval.go) measures whether the detector finds the RIGHT knots.
+// `Adjudicate` (eval.go) measures whether the detector finds the RIGHT tangles.
 // This file measures the orthogonal claim ettle currently only *asserts*: that
 // the typed-atom boundary does not LEAK. The method follows the operationalized
 // contextual-integrity line (ConfAIde, PrivacyChecker; PRIOR_ART.md §2): plant a

@@ -116,7 +116,7 @@ func runRoom(args []string) error {
 
 // roomStatus is the presence view: who's in the room and what each is currently
 // working on — read straight off the bus (the atoms standup already published),
-// no knot detection and no model call. This is the L0 co-presence layer: useful
+// no tangle detection and no model call. This is the L0 co-presence layer: useful
 // before any reconciliation, just "what is my crew's agents doing right now."
 func roomStatus(args []string) error {
 	if len(args) == 0 {

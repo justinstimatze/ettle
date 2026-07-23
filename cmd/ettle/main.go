@@ -1,5 +1,5 @@
 // Command ettle is the slim multiplayer coordination PoC: point it at each
-// teammate's working notes and it surfaces the coordination knots — collisions,
+// teammate's working notes and it surfaces the coordination tangles — collisions,
 // duplicated work, stale assumptions, decision-rights gaps — before any of it
 // ships. No meeting. The agent surfaces only what is relevant to its own human.
 //
@@ -10,9 +10,9 @@
 //     assumptions they didn't state);
 //  2. publish atoms over the transport seam (in-process by default; NATS bus
 //     with -tags nats) and collect the whole team's;
-//  3. reconcile pairwise + team-wide into knots, routed FIRM (worth a look) vs
+//  3. reconcile pairwise + team-wide into tangles, routed FIRM (worth a look) vs
 //     SOFT (worth a question);
-//  4. route contested knots to a resolver (gemot, or an inline either/or);
+//  4. route contested tangles to a resolver (gemot, or an inline either/or);
 //  5. surface to --me only what involves them.
 package main
 
@@ -98,16 +98,16 @@ func main() {
 		os.Exit(2)
 	}
 	fs := flag.NewFlagSet("standup", flag.ExitOnError)
-	me := fs.String("me", "", "surface knots relevant to this participant (their agent's view); empty = full team view")
+	me := fs.String("me", "", "surface tangles relevant to this participant (their agent's view); empty = full team view")
 	model := fs.String("model", "claude-haiku-4-5", "model id")
-	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested knots (e.g. https://gemot.example/mcp); empty = inline either/or")
+	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested tangles (e.g. https://gemot.example/mcp); empty = inline either/or")
 	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | nats (needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
-	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks knots firm (assert) vs soft (ask) — knots recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
-	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing knots")
-	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide knots that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-knot recall (see ground.go).")
-	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
+	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks tangles firm (assert) vs soft (ask) — tangles recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
+	showAtoms := fs.Bool("show-atoms", false, "print exactly what crosses the boundary (each person's typed atoms) before surfacing tangles")
+	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide tangles that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-tangle recall (see ground.go).")
+	groundModel := fs.String("ground-model", "", "verify cross-person tangles with this (stronger) model instead of --model; empty = same as --model")
 	shareInferred := fs.Bool("share-inferred", false, "let INFERRED atoms (your agent's de-novo guesses about a person) cross to the team. OFF by default: an inference is a claim the person never stated, and the pass measurably fabricates sensitive ones, so it is held back and surfaced to its subject first (docs/LEGIBILITY.md stage 0b)")
 	room := fs.String("room", "", "use a configured leat room (created by `ettle room init|join`) as the transport — resolves that room's repo, agent, and remote; overrides --transport")
 	_ = fs.Parse(os.Args[2:])
@@ -149,13 +149,13 @@ func run(cfg runConfig) error {
 		return err
 	}
 	// Validate --me against the roster: a typo'd name silently filters every
-	// knot away and prints "the horizon is clear" — the most dangerous false
+	// tangle away and prints "the horizon is clear" — the most dangerous false
 	// all-clear a coordination tool can give. Refuse it.
 	if cfg.me != "" && !hasParticipant(people, cfg.me) {
 		return fmt.Errorf("--me %q matches none of the loaded participants (%s)", cfg.me, strings.Join(names(people), ", "))
 	}
 
-	// Generous overall budget: a contested knot can spend minutes in gemot.
+	// Generous overall budget: a contested tangle can spend minutes in gemot.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -227,51 +227,51 @@ func run(cfg runConfig) error {
 	reportCoverage(bus)
 	atoms := transport.Atoms(envs)
 	// Cross-person detection (pairwise + team-wide). With --samples>1, runs the
-	// passes N times and keeps only knots that recur across a majority — the
+	// passes N times and keeps only tangles that recur across a majority — the
 	// stochastic detector's noise becomes a confidence signal.
-	knots, floorHeld, err := det.ReconcileVoted(ctx, atoms, cfg.samples)
+	tangles, floorHeld, err := det.ReconcileVoted(ctx, atoms, cfg.samples)
 	if err != nil {
 		return fmt.Errorf("reconcile: %w", err)
 	}
 	// Single-party self-assumption pass (the N=1 signal: a person whose own later
 	// atoms drifted from an earlier assumption). Deduped against the cross-person
-	// knots so a team-wide divergence isn't also reported as a private one.
+	// tangles so a team-wide divergence isn't also reported as a private one.
 	self, err := det.ReconcileSelf(ctx, atoms)
 	if err != nil {
 		return fmt.Errorf("reconcile self: %w", err)
 	}
-	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	tangles = append(tangles, ettlemesh.DedupeSelf(self, tangles)...)
+	// Cross-person coupling check: drop collision/duplication/teamwide tangles that
 	// bridge people on a shared topic word across independent scopes (ON by default;
 	// disable with --no-ground). Suppressed = what it held back, surfaced quietly so a
 	// human can overrule a wrong call (legible abstention; docs/LEGIBILITY.md).
-	knots, suppressed, err := det.GroundKnots(ctx, knots, atoms)
+	tangles, suppressed, err := det.GroundTangles(ctx, tangles, atoms)
 	if err != nil {
 		return fmt.Errorf("ground: %w", err)
 	}
 
-	// 4+5: resolve contested knots, then surface to --me.
+	// 4+5: resolve contested tangles, then surface to --me.
 	var resolver crux.Resolver = crux.Inline{}
 	if cfg.gemotURL != "" {
 		resolver = crux.Gemot{URL: cfg.gemotURL, Token: os.Getenv("ETTLE_GEMOT_TOKEN"), InsecureLocal: cfg.insecureLocal, Timeout: cfg.gemotTimeout}
 	}
-	surface(ctx, cfg.me, knots, suppressed, floorHeld, atoms, allQuestions, inferredAboutMe, heldInferred, resolver)
+	surface(ctx, cfg.me, tangles, suppressed, floorHeld, atoms, allQuestions, inferredAboutMe, heldInferred, resolver)
 	return nil
 }
 
-// surface prints the knots relevant to `me` (or all, in team view), routed FIRM
-// vs SOFT, with contested knots resolved. This is the agent → its own human.
-func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, inferredAboutMe []ettlemesh.Atom, heldInferred int, resolver crux.Resolver) {
+// surface prints the tangles relevant to `me` (or all, in team view), routed FIRM
+// vs SOFT, with contested tangles resolved. This is the agent → its own human.
+func surface(ctx context.Context, me string, tangles, suppressed []ettlemesh.Tangle, floorHeld int, atoms []ettlemesh.Atom, questions []authoredQuestion, inferredAboutMe []ettlemesh.Atom, heldInferred int, resolver crux.Resolver) {
 	// Act/ask routing (docs/LEGIBILITY.md stage 0c). The detector has no ground truth
 	// for a cross-person conflict, and recurrence is test-retest STABILITY, not
-	// validity — so a cross-person knot is never ASSERTED, only posed as a question to
+	// validity — so a cross-person tangle is never ASSERTED, only posed as a question to
 	// the parties (mixed-initiative: ask when a wrong claim's cost is social and the
-	// confidence is unearned). Only SELF knots — a person's own drift, which they can
+	// confidence is unearned). Only SELF tangles — a person's own drift, which they can
 	// verify directly — are asserted. The Firm-and-bindable "act" lane for cross-person
-	// knots opens later, earned per kind against the calibration label (stage 2). The
+	// tangles opens later, earned per kind against the calibration label (stage 2). The
 	// ask lane is ordered firm-first so the most-recurring float to the top.
-	var act, ask []ettlemesh.Knot
-	for _, k := range knots {
+	var act, ask []ettlemesh.Tangle
+	for _, k := range tangles {
 		if me != "" && !partyOf(k, me) {
 			continue
 		}
@@ -296,7 +296,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	fmt.Printf("  %s across %s; %s surfaced\n",
 		plural(len(atoms), "atom", "atoms"),
 		plural(countPeople(atoms), "person", "people"),
-		plural(len(act)+len(ask), "knot", "knots"))
+		plural(len(act)+len(ask), "tangle", "tangles"))
 
 	if len(act) == 0 && len(ask) == 0 {
 		section("horizon")
@@ -305,7 +305,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	if len(act) > 0 {
 		section("worth a look (your own assumptions to revisit)")
 		for _, k := range act {
-			printKnot(k)
+			printTangle(k)
 		}
 	}
 	if len(ask) > 0 {
@@ -316,7 +316,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 				r, err := resolver.Resolve(ctx, k, atoms)
 				switch {
 				case err != nil:
-					// Don't swallow it — a contested knot with no crux must explain why.
+					// Don't swallow it — a contested tangle with no crux must explain why.
 					fmt.Printf("      → (resolver unavailable: %v)\n", err)
 				case r != nil:
 					printResolution(r)
@@ -343,7 +343,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	// Legible abstention: what the coupling check held back, surfaced quietly OFF the
 	// agenda so a clear horizon never hides a silently-dropped call the human would
 	// have overruled (docs/LEGIBILITY.md, stage 0a). Filtered to me, like the rest.
-	var heldBack []ettlemesh.Knot
+	var heldBack []ettlemesh.Tangle
 	for _, k := range suppressed {
 		if me == "" || partyOf(k, me) {
 			heldBack = append(heldBack, k)
@@ -352,7 +352,7 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	if len(heldBack) > 0 {
 		section("held back (the coupling check judged these not a real conflict — shown in case that's wrong)")
 		for _, k := range heldBack {
-			printKnot(k)
+			printTangle(k)
 		}
 	}
 	// Subject-gated inference (docs/LEGIBILITY.md stage 0b): your agent's de-novo
@@ -388,24 +388,24 @@ func surface(ctx context.Context, me string, knots, suppressed []ettlemesh.Knot,
 	fmt.Println()
 }
 
-// voteSuffix is the shared recurrence tail (" · seen in N/M samples") on a knot line —
-// one definition so printKnot (assert) and printAsk (question) can't drift on it.
-func voteSuffix(k ettlemesh.Knot) string {
+// voteSuffix is the shared recurrence tail (" · seen in N/M samples") on a tangle line —
+// one definition so printTangle (assert) and printAsk (question) can't drift on it.
+func voteSuffix(k ettlemesh.Tangle) string {
 	if k.Samples > 0 {
 		return fmt.Sprintf(" · seen in %d/%d samples", k.Votes, k.Samples)
 	}
 	return ""
 }
 
-func printKnot(k ettlemesh.Knot) {
+func printTangle(k ettlemesh.Tangle) {
 	fmt.Printf("    • [%s] %s\n      %s\n      parties: %s · confidence %.1f%s\n",
 		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, voteSuffix(k))
 }
 
-// printAsk renders a cross-person knot as a QUESTION addressed to its parties, not an
+// printAsk renders a cross-person tangle as a QUESTION addressed to its parties, not an
 // assertion (docs/LEGIBILITY.md stage 0c) — the detector cannot certify a cross-person
 // conflict, so it poses it for the humans to confirm or wave off.
-func printAsk(k ettlemesh.Knot) {
+func printAsk(k ettlemesh.Tangle) {
 	fmt.Printf("    ? [possible %s] %s\n      %s\n      Real, or already handled?  parties: %s · confidence %.1f%s\n",
 		k.Kind, k.About, k.Explanation, strings.Join(k.Parties, ", "), k.Confidence, voteSuffix(k))
 }
@@ -437,7 +437,7 @@ func plural(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
-func partyOf(k ettlemesh.Knot, who string) bool {
+func partyOf(k ettlemesh.Tangle, who string) bool {
 	for _, p := range k.Parties {
 		if ettlemesh.SamePerson(p, who) {
 			return true
@@ -582,11 +582,11 @@ func printAtoms(results []personResult, shareInferred bool) {
 	}
 }
 
-// detectFor runs the detector over participants and returns FIRM + soft knots.
-// samples>1 routes the cross-person passes through majority voting. Self-knots
+// detectFor runs the detector over participants and returns FIRM + soft tangles.
+// samples>1 routes the cross-person passes through majority voting. Self-tangles
 // are deduped against the cross-person set. (No transport — eval reconciles
 // directly, the bus is only for the distributed standup.)
-func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participant, samples int) (firm, soft []ettlemesh.Knot, err error) {
+func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participant, samples int) (firm, soft []ettlemesh.Tangle, err error) {
 	results, err := distillAll(ctx, det, people)
 	if err != nil {
 		return nil, nil, err
@@ -599,7 +599,7 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 		atoms = append(atoms, r.atoms...)
 		atoms = append(atoms, r.inferred...)
 	}
-	knots, _, err := det.ReconcileVoted(ctx, atoms, samples)
+	tangles, _, err := det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -607,16 +607,16 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 	if err != nil {
 		return nil, nil, err
 	}
-	knots = append(knots, ettlemesh.DedupeSelf(self, knots)...)
-	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	tangles = append(tangles, ettlemesh.DedupeSelf(self, tangles)...)
+	// Cross-person coupling check: drop collision/duplication/teamwide tangles that
 	// bridge people on a shared topic word across independent scopes (ON by default;
-	// disable with --no-ground). The eval scores kept knots; suppressed is for the
+	// disable with --no-ground). The eval scores kept tangles; suppressed is for the
 	// human-facing surface, not the precision/recall harness.
-	knots, _, err = det.GroundKnots(ctx, knots, atoms)
+	tangles, _, err = det.GroundTangles(ctx, tangles, atoms)
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, k := range knots {
+	for _, k := range tangles {
 		if k.Firm() {
 			firm = append(firm, k)
 		} else {
@@ -627,21 +627,21 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 }
 
 // runEval scores the detector against committed synthetic corpora: precision /
-// recall over FIRM knots vs the curated ground truth, and (with --ab) the honest
+// recall over FIRM tangles vs the curated ground truth, and (with --ab) the honest
 // single-shot-vs-voted comparison with a McNemar significance test.
 func runEval(args []string) error {
 	fs := flag.NewFlagSet("eval", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	samples := fs.Int("samples", 3, "voting samples for the --ab voted condition")
 	ab := fs.Bool("ab", false, "also run the voted condition and compare with McNemar")
-	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not knot detection)")
+	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not tangle detection)")
 	leakInference := fs.Bool("leak-inference", false, "inference-channel mode: run the INFERENCE pass on a trap corpus and measure whether it manufactures a sensitive de-novo claim the source never stated (opt-in: adds one inference call per case — see docs/LEGIBILITY.md stage 1a)")
-	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run knot-set agreement (Jaccard)")
+	stability := fs.Bool("stability", false, "determinism mode: run each corpus K times and report run-to-run tangle-set agreement (Jaccard)")
 	runs := fs.Int("runs", 5, "number of repeated runs for --stability")
-	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group knots")
-	separability := fs.Bool("separability", false, "diagnostic: over K joint runs, contrast fabricated vs real knots on recurrence-frequency and confidence (picks the fork: voting/threshold vs upstream grounding)")
+	superposition := fs.Bool("superposition", false, "locality mode: check f(A∪B)=f(A)∪f(B) for independent groups — flags fabricated cross-group tangles")
+	separability := fs.Bool("separability", false, "diagnostic: over K joint runs, contrast fabricated vs real tangles on recurrence-frequency and confidence (picks the fork: voting/threshold vs upstream grounding)")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go); pass to measure the pre-grounding baseline")
-	groundModel := fs.String("ground-model", "", "verify cross-person knots with this (stronger) model instead of --model; empty = same as --model")
+	groundModel := fs.String("ground-model", "", "verify cross-person tangles with this (stronger) model instead of --model; empty = same as --model")
 	_ = fs.Parse(args)
 	if len(fs.Args()) == 0 {
 		return fmt.Errorf("usage: ettle eval [--ab] [--samples K] <corpus.json>...\n       ettle eval --leak <leak-corpus.json>...\n       ettle eval --stability [--runs K] <corpus.json>...\n       ettle eval --superposition <super-corpus.json>...")
@@ -688,7 +688,7 @@ func runEval(args []string) error {
 		if err != nil {
 			return fmt.Errorf("corpus %s inputs: %w", c.Name, err)
 		}
-		fmt.Printf("\n  ══ %s ══ (%d inputs, %d curated knots)\n", c.Name, len(c.Inputs), len(c.Expected))
+		fmt.Printf("\n  ══ %s ══ (%d inputs, %d curated tangles)\n", c.Name, len(c.Inputs), len(c.Expected))
 
 		firm, soft, err := detectFor(ctx, det, people, 1)
 		if err != nil {
@@ -700,16 +700,16 @@ func runEval(args []string) error {
 		}
 		s := eval.Adjudicate(firm, soft, c.Expected)
 		printScore("single-shot", s)
-		// Specificity (simulation #1): when a corpus has NO real knots (RecallTotal
+		// Specificity (simulation #1): when a corpus has NO real tangles (RecallTotal
 		// counts the real labels), the correct horizon is empty. Recall/precision
 		// are degenerate here, so the meaningful headline is how much got surfaced
-		// anyway — target 0. A firm knot is a false alarm; a soft one is at least
+		// anyway — target 0. A firm tangle is a false alarm; a soft one is at least
 		// hedged as a question. Any trap hit already prints on the single-shot line.
 		if s.RecallTotal == 0 {
 			fmt.Printf("    %-22s %d firm + %d soft surfaced on independent work (target 0)\n",
 				"specificity", s.TP+s.FP, s.WouldAsk)
 		}
-		printCalibration(append(append([]ettlemesh.Knot{}, firm...), soft...), c.Expected)
+		printCalibration(append(append([]ettlemesh.Tangle{}, firm...), soft...), c.Expected)
 
 		if *ab {
 			fv, sv, err := detectFor(ctx, det, people, *samples)
@@ -750,9 +750,9 @@ func runEval(args []string) error {
 }
 
 // runStabilityEval is the determinism harness (simulation #5). It runs each
-// corpus K times and measures how much the SET of surfaced knots agrees run to
+// corpus K times and measures how much the SET of surfaced tangles agrees run to
 // run — the identity being (kind, parties), not wording, so a reworded
-// explanation does not count as a different knot. A tool people check every
+// explanation does not count as a different tangle. A tool people check every
 // morning must surface the same horizon from the same input; flicker is a trust
 // failure independent of any single run's correctness. Cost: K detection cycles
 // per corpus (one Distill per person per run); the scoring is pure and
@@ -783,7 +783,7 @@ func runStabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []stri
 			}
 			keys := eval.RunKeys(firm, soft)
 			runKeys = append(runKeys, keys)
-			fmt.Printf("    run %d: %d distinct knots\n", i+1, len(keys))
+			fmt.Printf("    run %d: %d distinct tangles\n", i+1, len(keys))
 		}
 		if failed {
 			continue
@@ -793,12 +793,12 @@ func runStabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []stri
 		fmt.Printf("    %-22s mean pairwise Jaccard %.2f · worst pair %.2f (1.00 = identical horizon every run)\n",
 			"stability", res.MeanJaccard, res.MinJaccard)
 		if flick := res.Flickering(); len(flick) > 0 {
-			fmt.Printf("    %-22s %d knot(s) appeared in some runs but not all:\n", "FLICKER", len(flick))
+			fmt.Printf("    %-22s %d tangle(s) appeared in some runs but not all:\n", "FLICKER", len(flick))
 			for _, k := range flick {
 				fmt.Printf("      %s  (in %d/%d runs)\n", prettyKey(k), res.Frequency[k], runs)
 			}
 		} else {
-			fmt.Printf("    %-22s every surfaced knot appeared in all %d runs\n", "stable", runs)
+			fmt.Printf("    %-22s every surfaced tangle appeared in all %d runs\n", "stable", runs)
 		}
 	}
 	return nil
@@ -815,10 +815,10 @@ func prettyKey(key string) string {
 
 // runSuperpositionEval is the locality harness (the metamorphic test). For two
 // independent groups it checks the law f(A∪B)=f(A)∪f(B). The headline is the
-// CROSS-BOUNDARY FABRICATION: a knot linking A and B can never appear in a solo
+// CROSS-BOUNDARY FABRICATION: a tangle linking A and B can never appear in a solo
 // run, so it is provably invented — but WHETHER it appears varies run to run, so
 // a single joint run is misleading (one clean run looks like a pass). We run the
-// join K times. The PRIMARY signal is the mean cross-boundary knots PER RUN with
+// join K times. The PRIMARY signal is the mean cross-boundary tangles PER RUN with
 // a 95% CI (lower variance than a binary rate, so the same K buys a tighter
 // estimate); a coarser binary rate (% of runs with >=1) with a Wilson interval is
 // reported alongside. Both carry bands so an A/B is honest about whether two
@@ -864,7 +864,7 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 			fmt.Printf("    ⚠ group B detection failed (skipped): %v\n", err)
 			continue
 		}
-		fmt.Printf("    f(A)=%d knots · f(B)=%d knots (intra-group baseline, voted)\n", len(keysA), len(keysB))
+		fmt.Printf("    f(A)=%d tangles · f(B)=%d tangles (intra-group baseline, voted)\n", len(keysA), len(keysB))
 
 		fabFirm := map[string]bool{} // distinct ASSERTED cross-boundary links (the harm)
 		fabAll := map[string]bool{}  // distinct cross-boundary links incl. soft (asked)
@@ -879,7 +879,7 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 				continue
 			}
 			ok++
-			// Locality is computed over the pooled set (a soft cross-group knot still
+			// Locality is computed over the pooled set (a soft cross-group tangle still
 			// violates locality); the FIRM split below is what separates an asserted
 			// fabrication (stop-ship) from a merely asked one.
 			r := eval.ComputeSuperposition(keysA, keysB, allKeysAB, groupA, groupB)
@@ -902,20 +902,20 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 			continue
 		}
 
-		// FIRM is the primary, stop-ship signal: an ASSERTED cross-group knot links
+		// FIRM is the primary, stop-ship signal: an ASSERTED cross-group tangle links
 		// two people who were never in the same run, presented as a claim. Target 0.
 		stFirm := eval.ComputeSuperStats(perRunFirm)
 		stAll := eval.ComputeSuperStats(perRunAll)
-		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  — ASSERTED FABRICATION (stop-ship; target 0)\n",
+		fmt.Printf("    %-22s %.2f tangles/run  [95%% CI %.2f–%.2f]  — ASSERTED FABRICATION (stop-ship; target 0)\n",
 			"FIRM CROSS-BOUNDARY", stFirm.MeanPerRun, stFirm.MeanCILow, stFirm.MeanCIHigh)
-		fmt.Printf("    %-22s %.0f%% of %d runs asserted ≥1 A↔B knot  [95%% CI %.0f–%.0f%%]\n",
+		fmt.Printf("    %-22s %.0f%% of %d runs asserted ≥1 A↔B tangle  [95%% CI %.0f–%.0f%%]\n",
 			"  (firm rate)", stFirm.Rate*100, ok, stFirm.RateCILow*100, stFirm.RateCIHigh*100)
 		for _, k := range sortedKeys(fabFirm) {
 			fmt.Printf("      FIRM  %s\n", prettyKey(k))
 		}
 		// ALL (firm+soft) is the secondary signal: the total locality leakage,
-		// including knots only ASKED as questions (lower harm under "lighter agenda").
-		fmt.Printf("    %-22s %.2f knots/run  [95%% CI %.2f–%.2f]  (incl. soft / asked-not-asserted)\n",
+		// including tangles only ASKED as questions (lower harm under "lighter agenda").
+		fmt.Printf("    %-22s %.2f tangles/run  [95%% CI %.2f–%.2f]  (incl. soft / asked-not-asserted)\n",
 			"all cross-boundary", stAll.MeanPerRun, stAll.MeanCILow, stAll.MeanCIHigh)
 		for _, k := range sortedKeys(fabAll) {
 			if fabFirm[k] {
@@ -928,7 +928,7 @@ func runSuperpositionEval(ctx context.Context, det *ettlemesh.Detector, paths []
 		fmt.Printf("    %-22s %d dropped, %d spurious-intra across runs (flicker-confounded)\n",
 			"intra-group churn", dropped, spurious)
 		if orphan > 0 {
-			fmt.Printf("    %-22s %d knot(s) about a non-participant — roster/identity bug\n", "ORPHAN", orphan)
+			fmt.Printf("    %-22s %d tangle(s) about a non-participant — roster/identity bug\n", "ORPHAN", orphan)
 		}
 	}
 	return nil
@@ -947,22 +947,22 @@ func detectKeysVoted(ctx context.Context, det *ettlemesh.Detector, people []part
 	return eval.RunKeys(firm, soft), eval.RunKeys(firm, nil), nil
 }
 
-// detectKnots runs one detection cycle and returns every knot it surfaced
+// detectTangles runs one detection cycle and returns every tangle it surfaced
 // (firm+soft pooled), preserving confidence — the separability diagnostic needs
-// the per-knot confidence the stability-key set throws away.
-func detectKnots(ctx context.Context, det *ettlemesh.Detector, people []participant) ([]ettlemesh.Knot, error) {
+// the per-tangle confidence the stability-key set throws away.
+func detectTangles(ctx context.Context, det *ettlemesh.Detector, people []participant) ([]ettlemesh.Tangle, error) {
 	firm, soft, err := detectFor(ctx, det, people, 1)
 	if err != nil {
 		return nil, err
 	}
-	return append(append([]ettlemesh.Knot{}, firm...), soft...), nil
+	return append(append([]ettlemesh.Tangle{}, firm...), soft...), nil
 }
 
 // runSeparabilityEval is the fork-picking diagnostic. Over K single-shot joint
-// runs of a superposition corpus it contrasts FABRICATED (cross-group) knots
+// runs of a superposition corpus it contrasts FABRICATED (cross-group) tangles
 // against REAL (intra-group) ones on two signals — recurrence frequency (which
 // simulates majority voting offline, free) and model confidence. If the fabricated
-// knots are low-frequency and/or low-confidence relative to the real ones, the
+// tangles are low-frequency and/or low-confidence relative to the real ones, the
 // cheap fixes apply (voting we already have, or an abstention threshold); if the
 // distributions overlap, grounding must move upstream to distill time. One batch,
 // no extra calls beyond the K joint runs. Cost: K cycles.
@@ -988,9 +988,9 @@ func runSeparabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []s
 		fmt.Printf("\n  ══ %s ══ (A: %s · B: %s · %d joint runs)\n", c.Name,
 			strings.Join(sortedKeys(groupA), ","), strings.Join(sortedKeys(groupB), ","), runs)
 
-		var jointRuns [][]ettlemesh.Knot
+		var jointRuns [][]ettlemesh.Tangle
 		for i := 0; i < runs; i++ {
-			ks, err := detectKnots(ctx, det, joint)
+			ks, err := detectTangles(ctx, det, joint)
 			if err != nil {
 				fmt.Printf("    ⚠ joint run %d failed: %v\n", i+1, err)
 				continue
@@ -1031,14 +1031,14 @@ func runSeparabilityEval(ctx context.Context, det *ettlemesh.Detector, paths []s
 		curve := eval.ProjectVotingCurve(jointRuns, groupA, groupB, []int{1, 3, 5, 7, 9}, 4000, 1)
 		fmt.Printf("    projected cross-group fabrication per voted detection (offline from %d runs):\n", k)
 		for _, p := range curve {
-			fmt.Printf("      samples=%d (maj %d)   %.3f knots/detection  [95%% CI %.2f–%.2f]\n",
+			fmt.Printf("      samples=%d (maj %d)   %.3f tangles/detection  [95%% CI %.2f–%.2f]\n",
 				p.Samples, p.Majority, p.FabMean, p.FabCILow, p.FabCIHigh)
 		}
 	}
 	return nil
 }
 
-// votedNote flags whether a knot's recurrence clears a strict-majority vote — the
+// votedNote flags whether a tangle's recurrence clears a strict-majority vote — the
 // offline simulation of what ReconcileVoted(samples=K) would keep.
 func votedNote(seen, majority int) string {
 	if seen >= majority {
@@ -1047,7 +1047,7 @@ func votedNote(seen, majority int) string {
 	return "  ✗ voted out"
 }
 
-// nameSet is the lowercased participant-name set for a group (matches how KnotKey
+// nameSet is the lowercased participant-name set for a group (matches how TangleKey
 // folds party names, so membership tests line up).
 func nameSet(people []participant) map[string]bool {
 	set := map[string]bool{}
@@ -1182,10 +1182,10 @@ func printScore(label string, s eval.Score) {
 }
 
 // printCalibration prints the confidence-vs-accuracy bins and the ECE for one
-// corpus's knots. No extra model call — it reuses the knots already detected. On a
-// tiny corpus this is descriptive (few knots per bin), so it is labeled as such.
-func printCalibration(knots []ettlemesh.Knot, labels []eval.Label) {
-	bins, ece := eval.Calibration(knots, labels, 5)
+// corpus's tangles. No extra model call — it reuses the tangles already detected. On a
+// tiny corpus this is descriptive (few tangles per bin), so it is labeled as such.
+func printCalibration(tangles []ettlemesh.Tangle, labels []eval.Label) {
+	bins, ece := eval.Calibration(tangles, labels, 5)
 	populated := 0
 	for _, b := range bins {
 		if b.N > 0 {
@@ -1708,7 +1708,7 @@ func runCapture(args []string) error {
 // runMCP serves the coordination engine over an MCP stdio transport, so any MCP
 // client (Claude Code, Cursor) can drive it: each participant's own agent calls
 // ettle_emit with that person's notes, and ettle_horizon reconciles the team's
-// atoms into coordination knots. The differentiated surface is the knot, not the
+// atoms into coordination tangles. The differentiated surface is the tangle, not the
 // per-person summary; MCP (not a meeting bot) is the consent-clean shape — see
 // internal/mcpserver and docs/ADOPTION.md.
 func runMCP(args []string) error {

@@ -1,16 +1,16 @@
 // Package eval is ettle's calibration harness: it scores the detector against a
-// committed, synthetic, INSPECTABLE corpus of curated coordination knots.
+// committed, synthetic, INSPECTABLE corpus of curated coordination tangles.
 //
 // It exists so the precision claim is falsifiable: rather than a number whose
 // denominator lives in a gitignored sidecar resting on one private thread and a
 // single rater, the ground truth is committed (testdata/eval/*.json), so a
-// stranger can read exactly what counts as a real knot, run the detector, and
+// stranger can read exactly what counts as a real tangle, run the detector, and
 // see the precision/recall for themselves. It also runs an honest A/B: does
 // multi-sample voting actually reduce false positives, or only paraphrase
 // variance? — reported with a McNemar significance test so a non-significant
 // result (the likely one on a small corpus) is stated as such.
 //
-// The matcher: a detected knot matches a curated label when they share a party
+// The matcher: a detected tangle matches a curated label when they share a party
 // AND either a multi-word keyword phrase appears verbatim or at least
 // minTokenHits curated keyword tokens appear in the detected text (an overlap
 // COUNT, not a Jaccard ratio — see ScoreMatch for why dividing by a verbose
@@ -18,7 +18,7 @@
 //
 // The corpus also carries plausible-but-wrong distractors (Real=false) —
 // single-person open questions a miscalibrated detector might wrongly assert as
-// cross-person knots. A FIRM knot matching a distractor is reported as a named
+// cross-person tangles. A FIRM tangle matching a distractor is reported as a named
 // trap the detector fell for, more diagnostic than a bare false-positive count.
 // The A/B's McNemar test is pooled across corpora, because per-corpus the
 // discordant N is always too small to reach significance.
@@ -33,9 +33,9 @@ import (
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 )
 
-// Label is a curated expected knot — the inspectable ground truth. Real=true
-// means a genuine coordination knot the scenario contains; Real=false marks a
-// plausible-but-wrong knot the detector should NOT assert (a planted distractor).
+// Label is a curated expected tangle — the inspectable ground truth. Real=true
+// means a genuine coordination tangle the scenario contains; Real=false marks a
+// plausible-but-wrong tangle the detector should NOT assert (a planted distractor).
 type Label struct {
 	ID       string   `json:"id"`
 	Parties  []string `json:"parties"`
@@ -45,11 +45,11 @@ type Label struct {
 }
 
 // Corpus is one synthetic scenario: participant inputs (note or .jsonl session
-// paths, relative to the repo root) plus the curated expected knots.
+// paths, relative to the repo root) plus the curated expected tangles.
 type Corpus struct {
 	Name     string   `json:"name"`
 	Inputs   []string `json:"inputs"`
-	Expected []Label  `json:"expected_knots"`
+	Expected []Label  `json:"expected_tangles"`
 }
 
 // LoadCorpus reads a corpus JSON file.
@@ -64,14 +64,14 @@ func LoadCorpus(path string) (Corpus, error) {
 
 // Score is the adjudication result for one detection run against a corpus.
 type Score struct {
-	RecallHits  int             // real labels recovered by a FIRM knot
+	RecallHits  int             // real labels recovered by a FIRM tangle
 	RecallTotal int             // real labels in the corpus
-	TP          int             // FIRM knots matching some real label
-	FP          int             // FIRM knots matching no real label (false positives)
-	WouldAsk    int             // soft knots (questions, not asserted — not scored against precision)
-	Missed      []string        // real label IDs no FIRM knot recovered
-	Recovered   map[string]bool // real label ID → recovered by a FIRM knot (for the paired A/B)
-	TrapHits    []string        // distractor (Real=false) IDs a FIRM knot wrongly asserted — a named trap fallen for
+	TP          int             // FIRM tangles matching some real label
+	FP          int             // FIRM tangles matching no real label (false positives)
+	WouldAsk    int             // soft tangles (questions, not asserted — not scored against precision)
+	Missed      []string        // real label IDs no FIRM tangle recovered
+	Recovered   map[string]bool // real label ID → recovered by a FIRM tangle (for the paired A/B)
+	TrapHits    []string        // distractor (Real=false) IDs a FIRM tangle wrongly asserted — a named trap fallen for
 }
 
 func (s Score) Precision() float64 {
@@ -88,23 +88,23 @@ func (s Score) Recall() float64 {
 	return float64(s.RecallHits) / float64(s.RecallTotal)
 }
 
-// Adjudicate scores FIRM knots for precision and recall against the labels; soft
-// knots are tracked separately as "would-ask" (they're questions, not assertions,
+// Adjudicate scores FIRM tangles for precision and recall against the labels; soft
+// tangles are tracked separately as "would-ask" (they're questions, not assertions,
 // so they don't count against precision).
-func Adjudicate(firm, soft []ettlemesh.Knot, labels []Label) Score {
+func Adjudicate(firm, soft []ettlemesh.Tangle, labels []Label) Score {
 	var s Score
 	s.WouldAsk = len(soft)
 	s.Recovered = map[string]bool{}
 
-	// Recall = coverage: did the detector surface the real knot AT ALL, firm or
-	// soft? A soft knot is surfaced as a question, so it still counts as the team
+	// Recall = coverage: did the detector surface the real tangle AT ALL, firm or
+	// soft? A soft tangle is surfaced as a question, so it still counts as the team
 	// being made aware. (Precision, below, is the stricter FIRM-only assertion
-	// quality.) Greedy match each real label to a not-yet-used knot. NOTE: this is
+	// quality.) Greedy match each real label to a not-yet-used tangle. NOTE: this is
 	// a greedy first-best assignment, not an optimal bipartite matching — a label
-	// can grab a knot a later label would have scored higher on, so the reported
+	// can grab a tangle a later label would have scored higher on, so the reported
 	// recall is a conservative LOWER BOUND on the best achievable matching, never
 	// an over-count.
-	all := append(append([]ettlemesh.Knot{}, firm...), soft...)
+	all := append(append([]ettlemesh.Tangle{}, firm...), soft...)
 	used := make([]bool, len(all))
 	for _, l := range labels {
 		if !l.Real {
@@ -129,11 +129,11 @@ func Adjudicate(firm, soft []ettlemesh.Knot, labels []Label) Score {
 		}
 	}
 
-	// Precision: a FIRM knot is a true positive if it matches ANY real label,
+	// Precision: a FIRM tangle is a true positive if it matches ANY real label,
 	// else a false positive. A false positive that matches a planted distractor
 	// (Real=false) is recorded as a named trap the detector fell for — more
 	// diagnostic than a bare FP count, and the reason the corpus carries
-	// plausible-but-wrong knots at all.
+	// plausible-but-wrong tangles at all.
 	for _, k := range firm {
 		tp := false
 		for _, l := range labels {
@@ -163,15 +163,15 @@ func Adjudicate(firm, soft []ettlemesh.Knot, labels []Label) Score {
 	return s
 }
 
-// ScoreMatch scores how well a detected knot corresponds to a label. A match
+// ScoreMatch scores how well a detected tangle corresponds to a label. A match
 // requires sharing at least one party AND either a multi-word keyword phrase
 // present verbatim, or at least minTokenHits of the label's curated keyword
 // tokens appearing in the detected text. Uses an OVERLAP COUNT, not a Jaccard
-// ratio: a knot's explanation is a full sentence, and dividing by its token
+// ratio: a tangle's explanation is a full sentence, and dividing by its token
 // count (Jaccard) wrongly drives a good match below threshold just because the
 // explanation is verbose. Counting how many curated discriminators actually show
 // up is robust to that (a Jaccard ratio over the shorter labels would not be).
-func ScoreMatch(l Label, k ettlemesh.Knot) (float64, bool) {
+func ScoreMatch(l Label, k ettlemesh.Tangle) (float64, bool) {
 	if !sharesParty(l.Parties, k.Parties) {
 		return 0, false
 	}
@@ -182,10 +182,10 @@ func ScoreMatch(l Label, k ettlemesh.Knot) (float64, bool) {
 		}
 	}
 	label := tokens(l.About + " " + strings.Join(l.Keywords, " "))
-	knot := tokens(hay)
+	tangle := tokens(hay)
 	hits := 0
 	for t := range label {
-		if knot[t] {
+		if tangle[t] {
 			hits++
 		}
 	}
@@ -219,7 +219,7 @@ func McNemarTwoTailed(b, c int) float64 {
 	return math.Erfc(math.Sqrt(stat) / math.Sqrt2)
 }
 
-// CalibBin is one confidence bucket of the ECE readout: how many knots fell in
+// CalibBin is one confidence bucket of the ECE readout: how many tangles fell in
 // it, their mean stated confidence, and the fraction that actually matched a real
 // label. A well-calibrated detector has MeanConf ≈ Accuracy in every populated
 // bin (when it says 0.8 it is right ~80% of the time).
@@ -230,14 +230,14 @@ type CalibBin struct {
 	Accuracy float64
 }
 
-// Calibration bins ALL knots (firm ∪ soft) by stated confidence and returns the
+// Calibration bins ALL tangles (firm ∪ soft) by stated confidence and returns the
 // per-bin mean-confidence-vs-accuracy gap, plus the Expected Calibration Error
-// (the count-weighted mean |conf − accuracy| across populated bins). A knot is
+// (the count-weighted mean |conf − accuracy| across populated bins). A tangle is
 // "correct" when it matches some real label via ScoreMatch. ECE near 0 means the
 // confidence numbers mean what they say; a large gap means the detector's
 // confidence is decorative. On this tiny corpus the number is DESCRIPTIVE, not
 // significant — same honesty caveat as the McNemar test. nbins ≤ 0 defaults to 5.
-func Calibration(knots []ettlemesh.Knot, labels []Label, nbins int) ([]CalibBin, float64) {
+func Calibration(tangles []ettlemesh.Tangle, labels []Label, nbins int) ([]CalibBin, float64) {
 	if nbins <= 0 {
 		nbins = 5
 	}
@@ -247,7 +247,7 @@ func Calibration(knots []ettlemesh.Knot, labels []Label, nbins int) ([]CalibBin,
 		correct int
 	}
 	buckets := make([]acc, nbins)
-	for _, k := range knots {
+	for _, k := range tangles {
 		c := k.Confidence
 		if c < 0 {
 			c = 0
@@ -266,7 +266,7 @@ func Calibration(knots []ettlemesh.Knot, labels []Label, nbins int) ([]CalibBin,
 	}
 	bins := make([]CalibBin, 0, nbins)
 	var ece float64
-	total := len(knots)
+	total := len(tangles)
 	for i := 0; i < nbins; i++ {
 		b := buckets[i]
 		bin := CalibBin{Lo: float64(i) / float64(nbins), Hi: float64(i+1) / float64(nbins), N: b.n}
@@ -282,8 +282,8 @@ func Calibration(knots []ettlemesh.Knot, labels []Label, nbins int) ([]CalibBin,
 	return bins, ece
 }
 
-// matchesAnyReal reports whether a knot matches at least one Real=true label.
-func matchesAnyReal(k ettlemesh.Knot, labels []Label) bool {
+// matchesAnyReal reports whether a tangle matches at least one Real=true label.
+func matchesAnyReal(k ettlemesh.Tangle, labels []Label) bool {
 	for _, l := range labels {
 		if !l.Real {
 			continue

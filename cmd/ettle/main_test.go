@@ -100,29 +100,29 @@ func TestSurfaceInferredAboutMe(t *testing.T) {
 	}
 }
 
-// Act/ask routing (docs/LEGIBILITY.md stage 0c): a cross-person knot is posed as a
-// QUESTION (the detector can't certify it); a self knot — own drift — is asserted.
+// Act/ask routing (docs/LEGIBILITY.md stage 0c): a cross-person tangle is posed as a
+// QUESTION (the detector can't certify it); a self tangle — own drift — is asserted.
 func TestSurfaceActAskRouting(t *testing.T) {
 	ctx := context.Background()
-	cross := ettlemesh.Knot{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "may clash", Confidence: 0.6, Votes: 5, Samples: 5}
-	self := ettlemesh.Knot{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"mabel"}, About: "deadline assumption", Explanation: "you assumed Friday", Confidence: 0.6, Votes: 5, Samples: 5}
+	cross := ettlemesh.Tangle{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "may clash", Confidence: 0.6, Votes: 5, Samples: 5}
+	self := ettlemesh.Tangle{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"mabel"}, About: "deadline assumption", Explanation: "you assumed Friday", Confidence: 0.6, Votes: 5, Samples: 5}
 
-	// Cross-person knot → interrogative register, never asserted as "[collision]".
-	out := captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{cross}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
+	// Cross-person tangle → interrogative register, never asserted as "[collision]".
+	out := captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Tangle{cross}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "worth checking together") || !strings.Contains(out, "? [possible collision]") {
-		t.Fatalf("a cross-person knot must be posed as a question:\n%s", out)
+		t.Fatalf("a cross-person tangle must be posed as a question:\n%s", out)
 	}
 	if strings.Contains(out, "• [collision]") {
-		t.Fatalf("a cross-person knot must NOT be asserted as a bare claim:\n%s", out)
+		t.Fatalf("a cross-person tangle must NOT be asserted as a bare claim:\n%s", out)
 	}
 	if !strings.Contains(out, "Real, or already handled?") {
 		t.Fatalf("the question framing must invite confirm/dismiss:\n%s", out)
 	}
 
-	// Self knot (own drift) → asserted in the act lane.
-	out = captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Knot{self}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
+	// Self tangle (own drift) → asserted in the act lane.
+	out = captureStdout(t, func() { surface(ctx, "mabel", []ettlemesh.Tangle{self}, nil, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "your own assumptions") || !strings.Contains(out, "• [stale-assumption]") {
-		t.Fatalf("a self knot (own drift) must be asserted, not questioned:\n%s", out)
+		t.Fatalf("a self tangle (own drift) must be asserted, not questioned:\n%s", out)
 	}
 }
 
@@ -130,14 +130,14 @@ func TestSurfaceActAskRouting(t *testing.T) {
 // be SHOWN — off the agenda, filtered to me — never silently dropped.
 func TestSurfaceHeldBack(t *testing.T) {
 	ctx := context.Background()
-	mine := []ettlemesh.Knot{{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "producer/consumer, not a clash", Confidence: 0.5}}
+	mine := []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"mabel", "opal"}, About: "metrics API shape", Explanation: "producer/consumer, not a clash", Confidence: 0.5}}
 
 	out := captureStdout(t, func() { surface(ctx, "mabel", nil, mine, 0, nil, nil, nil, 0, crux.Inline{}) })
 	if !strings.Contains(out, "held back") {
-		t.Fatalf("a suppressed knot must surface a held-back section:\n%s", out)
+		t.Fatalf("a suppressed tangle must surface a held-back section:\n%s", out)
 	}
 	if !strings.Contains(out, "metrics API shape") {
-		t.Fatalf("held-back section must list the suppressed knot:\n%s", out)
+		t.Fatalf("held-back section must list the suppressed tangle:\n%s", out)
 	}
 
 	// Absent when nothing was held back.
@@ -146,7 +146,7 @@ func TestSurfaceHeldBack(t *testing.T) {
 	}
 
 	// Filtered to me: a suppression about other people must not appear in my horizon.
-	notMine := []ettlemesh.Knot{{Kind: ettlemesh.KindCollision, Parties: []string{"nash", "reed"}, About: "not mine"}}
+	notMine := []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"nash", "reed"}, About: "not mine"}}
 	if out := captureStdout(t, func() { surface(ctx, "mabel", nil, notMine, 0, nil, nil, nil, 0, crux.Inline{}) }); strings.Contains(out, "held back") {
 		t.Fatalf("held-back must be filtered to me:\n%s", out)
 	}
@@ -204,7 +204,7 @@ func TestHasParticipant(t *testing.T) {
 }
 
 func TestPartyOf(t *testing.T) {
-	k := ettlemesh.Knot{Parties: []string{"alice", " bob "}}
+	k := ettlemesh.Tangle{Parties: []string{"alice", " bob "}}
 	if !partyOf(k, "Bob") {
 		t.Error("partyOf should trim + case-fold")
 	}

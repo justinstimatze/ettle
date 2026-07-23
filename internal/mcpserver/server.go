@@ -1,13 +1,13 @@
 // Package mcpserver exposes ettle's coordination engine over the Model Context
 // Protocol. Each participant's OWN agent emits that person's notes; the server
 // distills them through the privacy boundary into typed atoms, reconciles the
-// team's atoms into coordination knots, and surfaces them per-person.
+// team's atoms into coordination tangles, and surfaces them per-person.
 //
 // Why MCP and not a Slack/meeting bot: docs/ADOPTION.md disqualifies the
 // viral-harvest pattern (a bot enrolls a participant list nobody consented to).
 // An MCP tool is invoked by a participant's own agent — no non-participant is
 // ever modeled, contacted, or harvested. The tool surface IS the consent
-// boundary. The differentiated thing it leads with is the KNOT (cross-person
+// boundary. The differentiated thing it leads with is the TANGLE (cross-person
 // reconciliation), not the per-person standup summary that shipped products
 // already do.
 //
@@ -40,9 +40,9 @@ import (
 // but it can supply its own fake reconciler.
 type reconciler interface {
 	Distill(ctx context.Context, from, role, text string, private []string) ([]ettlemesh.Atom, error)
-	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) (knots []ettlemesh.Knot, floorDropped int, err error)
-	ReconcileSelf(ctx context.Context, atoms []ettlemesh.Atom) ([]ettlemesh.Knot, error)
-	GroundKnots(ctx context.Context, knots []ettlemesh.Knot, atoms []ettlemesh.Atom) (kept, suppressed []ettlemesh.Knot, err error)
+	ReconcileVoted(ctx context.Context, atoms []ettlemesh.Atom, samples int) (tangles []ettlemesh.Tangle, floorDropped int, err error)
+	ReconcileSelf(ctx context.Context, atoms []ettlemesh.Atom) ([]ettlemesh.Tangle, error)
+	GroundTangles(ctx context.Context, tangles []ettlemesh.Tangle, atoms []ettlemesh.Atom) (kept, suppressed []ettlemesh.Tangle, err error)
 }
 
 // defaultSamples matches the CLI default (voting on); 1 disables voting.
@@ -85,35 +85,35 @@ type server struct {
 	h      *horizon
 	labels labelSink // where ettle_respond writes verdicts; nil disables the tool
 
-	// lastSurfaced remembers the features of the knots shown by the most recent
-	// horizon() call, keyed by knotKey, so a later ettle_respond can join a verdict
-	// to the knot's recurrence/tier (label enrichment). Last horizon wins; guarded
+	// lastSurfaced remembers the features of the tangles shown by the most recent
+	// horizon() call, keyed by tangleKey, so a later ettle_respond can join a verdict
+	// to the tangle's recurrence/tier (label enrichment). Last horizon wins; guarded
 	// by mu because horizon and respond can be called concurrently.
 	mu           sync.Mutex
-	lastSurfaced map[string]knotFeat
+	lastSurfaced map[string]tangleFeat
 }
 
-// knotFeat is the calibration-relevant slice of a surfaced knot: its kind, the
+// tangleFeat is the calibration-relevant slice of a surfaced tangle: its kind, the
 // recurrence (Votes of Samples) from voting, and whether it was shown firm or soft.
-type knotFeat struct {
+type tangleFeat struct {
 	Kind    string
 	Votes   int
 	Samples int
 	Firm    bool
 }
 
-// rememberSurfaced records one horizon call's surfaced-knot features, replacing the
-// previous set (only knots actually shown are labelable, so this mirrors exactly
+// rememberSurfaced records one horizon call's surfaced-tangle features, replacing the
+// previous set (only tangles actually shown are labelable, so this mirrors exactly
 // what crossed to the agent).
-func (s *server) rememberSurfaced(feats map[string]knotFeat) {
+func (s *server) rememberSurfaced(feats map[string]tangleFeat) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastSurfaced = feats
 }
 
-// surfacedFeat returns the remembered features for a knot key from the most recent
+// surfacedFeat returns the remembered features for a tangle key from the most recent
 // horizon, if it was shown there.
-func (s *server) surfacedFeat(key string) (knotFeat, bool) {
+func (s *server) surfacedFeat(key string) (tangleFeat, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	f, ok := s.lastSurfaced[key]
@@ -141,7 +141,7 @@ func atomViews(atoms []ettlemesh.Atom) []atomView {
 	return out
 }
 
-type knotView struct {
+type tangleView struct {
 	Kind        string   `json:"kind"`
 	Parties     []string `json:"parties"`
 	About       string   `json:"about"`
@@ -149,31 +149,31 @@ type knotView struct {
 	Confidence  float64  `json:"confidence"`
 	Votes       int      `json:"votes,omitempty"`
 	Samples     int      `json:"samples,omitempty"`
-	// Question marks a cross-person knot the agent must present as a QUESTION to its
+	// Question marks a cross-person tangle the agent must present as a QUESTION to its
 	// human, not an assertion — the detector cannot certify a cross-person conflict
-	// (docs/LEGIBILITY.md stage 0c). Self knots (own drift) are assertable and omit it.
+	// (docs/LEGIBILITY.md stage 0c). Self tangles (own drift) are assertable and omit it.
 	Question bool `json:"question,omitempty"`
 	// Key identifies the coordination problem (kind + sorted parties, wording-
 	// independent) so a human can answer it via ettle_respond — the label-capture
-	// channel (stage 0c-2). Same key across horizon calls = the same knot recurring.
+	// channel (stage 0c-2). Same key across horizon calls = the same tangle recurring.
 	Key string `json:"key"`
 }
 
-func toKnotView(k ettlemesh.Knot) knotView {
-	return knotView{
+func toTangleView(k ettlemesh.Tangle) tangleView {
+	return tangleView{
 		Kind: k.Kind, Parties: k.Parties, About: k.About,
 		Explanation: k.Explanation, Confidence: k.Confidence,
 		Votes: k.Votes, Samples: k.Samples,
 		Question: ettlemesh.MultiPerson(k.Parties),
-		Key:      knotKey(k.Kind, k.Parties),
+		Key:      tangleKey(k.Kind, k.Parties),
 	}
 }
 
-// knotKey is the wording-independent identity of a coordination problem: kind + its
+// tangleKey is the wording-independent identity of a coordination problem: kind + its
 // distinct parties (lowercased, trimmed, sorted), joined cleanly for use as a tool
-// argument. Mirrors eval.KnotKey's semantics but with a readable separator (no NUL),
+// argument. Mirrors eval.TangleKey's semantics but with a readable separator (no NUL),
 // since this key is passed back through ettle_respond by an agent.
-func knotKey(kind string, parties []string) string {
+func tangleKey(kind string, parties []string) string {
 	ps := make([]string, 0, len(parties))
 	seen := map[string]bool{}
 	for _, p := range parties {
@@ -199,7 +199,7 @@ func partiesInclude(parties []string, me string) bool {
 
 // text wraps a human-readable summary as tool content. The SDK additionally
 // marshals the typed Out struct into StructuredContent, so an agent gets the
-// structured knots while a human-facing client sees the summary line.
+// structured tangles while a human-facing client sees the summary line.
 func text(s string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}
 }
@@ -286,18 +286,18 @@ func (s *server) emit(ctx context.Context, _ *mcp.CallToolRequest, in emitIn) (*
 // --- ettle_horizon ---
 
 type horizonIn struct {
-	Me      string `json:"me,omitempty" jsonschema:"surface only knots involving this participant (their agent's view); empty = the whole team's horizon"`
-	Samples int    `json:"samples,omitempty" jsonschema:"independent reconcile samples to vote across; recurrence ranks knots firm vs soft. Default 5; 1 disables voting"`
+	Me      string `json:"me,omitempty" jsonschema:"surface only tangles involving this participant (their agent's view); empty = the whole team's horizon"`
+	Samples int    `json:"samples,omitempty" jsonschema:"independent reconcile samples to vote across; recurrence ranks tangles firm vs soft. Default 5; 1 disables voting"`
 }
 
 type horizonOut struct {
-	Participants []string   `json:"participants"`
-	Firm         []knotView `json:"firm"`
-	Soft         []knotView `json:"soft"`
-	// HeldBack: knots the coupling check judged not-a-real-conflict, surfaced off the
+	Participants []string     `json:"participants"`
+	Firm         []tangleView `json:"firm"`
+	Soft         []tangleView `json:"soft"`
+	// HeldBack: tangles the coupling check judged not-a-real-conflict, surfaced off the
 	// agenda so the lead surface can show what was suppressed (legible abstention;
 	// docs/LEGIBILITY.md). Omitted when empty.
-	HeldBack []knotView `json:"held_back,omitempty"`
+	HeldBack []tangleView `json:"held_back,omitempty"`
 	// FloorHeld: how many low-recurrence candidates the abstention floor dropped —
 	// a count, not a list (they're noise by design), so a clear horizon stays honest.
 	FloorHeld int `json:"floor_held,omitempty"`
@@ -311,7 +311,7 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	}
 	sort.Strings(parts)
 
-	out := horizonOut{Participants: parts, Firm: []knotView{}, Soft: []knotView{}}
+	out := horizonOut{Participants: parts, Firm: []tangleView{}, Soft: []tangleView{}}
 
 	atoms := transport.Atoms(envs)
 	if len(atoms) == 0 {
@@ -323,29 +323,29 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if samples == 0 {
 		samples = defaultSamples
 	}
-	knots, floorHeld, err := s.det.ReconcileVoted(ctx, atoms, samples)
+	tangles, floorHeld, err := s.det.ReconcileVoted(ctx, atoms, samples)
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
-	// Cross-person coupling check: drop collision/duplication/teamwide knots that
+	// Cross-person coupling check: drop collision/duplication/teamwide tangles that
 	// bridge people on a shared topic word across independent scopes (no-op if the
 	// detector has Ground off). suppressed = what it held back, surfaced off the
 	// agenda so the lead surface stays honest (legible abstention; docs/LEGIBILITY.md).
-	knots, suppressed, err := s.det.GroundKnots(ctx, knots, atoms)
+	tangles, suppressed, err := s.det.GroundTangles(ctx, tangles, atoms)
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
 	// Remember exactly what we surface (firm AND soft are both shown, so both are
-	// labelable) so a later ettle_respond can join its verdict to the knot's
-	// recurrence. The coupling-suppressed and floor-dropped knots are not surfaced,
+	// labelable) so a later ettle_respond can join its verdict to the tangle's
+	// recurrence. The coupling-suppressed and floor-dropped tangles are not surfaced,
 	// so they are correctly absent here.
-	feats := map[string]knotFeat{}
-	for _, k := range knots {
+	feats := map[string]tangleFeat{}
+	for _, k := range tangles {
 		if in.Me != "" && !partiesInclude(k.Parties, in.Me) {
-			continue // agent surfaces only its own human's knots, not a shared feed
+			continue // agent surfaces only its own human's tangles, not a shared feed
 		}
-		v := toKnotView(k)
-		feats[v.Key] = knotFeat{Kind: k.Kind, Votes: k.Votes, Samples: k.Samples, Firm: k.Firm()}
+		v := toTangleView(k)
+		feats[v.Key] = tangleFeat{Kind: k.Kind, Votes: k.Votes, Samples: k.Samples, Firm: k.Firm()}
 		if k.Firm() {
 			out.Firm = append(out.Firm, v)
 		} else {
@@ -357,14 +357,14 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 		if in.Me != "" && !partiesInclude(k.Parties, in.Me) {
 			continue
 		}
-		out.HeldBack = append(out.HeldBack, toKnotView(k))
+		out.HeldBack = append(out.HeldBack, toTangleView(k))
 	}
 	out.FloorHeld = floorHeld
 	scope := "team"
 	if in.Me != "" {
 		scope = in.Me
 	}
-	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft knot(s) across %d participant(s)%s.",
+	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft tangle(s) across %d participant(s)%s.",
 		scope, len(out.Firm), len(out.Soft), len(parts), heldBackNote(len(out.HeldBack), floorHeld))), out, nil
 }
 
@@ -393,9 +393,9 @@ type selfIn struct {
 }
 
 type selfOut struct {
-	Participant string     `json:"participant"`
-	Atoms       []atomView `json:"atoms"`
-	Knots       []knotView `json:"knots"`
+	Participant string       `json:"participant"`
+	Atoms       []atomView   `json:"atoms"`
+	Tangles     []tangleView `json:"tangles"`
 }
 
 // selfCheck is the N=1 on-ramp: distill one person's notes and run the self pass
@@ -412,33 +412,33 @@ func (s *server) selfCheck(ctx context.Context, _ *mcp.CallToolRequest, in selfI
 	if err != nil {
 		return nil, selfOut{}, err
 	}
-	knots, err := s.det.ReconcileSelf(ctx, atoms)
+	tangles, err := s.det.ReconcileSelf(ctx, atoms)
 	if err != nil {
 		return nil, selfOut{}, err
 	}
-	out := selfOut{Participant: in.Participant, Atoms: atomViews(atoms), Knots: []knotView{}}
-	for _, k := range knots {
-		out.Knots = append(out.Knots, toKnotView(k))
+	out := selfOut{Participant: in.Participant, Atoms: atomViews(atoms), Tangles: []tangleView{}}
+	for _, k := range tangles {
+		out.Tangles = append(out.Tangles, toTangleView(k))
 	}
-	return text(fmt.Sprintf("%s: %d atom(s), %d self-knot(s).", in.Participant, len(atoms), len(out.Knots))), out, nil
+	return text(fmt.Sprintf("%s: %d atom(s), %d self-tangle(s).", in.Participant, len(atoms), len(out.Tangles))), out, nil
 }
 
 // --- ettle_respond (stage 0c-2: capture the human verdict as the calibration label) ---
 
-// Label is one human verdict on a surfaced cross-person knot — the ground-truth
+// Label is one human verdict on a surfaced cross-person tangle — the ground-truth
 // signal stage 2's calibration loop will consume (docs/LEGIBILITY.md). It is captured
 // now, before that loop exists, so the labeled data accrues from day one: a detector
 // flag-rate is only calibratable against confirmations from people who saw the work.
 type Label struct {
-	Key     string `json:"key"`     // knotKey: the coordination problem answered
+	Key     string `json:"key"`     // tangleKey: the coordination problem answered
 	Verdict string `json:"verdict"` // real | not_real | handled
-	By      string `json:"by"`      // the responder (their own knot)
+	By      string `json:"by"`      // the responder (their own tangle)
 	Note    string `json:"note,omitempty"`
 	TS      string `json:"ts"` // RFC3339, UTC
-	// Kind/Votes/Samples/Firm are the surfaced knot's features at capture time — the
+	// Kind/Votes/Samples/Firm are the surfaced tangle's features at capture time — the
 	// recurrence signal (Votes of Samples) a future per-kind calibration loop would
 	// threshold on, plus the kind and the firm/soft tier it was shown as. Populated
-	// when ettle_respond runs against the server that surfaced the knot (the common,
+	// when ettle_respond runs against the server that surfaced the tangle (the common,
 	// same-session path); a cross-session verdict carries Kind only (recovered from
 	// the key) with zero recurrence. The loop itself is deliberately unbuilt — this
 	// only stops the feature being discarded so the data is learnable if it accrues.
@@ -449,7 +449,7 @@ type Label struct {
 	Firm    bool   `json:"firm,omitempty"`
 }
 
-// kindFromKey recovers the knot Kind from a knotKey ("kind|parties"). The Kind is
+// kindFromKey recovers the tangle Kind from a tangleKey ("kind|parties"). The Kind is
 // always present even when the surfaced-horizon join misses (a verdict from a
 // different session, or after a restart), so a label still carries its kind — just
 // without the recurrence that only the surfacing server held.
@@ -492,10 +492,23 @@ func (f *fileLabelSink) record(l Label) error {
 }
 
 type respondIn struct {
-	Me      string `json:"me" jsonschema:"the person responding — answer only your OWN knots"`
-	Knot    string `json:"knot" jsonschema:"the knot's key field from ettle_horizon"`
+	Me      string `json:"me" jsonschema:"the person responding — answer only your OWN tangles"`
+	Tangle  string `json:"tangle" jsonschema:"the tangle's key field from ettle_horizon"`
 	Verdict string `json:"verdict" jsonschema:"one of: real | not_real | handled"`
 	Note    string `json:"note,omitempty" jsonschema:"optional free-text context"`
+	// Knot is the pre-rename name of Tangle, accepted so an agent holding a
+	// horizon from before the rename can still answer it. Deprecated; Tangle wins
+	// when both are set.
+	Knot string `json:"knot,omitempty" jsonschema:"deprecated alias for tangle"`
+}
+
+// key returns the tangle key the caller meant, preferring the current field and
+// falling back to the deprecated one.
+func (r respondIn) key() string {
+	if k := strings.TrimSpace(r.Tangle); k != "" {
+		return k
+	}
+	return strings.TrimSpace(r.Knot)
 }
 
 type respondOut struct {
@@ -504,7 +517,7 @@ type respondOut struct {
 	Verdict  string `json:"verdict"`
 }
 
-// respond records a human's verdict on a cross-person knot. It does NOT mutate the
+// respond records a human's verdict on a cross-person tangle. It does NOT mutate the
 // horizon or bind anything — it only captures the label (humans stay the deciders;
 // the loop that consumes these is stage 2, deliberately unbuilt).
 func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respondIn) (*mcp.CallToolResult, respondOut, error) {
@@ -512,9 +525,9 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 		return nil, respondOut{}, fmt.Errorf("label capture is not configured on this server")
 	}
 	me := strings.TrimSpace(in.Me)
-	key := strings.TrimSpace(in.Knot)
+	key := in.key()
 	if me == "" || key == "" {
-		return nil, respondOut{}, fmt.Errorf("both `me` and `knot` (the key from ettle_horizon) are required")
+		return nil, respondOut{}, fmt.Errorf("both `me` and `tangle` (the key from ettle_horizon) are required")
 	}
 	v := strings.ToLower(strings.TrimSpace(in.Verdict))
 	switch v {
@@ -523,7 +536,7 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 		return nil, respondOut{}, fmt.Errorf("verdict must be one of real | not_real | handled, got %q", in.Verdict)
 	}
 	lbl := Label{Key: key, Verdict: v, By: me, Note: in.Note, TS: time.Now().UTC().Format(time.RFC3339)}
-	// Enrich with the surfaced knot's features so the verdict is learnable. Same
+	// Enrich with the surfaced tangle's features so the verdict is learnable. Same
 	// session (the common path: an agent answers the horizon it just read) → full
 	// recurrence; otherwise recover the kind from the key and leave recurrence zero
 	// rather than fabricate it.
@@ -564,7 +577,7 @@ func newMCPServer(s *server, version string) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_horizon",
-		Description: "Reconcile the team's emitted atoms into coordination knots — collisions, duplicated work, stale assumptions, decision-rights gaps — split into firm (worth a look) and soft (worth a question). Pass `me` to see only the knots involving your own human.",
+		Description: "Reconcile the team's emitted atoms into coordination tangles — collisions, duplicated work, stale assumptions, decision-rights gaps — split into firm (worth a look) and soft (worth a question). Pass `me` to see only the tangles involving your own human.",
 	}, s.horizon)
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -574,7 +587,7 @@ func newMCPServer(s *server, version string) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_respond",
-		Description: "Record YOUR human's verdict on a cross-person knot from ettle_horizon (one marked question:true) — real, not_real, or handled. This is the ground-truth signal the system will calibrate against; answer only your own knots, and pass the knot's `key`. It records the label only — it does not bind or decide anything.",
+		Description: "Record YOUR human's verdict on a cross-person tangle from ettle_horizon (one marked question:true) — real, not_real, or handled. This is the ground-truth signal the system will calibrate against; answer only your own tangles, and pass the tangle's `key`. It records the label only — it does not bind or decide anything.",
 	}, s.respond)
 
 	return srv

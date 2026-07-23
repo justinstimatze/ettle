@@ -30,7 +30,7 @@ services:
       # GEMOT_REQUIRE_AUTH=1 (then ettle needs a real bearer token, not --insecure-local).
       # Required for gemot's crux analysis. Export it before `up`; if unset,
       # gemot still boots (demo mode) and ettle just reports the resolver as
-      # unavailable on contested knots. (Default-empty so `down`/`ps` don't demand it.)
+      # unavailable on contested tangles. (Default-empty so `down`/`ps` don't demand it.)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "127.0.0.1:8088:8080"

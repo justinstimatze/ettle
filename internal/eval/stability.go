@@ -11,9 +11,9 @@ import (
 // tool people check every morning cannot surface a DIFFERENT horizon each run
 // from identical input — that flicker is itself a trust failure, independent of
 // whether any single run is correct. So we run the same corpus K times and ask:
-// how much does the set of surfaced knots agree across runs?
+// how much does the set of surfaced tangles agree across runs?
 //
-// The unit of identity is the COORDINATION PROBLEM, not its wording. KnotKey is
+// The unit of identity is the COORDINATION PROBLEM, not its wording. TangleKey is
 // (kind, sorted parties) — deliberately NOT the About/Explanation text, because
 // the distiller rewords prose run-to-run (the known subject-reword limit), and
 // scoring stability on wording would conflate "the model phrased it differently"
@@ -24,10 +24,10 @@ import (
 // ever OVERSTATE agreement. A reported Jaccard is therefore a conservative upper
 // bound on stability — the true reproducibility is at least that bad, never better.
 
-// KnotKey is the stability identity of a knot: its kind plus its party set,
-// order-independent and case-folded. Two knots with the same key are "the same
+// TangleKey is the stability identity of a tangle: its kind plus its party set,
+// order-independent and case-folded. Two tangles with the same key are "the same
 // coordination problem surfaced again," regardless of how either was worded.
-func KnotKey(k ettlemesh.Knot) string {
+func TangleKey(k ettlemesh.Tangle) string {
 	parties := make([]string, len(k.Parties))
 	for i, p := range k.Parties {
 		parties[i] = strings.ToLower(strings.TrimSpace(p))
@@ -36,16 +36,16 @@ func KnotKey(k ettlemesh.Knot) string {
 	return k.Kind + "\x00" + strings.Join(parties, "+")
 }
 
-// RunKeys collapses one run's knots to the set of distinct stability keys it
-// surfaced. firm and soft are pooled: a knot surfaced as a question still shapes
+// RunKeys collapses one run's tangles to the set of distinct stability keys it
+// surfaced. firm and soft are pooled: a tangle surfaced as a question still shapes
 // the horizon, so it counts toward what the run "said."
-func RunKeys(firm, soft []ettlemesh.Knot) map[string]bool {
+func RunKeys(firm, soft []ettlemesh.Tangle) map[string]bool {
 	set := map[string]bool{}
 	for _, k := range firm {
-		set[KnotKey(k)] = true
+		set[TangleKey(k)] = true
 	}
 	for _, k := range soft {
-		set[KnotKey(k)] = true
+		set[TangleKey(k)] = true
 	}
 	return set
 }
@@ -61,7 +61,7 @@ type StabilityResult struct {
 // Stable returns the keys present in EVERY run (the dependable core of the horizon).
 func (r StabilityResult) Stable() []string { return r.keysWithFreq(r.Runs) }
 
-// Flickering returns keys present in some runs but not all — the knots a user
+// Flickering returns keys present in some runs but not all — the tangles a user
 // would see appear and vanish across mornings. This is the headline failure: a
 // non-empty list means the horizon is not reproducible.
 func (r StabilityResult) Flickering() []string {

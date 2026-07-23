@@ -33,8 +33,8 @@ flowchart TB
     BD -- "typed atoms only" --> BUS
     BUS{{"atom bus — leat (a git repo)<br/>· or NATS · or in-process"}}
     BUS --> L2["L2 directed models<br/>per-pair, across rounds<br/>surprise-gated emit"]
-    L2 --> RC["L3 reconcile<br/>pairwise + team-wide<br/>= knot detection"]
-    RC --> CONF{"knot<br/>confidence?"}
+    L2 --> RC["L3 reconcile<br/>pairwise + team-wide<br/>= tangle detection"]
+    RC --> CONF{"tangle<br/>confidence?"}
     CONF -- "FIRM &ge; 0.5" --> FIRM["worth a look"]
     CONF -- "SOFT &lt; 0.5" --> SOFT["worth a question"]
     FIRM --> CONTEST{"contested?<br/>decision-rights /<br/>team-wide divergence"}
@@ -59,7 +59,7 @@ The aim is not "frictionless." It is **friction in the right spots**: remove it 
 
 ## Status
 
-What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the knots (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is **not validated** — but it's *inspectable*: `ettle eval testdata/eval/*.json` is a small, readable **smoke test** (run the detector against a committed synthetic corpus, see where it hits and misses). It is a sanity check, **not** a precision/recall measurement — the corpus is tiny and has only a handful of labels, and the `--ab` voting comparison ships a McNemar test that on this corpus never reaches the sample size to claim anything (the machinery is there, waiting for a corpus big enough to feed it). A second, orthogonal harness measures the **privacy boundary** rather than detection accuracy: `ettle eval --leak testdata/leak/*.json` plants private facts that must not cross (a comp number, a credential, a medical reason, a private opinion), distills each note, and reports the **leak rate** — plus a must-cross check so a zero leak rate earned by emitting nothing is flagged as over-redaction, not success. Same honest caveat: synthetic corpus, deliberately liberal matcher (it over-counts a leak before it under-counts one).
+What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the tangles (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is **not validated** — but it's *inspectable*: `ettle eval testdata/eval/*.json` is a small, readable **smoke test** (run the detector against a committed synthetic corpus, see where it hits and misses). It is a sanity check, **not** a precision/recall measurement — the corpus is tiny and has only a handful of labels, and the `--ab` voting comparison ships a McNemar test that on this corpus never reaches the sample size to claim anything (the machinery is there, waiting for a corpus big enough to feed it). A second, orthogonal harness measures the **privacy boundary** rather than detection accuracy: `ettle eval --leak testdata/leak/*.json` plants private facts that must not cross (a comp number, a credential, a medical reason, a private opinion), distills each note, and reports the **leak rate** — plus a must-cross check so a zero leak rate earned by emitting nothing is flagged as over-redaction, not success. Same honest caveat: synthetic corpus, deliberately liberal matcher (it over-counts a leak before it under-counts one).
 
 The **directed-model layer (L2)** now runs in its structural form: `ettle drift <prev-dir> <curr-dir>` builds each agent's per-pair model of every teammate, carries it across two rounds, and emits only the deltas that would leave a teammate's model stale — the surprise-gated emit rule and the L2-vs-L1 staleness diff, computed deterministically (no extra model call). It is unit-tested without an API key and demonstrated on [`testdata/drift/`](testdata/drift). Two honest limits bound it: it routes by an exact `(type, subject)` slot key, so when the **stochastic distiller rewords** the subject of a still-held belief the diff reads it as drop+new rather than a reword (savings hold per-*person*, not per-*belief*; the surfaced "stale" line is hedged, not asserted, because of this); and the **semantic** enrichment — an agent inferring what a teammate is assuming *beyond* their stated atoms — is unbuilt. Both are what would make L2 more than a wording-sensitive structural projection; closing the first needs wording-independent slot identity (tracked). The *read* side of that layer now runs too: `ettle mirror --me <name> <prev-dir> <curr-dir>` shows a person what the team's directed models currently believe *about them*, flagging the beliefs that have gone **stale** — the same layer that drives how someone is treated, made legible to the person it's about (attribution coarsened by default, `--by-observer` to attribute; no model call beyond the distill).
 
@@ -76,7 +76,7 @@ at the end of this block.
 # one Anthropic API key in .env (see .env.example)
 cp .env.example .env && $EDITOR .env
 
-# surface the coordination knots across a team's notes — no meeting
+# surface the coordination tangles across a team's notes — no meeting
 go run ./cmd/ettle standup --me alice testdata/standup/*.md
 
 # or run it on real LIVE sessions — Claude Code transcripts, not notes —
@@ -104,7 +104,7 @@ go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 
 # serve the engine over MCP so any agent (Claude Code, Cursor) drives it directly:
 # each person's own agent calls ettle_emit with that person's notes, ettle_horizon
-# reconciles the team's atoms into knots — no hand-assembled note files
+# reconciles the team's atoms into tangles — no hand-assembled note files
 claude mcp add ettle -- go run ./cmd/ettle mcp
 
 # ...and if you already live in Claude Code, you don't need an API key to take
@@ -127,12 +127,12 @@ comma-separated phrases that must never cross the boundary
 person's atoms by both a prompt suppress-list and a deterministic redaction (see
 [SECURITY.md](SECURITY.md)). `--me` shows only what's relevant to that person;
 drop it for the full team view. Cost is ~2N+3 model calls for N participants (cheap on
-Haiku); `--samples K` re-runs the reconcile passes K times and keeps only knots
+Haiku); `--samples K` re-runs the reconcile passes K times and keeps only tangles
 that recur across a majority (the detector is stochastic — voting turns that into
 a confidence signal, at +2 calls per extra sample). It's **useful at N=1**: a
 single person's notes still get a self-assumption pass (an earlier assumption
 their own later work has quietly made false). It runs with **no infrastructure**
-— the transport defaults to in-process and contested knots fall back to an inline
+— the transport defaults to in-process and contested tangles fall back to an inline
 either/or.
 
 **See [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) for exactly what it prints** on
@@ -163,12 +163,12 @@ flowchart TB
 ```
 
 A real run on Ivo's horizon (`ettle standup --me ivo testdata/northwind/*.jsonl`,
-trimmed to three of the knots it surfaces) — the collision and the freeze crux,
+trimmed to three of the tangles it surfaces) — the collision and the freeze crux,
 before the meeting:
 
 ```
   ettle — coordination horizon for ivo
-  22 atoms across 4 people; 6 knots surfaced
+  22 atoms across 4 people; 6 tangles surfaced
 
   worth a look (firm)
     • [collision] pricing package removal during discount-engine build
@@ -197,7 +197,7 @@ genuine values choice (the freeze timeline) is **routed to a crux** and
 pre-staged as an either/or — friction in the right spot, not everywhere; and
 it's **useful at N=1** too — `ettle standup testdata/solo/dana.md` catches one
 person's own stale assumption. (The detector is stochastic, so wording and the
-exact knot set shift run-to-run; a knot resting only on an inference is surfaced
+exact tangle set shift run-to-run; a tangle resting only on an inference is surfaced
 as a *question* — "worth a question" — rather than asserted as fact.) Add
 `--show-atoms` to any run to see exactly what crosses the boundary (typed atoms,
 never the raw session).
@@ -211,7 +211,7 @@ go run ./cmd/ettle room join git@github.com:crew/standup-room.git   # everyone e
 # then day-to-day there are no env vars, no paths, no flags to remember:
 go run ./cmd/ettle standup --room standup-room --me alice notes.md
 # or just see who's in the room and what each is working on — the presence view,
-# read straight off the bus, no knot detection and no model call:
+# read straight off the bus, no tangle detection and no model call:
 go run ./cmd/ettle room status standup-room
 # (under the hood --room rides leat: each agent appends only its own lane so
 #  pushes never conflict, identity is hardened — a line whose author != its lane
@@ -221,7 +221,7 @@ go run ./cmd/ettle room status standup-room
 # heavier alternative — atoms over a NATS bus (TLS + auth); needs the build tag
 go run -tags nats ./cmd/ettle standup --transport nats --me alice notes.md
 
-# route contested knots to a real gemot deliberation (TLS + bearer token)
+# route contested tangles to a real gemot deliberation (TLS + bearer token)
 go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 ```
 
@@ -234,7 +234,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 - [docs/TEAM_SIM.md](docs/TEAM_SIM.md) — the multiplayer payoff: agents negotiate, bind the toil, surface the cruxes. Friction in the right spots.
 - [docs/HORIZON.md](docs/HORIZON.md) — the extrapolated end-state (the vision and its shadow).
 - [docs/COMMONS.md](docs/COMMONS.md) — coordinated quality without wasted time as a commons; Ostrom's eight principles mapped to ettle, with graduated sanctions on gemot reputation.
-- [docs/SCALING.md](docs/SCALING.md) — how the continuous version avoids a token-burn feedback loop (atoms up, knots down; L3 emits no atoms; surprise-gated emit; O(1) shared reconcile).
+- [docs/SCALING.md](docs/SCALING.md) — how the continuous version avoids a token-burn feedback loop (atoms up, tangles down; L3 emits no atoms; surprise-gated emit; O(1) shared reconcile).
 - [docs/DEPLOY.md](docs/DEPLOY.md) — running it for a team: the NATS bus and gemot endpoint, the secrets they need, and what to *not* turn on until calibration lands.
 - [docs/PRIOR_ART.md](docs/PRIOR_ART.md) — literature and product map, with citations.
 - [docs/CALO_LINEAGE.md](docs/CALO_LINEAGE.md) — the personal-assistant-agent lineage (Maes/CAP, DARPA PAL's CALO & RADAR, Electric Elves) and what ettle inherits vs. extends.
@@ -247,6 +247,6 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 - **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer per-person model (deeper L1 telemetry) can feed this layer from outside this repo; ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that a single-user layer never had.
 - **the atom bus** — behind a transport seam, so it swaps freely. Default is zero-infra in-process (local runs/tests). For a distributed team the light path is **[leat](https://github.com/justinstimatze/leat)** — a private git repo used as an append-only, per-author-lane message bus (durable, cross-machine, identity-hardened, `git log` = the audit trail; a stdlib-only Go package owned by [mcp-dispatch](https://github.com/justinstimatze/mcp-dispatch), the canonical impl of a shared git-transport wire contract, which ettle consumes). A [NATS](https://nats.io) bus (TLS + auth, pub/sub, replay) is the heavier alternative behind `-tags nats`; other rails (Slack, Matrix, A2A) can drop in later.
-- **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant knot back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
+- **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant tangle back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.
-- **[gemot](https://github.com/justinstimatze/gemot)** — structured deliberation (positions → cruxes → binding compromise, with EigenTrust reputation). The inter-agent negotiation organ for *contested* knots: it locates the crux (where friction belongs) and binds the rest, and its reputation deltas become the team-tier calibration signal. Reached over TLS with auth — the crux is the most sensitive payload on the wire.
+- **[gemot](https://github.com/justinstimatze/gemot)** — structured deliberation (positions → cruxes → binding compromise, with EigenTrust reputation). The inter-agent negotiation organ for *contested* tangles: it locates the crux (where friction belongs) and binds the rest, and its reputation deltas become the team-tier calibration signal. Reached over TLS with auth — the crux is the most sensitive payload on the wire.

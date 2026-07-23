@@ -20,9 +20,9 @@ type fakeReconciler struct {
 	mu                                  sync.Mutex
 	distillCalls, votedCalls, selfCalls int
 	lastNotes                           string
-	atoms                               []ettlemesh.Atom // returned by Distill (From overwritten with the caller)
-	voted                               []ettlemesh.Knot // returned by ReconcileVoted
-	self                                []ettlemesh.Knot // returned by ReconcileSelf
+	atoms                               []ettlemesh.Atom   // returned by Distill (From overwritten with the caller)
+	voted                               []ettlemesh.Tangle // returned by ReconcileVoted
+	self                                []ettlemesh.Tangle // returned by ReconcileSelf
 }
 
 func (f *fakeReconciler) Distill(_ context.Context, from, _, text string, _ []string) ([]ettlemesh.Atom, error) {
@@ -38,20 +38,20 @@ func (f *fakeReconciler) Distill(_ context.Context, from, _, text string, _ []st
 	return out, nil
 }
 
-func (f *fakeReconciler) ReconcileVoted(_ context.Context, _ []ettlemesh.Atom, _ int) (knots []ettlemesh.Knot, floorDropped int, err error) {
+func (f *fakeReconciler) ReconcileVoted(_ context.Context, _ []ettlemesh.Atom, _ int) (tangles []ettlemesh.Tangle, floorDropped int, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.votedCalls++
 	return f.voted, 0, nil
 }
 
-// GroundKnots is a pass-through in the fake: the direction-check is exercised in
+// GroundTangles is a pass-through in the fake: the direction-check is exercised in
 // ettlemesh's own tests; here the server just needs the seam satisfied.
-func (f *fakeReconciler) GroundKnots(_ context.Context, knots []ettlemesh.Knot, _ []ettlemesh.Atom) (kept, suppressed []ettlemesh.Knot, err error) {
-	return knots, nil, nil
+func (f *fakeReconciler) GroundTangles(_ context.Context, tangles []ettlemesh.Tangle, _ []ettlemesh.Atom) (kept, suppressed []ettlemesh.Tangle, err error) {
+	return tangles, nil, nil
 }
 
-func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([]ettlemesh.Knot, error) {
+func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([]ettlemesh.Tangle, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.selfCalls++
@@ -80,7 +80,7 @@ func TestRespondCapturesLabel(t *testing.T) {
 	s := &server{det: &fakeReconciler{}, h: newHorizon(), labels: sink}
 	ctx := context.Background()
 
-	_, out, err := s.respond(ctx, nil, respondIn{Me: "mabel", Knot: "collision|mabel+opal", Verdict: "not_real", Note: "pipeline, not a clash"})
+	_, out, err := s.respond(ctx, nil, respondIn{Me: "mabel", Tangle: "collision|mabel+opal", Verdict: "not_real", Note: "pipeline, not a clash"})
 	if err != nil {
 		t.Fatalf("respond errored: %v", err)
 	}
@@ -95,11 +95,11 @@ func TestRespondCapturesLabel(t *testing.T) {
 	}
 
 	// A bad verdict is rejected and nothing is captured.
-	if _, _, err := s.respond(ctx, nil, respondIn{Me: "mabel", Knot: "k", Verdict: "maybe"}); err == nil {
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "mabel", Tangle: "k", Verdict: "maybe"}); err == nil {
 		t.Fatal("expected an error for an invalid verdict")
 	}
 	// Missing fields rejected.
-	if _, _, err := s.respond(ctx, nil, respondIn{Me: "", Knot: "k", Verdict: "real"}); err == nil {
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "", Tangle: "k", Verdict: "real"}); err == nil {
 		t.Fatal("expected an error for a missing responder")
 	}
 	if len(sink.got) != 1 {
@@ -107,7 +107,7 @@ func TestRespondCapturesLabel(t *testing.T) {
 	}
 }
 
-// Capture polish: a verdict on a knot the horizon just surfaced carries that knot's
+// Capture polish: a verdict on a tangle the horizon just surfaced carries that tangle's
 // recurrence (Votes/Samples) + kind + firm tier — the features a future calibration
 // loop would need. A verdict on a key never surfaced this session degrades to
 // kind-from-key with zero recurrence (no fabricated votes).
@@ -115,7 +115,7 @@ func TestRespondEnrichesLabelFromHorizon(t *testing.T) {
 	sink := &memLabelSink{}
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
-		voted: []ettlemesh.Knot{
+		voted: []ettlemesh.Tangle{
 			{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6, Votes: 4, Samples: 5},
 		},
 	}
@@ -133,7 +133,7 @@ func TestRespondEnrichesLabelFromHorizon(t *testing.T) {
 	}
 	key := ho.Firm[0].Key // exactly the key an agent would pass back
 
-	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Knot: key, Verdict: "real"}); err != nil {
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Tangle: key, Verdict: "real"}); err != nil {
 		t.Fatalf("respond: %v", err)
 	}
 	if len(sink.got) != 1 {
@@ -144,7 +144,7 @@ func TestRespondEnrichesLabelFromHorizon(t *testing.T) {
 	}
 
 	// A key never surfaced this session (different session / restart) → kind only.
-	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Knot: "duplication|alice+carol", Verdict: "not_real"}); err != nil {
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Tangle: "duplication|alice+carol", Verdict: "not_real"}); err != nil {
 		t.Fatalf("respond unsurfaced: %v", err)
 	}
 	if l := sink.got[1]; l.Kind != "duplication" || l.Votes != 0 || l.Samples != 0 || l.Firm {
@@ -167,11 +167,11 @@ func TestLabelBackwardCompatThinLine(t *testing.T) {
 	}
 }
 
-// The knot key an agent answers must match the key the horizon hands out (wording-
+// The tangle key an agent answers must match the key the horizon hands out (wording-
 // independent: same kind + parties => same key regardless of order/case/About).
-func TestKnotKeyStableAndCrossCallMatch(t *testing.T) {
-	a := knotKey("collision", []string{"Opal", " mabel "})
-	b := knotKey("collision", []string{"mabel", "opal"})
+func TestTangleKeyStableAndCrossCallMatch(t *testing.T) {
+	a := tangleKey("collision", []string{"Opal", " mabel "})
+	b := tangleKey("collision", []string{"mabel", "opal"})
 	if a != b {
 		t.Fatalf("key not order/case-stable: %q vs %q", a, b)
 	}
@@ -233,17 +233,17 @@ func TestEmitRejectsBlank(t *testing.T) {
 }
 
 func TestHorizonFirmSoftSplitAndMeFilter(t *testing.T) {
-	firmKnot := ettlemesh.Knot{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}
-	softKnot := ettlemesh.Knot{Kind: ettlemesh.KindDuplication, Parties: []string{"alice", "carol"}, Confidence: 0.4}
+	firmTangle := ettlemesh.Tangle{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}
+	softTangle := ettlemesh.Tangle{Kind: ettlemesh.KindDuplication, Parties: []string{"alice", "carol"}, Confidence: 0.4}
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
-		voted: []ettlemesh.Knot{firmKnot, softKnot},
+		voted: []ettlemesh.Tangle{firmTangle, softTangle},
 	}
 	s := newServerWith(f)
 	// Need atoms in the horizon so the empty-guard doesn't short-circuit.
 	_, _, _ = s.emit(context.Background(), nil, emitIn{Participant: "alice", Notes: "n"})
 
-	// Full team view: firm/soft split on Knot.Firm() (Samples==0 → confidence>=0.5).
+	// Full team view: firm/soft split on Tangle.Firm() (Samples==0 → confidence>=0.5).
 	_, all, err := s.horizon(context.Background(), nil, horizonIn{})
 	if err != nil {
 		t.Fatalf("horizon: %v", err)
@@ -291,15 +291,15 @@ func TestHorizonEmptyGuardSkipsModel(t *testing.T) {
 func TestSelfCheckSinglePartyAndStateless(t *testing.T) {
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Assumption, Subject: "timeline", Confidence: 1}},
-		self:  []ettlemesh.Knot{{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"alice"}, Confidence: 0.6}},
+		self:  []ettlemesh.Tangle{{Kind: ettlemesh.KindStaleAssumption, Parties: []string{"alice"}, Confidence: 0.6}},
 	}
 	s := newServerWith(f)
 	_, out, err := s.selfCheck(context.Background(), nil, selfIn{Participant: "alice", Notes: "n"})
 	if err != nil {
 		t.Fatalf("selfCheck: %v", err)
 	}
-	if len(out.Knots) != 1 || out.Knots[0].Kind != ettlemesh.KindStaleAssumption {
-		t.Fatalf("expected 1 stale-assumption knot, got %+v", out.Knots)
+	if len(out.Tangles) != 1 || out.Tangles[0].Kind != ettlemesh.KindStaleAssumption {
+		t.Fatalf("expected 1 stale-assumption tangle, got %+v", out.Tangles)
 	}
 	if f.selfCalls != 1 || f.votedCalls != 0 {
 		t.Errorf("self-check should call ReconcileSelf only, got self=%d voted=%d", f.selfCalls, f.votedCalls)
@@ -317,7 +317,7 @@ func TestSelfCheckSinglePartyAndStateless(t *testing.T) {
 func TestMCPRoundTripInMemory(t *testing.T) {
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "cache", Confidence: 1}},
-		voted: []ettlemesh.Knot{{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}},
+		voted: []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}},
 	}
 	srv := newMCPServer(&server{det: f, h: newHorizon()}, "test")
 	clientT, serverT := mcp.NewInMemoryTransports()
@@ -364,7 +364,7 @@ func TestMCPRoundTripInMemory(t *testing.T) {
 		t.Errorf("emit structured count = %d, want 1", eo.Count)
 	}
 
-	// horizon → the seeded knot comes back, firm.
+	// horizon → the seeded tangle comes back, firm.
 	hr, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "ettle_horizon", Arguments: map[string]any{}})
 	if err != nil {
 		t.Fatalf("CallTool horizon: %v", err)
@@ -558,5 +558,25 @@ func TestEmitScrubsSecretsInClientSuppliedAtoms(t *testing.T) {
 				t.Fatalf("credential stored on the horizon: %+v", a)
 			}
 		}
+	}
+}
+
+// The rename knot -> tangle changed a published MCP input field. An agent holding
+// a horizon from before the rename must still be able to answer it.
+func TestRespondAcceptsDeprecatedKnotAlias(t *testing.T) {
+	sink := &memLabelSink{}
+	s := &server{det: &fakeReconciler{}, h: newHorizon(), labels: sink}
+	if _, _, err := s.respond(context.Background(), nil, respondIn{Me: "alice", Knot: "collision|alice+bob", Verdict: "real"}); err != nil {
+		t.Fatalf("deprecated `knot` alias must still work: %v", err)
+	}
+	if len(sink.got) != 1 || sink.got[0].Key != "collision|alice+bob" {
+		t.Fatalf("alias did not reach the label: %+v", sink.got)
+	}
+	// Current field wins when both are set.
+	if _, _, err := s.respond(context.Background(), nil, respondIn{Me: "alice", Tangle: "new|a+b", Knot: "old|a+b", Verdict: "real"}); err != nil {
+		t.Fatalf("respond: %v", err)
+	}
+	if sink.got[1].Key != "new|a+b" {
+		t.Errorf("tangle should win over the deprecated knot, got %q", sink.got[1].Key)
 	}
 }

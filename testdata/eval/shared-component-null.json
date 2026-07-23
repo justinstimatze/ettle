@@ -1,7 +1,7 @@
 {
   "name": "shared-component-null",
   "inputs": ["testdata/sharedcomp/kai.md", "testdata/sharedcomp/nora.md", "testdata/sharedcomp/iris.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "D1",
       "parties": ["kai", "nora"],

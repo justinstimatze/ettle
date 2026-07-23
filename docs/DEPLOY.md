@@ -20,9 +20,9 @@ Two of those invariants are operational constraints, not slogans:
 - **Calibration before speed.** Until the calibration loop exists, the emit-gate
   is uncalibrated — and we have measured what that means: on an independent-work
   corpus where the correct horizon is *empty*, ettle still surfaces 1–2 firm
-  knots, and the surfaced set is only ~25% stable run-to-run (model-invariant;
+  tangles, and the surfaced set is only ~25% stable run-to-run (model-invariant;
   `ettle eval [--stability]` on `testdata/eval/independent-work.json`). So a
-  deployment that **auto-broadcasts** knots to a shared channel would over-graze
+  deployment that **auto-broadcasts** tangles to a shared channel would over-graze
   the attention commons ([COMMONS.md](COMMONS.md)). Run it in *surface-to-`--me`*
   mode — each person sees their own horizon, on demand — not as an always-on
   firehose, until calibration lands.
@@ -37,7 +37,7 @@ on top of them is not built.
 
 ## Tier 0 — one team, no infrastructure (the default)
 
-Nothing to deploy. The transport defaults to in-process and contested knots fall
+Nothing to deploy. The transport defaults to in-process and contested tangles fall
 back to an inline either/or, so a single run reads everyone's notes locally and
 prints each person's horizon:
 
@@ -102,7 +102,7 @@ go run ./cmd/ettle room init git@github.com:payments/standup-room.git
 go run ./cmd/ettle room join git@github.com:payments/standup-room.git --as alice
 # then, no env vars or paths to remember:
 go run ./cmd/ettle standup --room standup-room --me alice notes.md
-# presence — who's in the room and what each is working on (no knots, no model call):
+# presence — who's in the room and what each is working on (no tangles, no model call):
 go run ./cmd/ettle room status standup-room
 # (ettle room list shows configured rooms; --as sets your lane id, default $USER)
 ```
@@ -163,9 +163,9 @@ go run -tags nats ./cmd/ettle standup --transport nats --insecure-local --me ali
 `--insecure-local` resolves the host and refuses anything that isn't actually
 loopback, so a remote server dressed up as `localhost` can't be run unauthed.
 
-## Tier 3 — contested knots to a gemot deliberation
+## Tier 3 — contested tangles to a gemot deliberation
 
-Most coordination is bindable and never leaves the mesh. When a knot is a real
+Most coordination is bindable and never leaves the mesh. When a tangle is a real
 values/priority choice (a *crux*), route it to a [gemot](https://github.com/justinstimatze/gemot)
 deliberation instead of resolving it inline. gemot sees the most sensitive
 payload on the wire, so it's reached over TLS with a bearer token.
@@ -179,7 +179,7 @@ go run ./cmd/ettle standup \
 ```
 
 Empty `--gemot` keeps the inline either/or (no external service). A contested
-knot can spend minutes in deliberation, hence the generous default timeout.
+tangle can spend minutes in deliberation, hence the generous default timeout.
 gemot's EigenTrust reputation is also where the commons' **graduated sanctions**
 land ([COMMONS.md](COMMONS.md) principle 5) — the anti-overgrazing teeth — but
 that wiring is roadmap, not shipped.

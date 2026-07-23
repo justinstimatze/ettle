@@ -1,5 +1,5 @@
 // Package crux is the negotiation seam: when the detector surfaces a CONTESTED
-// knot (a decision-rights conflict or a team-wide divergence — the genuine
+// tangle (a decision-rights conflict or a team-wide divergence — the genuine
 // values/priority choices), it routes to a Resolver instead of the mesh quietly
 // deciding for the humans.
 //
@@ -8,7 +8,7 @@
 //   - Gemot — routes to a real gemot deliberation (positions → crux → binding
 //     compromise + reputation). Production deployments must reach gemot over
 //     TLS with auth: the crux is the most sensitive payload on the wire.
-//   - Inline — the infra-free fallback: it frames the knot as a clean either/or
+//   - Inline — the infra-free fallback: it frames the tangle as a clean either/or
 //     for the humans without any external service, so the PoC runs with nothing
 //     installed. The humans still decide; nothing is auto-resolved.
 package crux
@@ -23,7 +23,7 @@ import (
 	"github.com/justinstimatze/ettle/internal/gemotclient"
 )
 
-// Resolution is what comes back for a contested knot: the crux (the real point
+// Resolution is what comes back for a contested tangle: the crux (the real point
 // of contention) and, when available, a proposed binding compromise. Source
 // names which resolver produced it.
 type Resolution struct {
@@ -34,17 +34,17 @@ type Resolution struct {
 	Branches    []string
 }
 
-// Resolver turns a contested knot into a Resolution the humans can act on.
+// Resolver turns a contested tangle into a Resolution the humans can act on.
 type Resolver interface {
-	Resolve(ctx context.Context, k ettlemesh.Knot, atoms []ettlemesh.Atom) (*Resolution, error)
+	Resolve(ctx context.Context, k ettlemesh.Tangle, atoms []ettlemesh.Atom) (*Resolution, error)
 }
 
 // Inline is the zero-dependency resolver. It does not negotiate — it pre-stages
-// the knot as a clean either/or so a human makes the call in seconds. This is
+// the tangle as a clean either/or so a human makes the call in seconds. This is
 // "friction in the right spot": the choice stays the human's.
 type Inline struct{}
 
-func (Inline) Resolve(_ context.Context, k ettlemesh.Knot, _ []ettlemesh.Atom) (*Resolution, error) {
+func (Inline) Resolve(_ context.Context, k ettlemesh.Tangle, _ []ettlemesh.Atom) (*Resolution, error) {
 	return &Resolution{
 		Source: "inline",
 		Crux:   k.About,
@@ -55,7 +55,7 @@ func (Inline) Resolve(_ context.Context, k ettlemesh.Knot, _ []ettlemesh.Atom) (
 	}, nil
 }
 
-// Gemot routes contested knots through a real gemot deliberation. Reach gemot
+// Gemot routes contested tangles through a real gemot deliberation. Reach gemot
 // over TLS with auth in any multi-machine deployment (see package doc): Token is
 // the gemot bearer key, required off localhost. InsecureLocal opts into gemot's
 // anonymous localhost sandbox without a token (dev only).
@@ -66,7 +66,7 @@ type Gemot struct {
 	Timeout       time.Duration
 }
 
-func (g Gemot) Resolve(ctx context.Context, k ettlemesh.Knot, atoms []ettlemesh.Atom) (*Resolution, error) {
+func (g Gemot) Resolve(ctx context.Context, k ettlemesh.Tangle, atoms []ettlemesh.Atom) (*Resolution, error) {
 	c, err := gemotclient.Connect(ctx, g.URL, g.Token, g.InsecureLocal)
 	if err != nil {
 		return nil, fmt.Errorf("crux/gemot: connect: %w", err)
@@ -120,9 +120,9 @@ func (g Gemot) Resolve(ctx context.Context, k ettlemesh.Knot, atoms []ettlemesh.
 	return res, nil
 }
 
-// positionFor joins a party's atoms that touch the knot's subject into a short
+// positionFor joins a party's atoms that touch the tangle's subject into a short
 // stance string for gemot.
-func positionFor(party string, k ettlemesh.Knot, atoms []ettlemesh.Atom) string {
+func positionFor(party string, k ettlemesh.Tangle, atoms []ettlemesh.Atom) string {
 	var parts []string
 	for _, a := range atoms {
 		if !ettlemesh.SamePerson(a.From, party) {
@@ -140,9 +140,9 @@ func firstParty(p []string) string {
 	return "one side"
 }
 
-// Contested reports whether a knot is the kind that should go to a resolver
+// Contested reports whether a tangle is the kind that should go to a resolver
 // rather than be quietly bound: decision-rights conflicts and team-wide
 // divergences are genuine values/priority choices the humans should own.
-func Contested(k ettlemesh.Knot) bool {
+func Contested(k ettlemesh.Tangle) bool {
 	return k.Firm() && (k.Kind == ettlemesh.KindDecisionRights || k.Kind == ettlemesh.KindTeamwideDivergence)
 }

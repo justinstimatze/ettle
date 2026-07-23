@@ -6,7 +6,7 @@
     "testdata/independent/cleo.md",
     "testdata/independent/dao.md"
   ],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "D1",
       "parties": ["ana", "dao"],

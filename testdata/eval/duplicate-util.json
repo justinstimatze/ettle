@@ -1,7 +1,7 @@
 {
   "name": "duplicate-util",
   "inputs": ["testdata/dupe/evan.md", "testdata/dupe/fay.md", "testdata/dupe/glen.md"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["evan", "fay"],

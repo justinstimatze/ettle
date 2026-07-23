@@ -9,7 +9,7 @@ import (
 )
 
 // SuperCorpus names two groups of participant inputs asserted to be INDEPENDENT
-// of each other (the precondition for the locality law). Knots within a group are
+// of each other (the precondition for the locality law). Tangles within a group are
 // fine and expected; the test is that joining the groups invents no cross-group
 // coordination and loses no within-group coordination.
 type SuperCorpus struct {
@@ -35,22 +35,22 @@ func LoadSuperCorpus(path string) (SuperCorpus, error) {
 //
 //	f(A ⊎ B)  ==  f(A) ∪ f(B)
 //
-// We get ground truth for free from that law instead of labeling knots. The
-// headline is the CROSS-BOUNDARY count: a knot in the joint run whose parties
+// We get ground truth for free from that law instead of labeling tangles. The
+// headline is the CROSS-BOUNDARY count: a tangle in the joint run whose parties
 // span both groups links two people who were never in the same run when we
 // computed A and B alone — so it is *provably fabricated*, and (unlike the
 // stability metric) the signal is immune to run-to-run flicker, because no amount
-// of stochasticity in an A-only or B-only run can produce a knot mentioning a
+// of stochasticity in an A-only or B-only run can produce a tangle mentioning a
 // B-only or A-only person.
 //
 // Two secondary failures are also visible but are CONFOUNDED by flicker (the same
 // non-determinism #5 measures), so they are reported as such, not as the headline:
-//   - Dropped: an intra-group knot present alone but gone in the joint run —
-//     the other group's noise distracted the detector off a real knot.
-//   - SpuriousIntra: an intra-group knot in the joint run absent from that
+//   - Dropped: an intra-group tangle present alone but gone in the joint run —
+//     the other group's noise distracted the detector off a real tangle.
+//   - SpuriousIntra: an intra-group tangle in the joint run absent from that
 //     group's solo run — the other group's mere presence conjured it.
 
-// SuperpositionResult classifies the joint-run knot keys against the law above.
+// SuperpositionResult classifies the joint-run tangle keys against the law above.
 type SuperpositionResult struct {
 	Preserved     []string // intra-group keys in BOTH the solo and joint runs (the law holding)
 	CrossBoundary []string // joint keys spanning A and B — fabricated, flicker-PROOF (the headline)
@@ -76,7 +76,7 @@ func (r SuperpositionResult) LocalityScore() float64 {
 // estimate (rate=2/8) is uninterpretable without knowing how wide its interval
 // is. Two signals:
 //
-//   - MeanPerRun (continuous): the expected number of fabricated cross-group knots
+//   - MeanPerRun (continuous): the expected number of fabricated cross-group tangles
 //     per joint run. This is the PRIMARY A/B signal because it has lower variance
 //     than the binary rate — a run that fabricates 3 links and one that fabricates
 //     1 are both "fabricated" to the binary metric but differ 3× here, so the same
@@ -90,7 +90,7 @@ func (r SuperpositionResult) LocalityScore() float64 {
 // that is the "underpowered at n=8" verdict, made explicit instead of inferred.
 type SuperStats struct {
 	Runs                  int
-	MeanPerRun            float64 // expected cross-boundary knots per run
+	MeanPerRun            float64 // expected cross-boundary tangles per run
 	MeanCILow, MeanCIHigh float64 // 95% normal CI on MeanPerRun (== mean when Runs<2)
 	Rate                  float64 // fraction of runs with >=1 fabrication
 	RateCILow, RateCIHigh float64 // 95% Wilson interval on Rate
@@ -193,7 +193,7 @@ func ComputeSuperposition(keysA, keysB, keysAB map[string]bool, groupA, groupB m
 		}
 	}
 
-	// Dropped: a knot the detector found for a group ALONE but lost once the other
+	// Dropped: a tangle the detector found for a group ALONE but lost once the other
 	// group's notes were in the room.
 	for key := range keysA {
 		if !keysAB[key] {

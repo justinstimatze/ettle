@@ -50,7 +50,7 @@ cognitive-assistant efforts in parallel:
   consequential ones.
 
 Both are direct ancestors of the parts of ettle that already work — CALO-MA's
-decision/action-item extraction is a close cousin of knot detection, and RADAR's
+decision/action-item extraction is a close cousin of tangle detection, and RADAR's
 "learn from observed work, confirm the consequential" is exactly the
 mixed-initiative posture ettle takes. **But both modeled one user.** Neither built
 a *directed model of other specific people* held by each person's agent, nor a
@@ -93,7 +93,7 @@ Two things make it the most instructive entry in this review:
   RADAR) — ettle's L1;
 - mixed-initiative / adjustable autonomy, humans deciding the consequential calls
   (Horvitz; Electric Elves' hard-won lesson) — ettle's "friction at the cruxes";
-- meeting decision / action-item extraction (CALO-MA) — a cousin of knot
+- meeting decision / action-item extraction (CALO-MA) — a cousin of tangle
   detection.
 
 **Extends, or at least attempts past the lineage:**
@@ -106,7 +106,7 @@ Two things make it the most instructive entry in this review:
 - **reasoning-in-progress as the signal** rather than calendar/email artifacts;
 - **resolve-and-apply, not detect-and-announce.** The lineage's assistants stop
   at extracting a decision or action-item and handing it to a human (CALO-MA, and
-  every modern meeting tool); a plain knot detector likewise *stops and announces
+  every modern meeting tool); a plain tangle detector likewise *stops and announces
   the conflict*. ettle's bindable subset is instead **deliberated to an actionable
   conclusion by the agents themselves** — they enter a gemot, reach a concrete
   decision, and fold it back into each human's workflow **ambiently**, surfacing
@@ -115,7 +115,7 @@ Two things make it the most instructive entry in this review:
   (Fridays rescheduled meetings and volunteered presenters on their own) — which
   is exactly why its post-mortem exists. The load-bearing novelty is therefore not
   the autonomy but the **partition** — what is safe to auto-bind vs. what must stay
-  the human's call — applied to knots derived from *privacy-bounded models of
+  the human's call — applied to tangles derived from *privacy-bounded models of
   teammates* and gated by the calibration loop. That partition is the piece EE
   lacked and the reason it failed.
 
@@ -147,7 +147,7 @@ from observation" is table stakes, not a contribution.
 **Commoditized.** CALO-MA's meeting capture — dialogue-act tagging, action-item
 recognition, **decision extraction**, summarization — now ships in every
 conferencing stack (Otter, Granola, Zoom/Teams/Meet companions, Copilot recap).
-ettle's knot detector is a cousin of this, so it inherits the maturity but
+ettle's tangle detector is a cousin of this, so it inherits the maturity but
 **cannot claim novelty** there.
 
 **Still open (and ettle's actual target):**
@@ -159,10 +159,10 @@ ettle's knot detector is a cousin of this, so it inherits the maturity but
    frames this as **necessity prediction** — predicting from context whether
    proactive assistance is warranted before acting — and ships
    **ContextAgentBench** (1,000 samples, 9 daily scenarios, 20 tools) to measure
-   it. That decision *is* ettle's surface-vs-stay-quiet gate (is this knot worth
+   it. That decision *is* ettle's surface-vs-stay-quiet gate (is this tangle worth
    a human's attention?). **Liftable:** the necessity-prediction framing and a
    ContextAgentBench-style eval are a concrete model for ettle's missing
-   calibration loop — turning "did surfacing this knot help?" into a measured
+   calibration loop — turning "did surfacing this tangle help?" into a measured
    prediction task rather than a hand-tuned threshold.
 
 2. **The privacy boundary between principals → operationalized Contextual

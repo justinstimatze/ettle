@@ -61,36 +61,36 @@ func TestReconcileGateAndConfidence(t *testing.T) {
 	atoms := []Atom{{From: "alice", Confidence: 1.0}, {From: "bob", Confidence: 1.0}}
 	// a collision at 0.9 (model-reported, trusted) plus a teamwide-divergence the
 	// pairwise gate must reject.
-	m := &fakeMessager{resp: toolResp(`{"knots":[
+	m := &fakeMessager{resp: toolResp(`{"tangles":[
 		{"kind":"collision","parties":["alice","bob"],"about":"the rename","explanation":"they collide","confidence":0.9},
 		{"kind":"teamwide-divergence","parties":["alice","bob"],"about":"deadline","explanation":"x","confidence":0.9}
 	]}`)}
-	knots, err := detWith(m).Reconcile(context.Background(), atoms)
+	tangles, err := detWith(m).Reconcile(context.Background(), atoms)
 	if err != nil {
 		t.Fatalf("Reconcile error: %v", err)
 	}
-	if len(knots) != 1 || knots[0].Kind != KindCollision {
-		t.Fatalf("got %+v, want only the collision (teamwide gated out)", knots)
+	if len(tangles) != 1 || tangles[0].Kind != KindCollision {
+		t.Fatalf("got %+v, want only the collision (teamwide gated out)", tangles)
 	}
 	// model confidence is the designed "min over depended atoms" signal — trusted.
-	if knots[0].Confidence != 0.9 || !knots[0].Firm() {
-		t.Errorf("conf = %v firm=%v, want 0.9 / firm (model confidence trusted)", knots[0].Confidence, knots[0].Firm())
+	if tangles[0].Confidence != 0.9 || !tangles[0].Firm() {
+		t.Errorf("conf = %v firm=%v, want 0.9 / firm (model confidence trusted)", tangles[0].Confidence, tangles[0].Firm())
 	}
 }
 
-func TestBuildKnotsConfidenceFallback(t *testing.T) {
+func TestBuildTanglesConfidenceFallback(t *testing.T) {
 	atoms := []Atom{{From: "alice", Confidence: 1.0}, {From: "bob", Confidence: 0.4}}
 	// confidence omitted (0) → fall back to party-atom minimum (bob 0.4).
-	p := knotsPayload{}
-	_ = json.Unmarshal([]byte(`{"knots":[{"kind":"collision","parties":["alice","bob"],"about":"x","explanation":"y","confidence":0}]}`), &p)
-	got := buildKnots(p, atoms, pairwiseKinds, false)
+	p := tanglesPayload{}
+	_ = json.Unmarshal([]byte(`{"tangles":[{"kind":"collision","parties":["alice","bob"],"about":"x","explanation":"y","confidence":0}]}`), &p)
+	got := buildTangles(p, atoms, pairwiseKinds, false)
 	if len(got) != 1 || got[0].Confidence != 0.4 {
 		t.Fatalf("fallback conf = %+v, want 0.4 (party-atom min)", got)
 	}
 	// confidence omitted + no matching party atoms → low 0.3 fallback (unanchored).
-	p2 := knotsPayload{}
-	_ = json.Unmarshal([]byte(`{"knots":[{"kind":"collision","parties":["ghost","phantom"],"about":"x","explanation":"y","confidence":0}]}`), &p2)
-	got2 := buildKnots(p2, atoms, pairwiseKinds, false)
+	p2 := tanglesPayload{}
+	_ = json.Unmarshal([]byte(`{"tangles":[{"kind":"collision","parties":["ghost","phantom"],"about":"x","explanation":"y","confidence":0}]}`), &p2)
+	got2 := buildTangles(p2, atoms, pairwiseKinds, false)
 	if len(got2) != 1 || got2[0].Confidence != 0.3 {
 		t.Fatalf("unanchored fallback conf = %+v, want 0.3", got2)
 	}
@@ -98,16 +98,16 @@ func TestBuildKnotsConfidenceFallback(t *testing.T) {
 
 func TestReconcileSelfRejectsTwoParties(t *testing.T) {
 	atoms := []Atom{{From: "dana", Confidence: 1.0}}
-	m := &fakeMessager{resp: toolResp(`{"knots":[
+	m := &fakeMessager{resp: toolResp(`{"tangles":[
 		{"kind":"stale-assumption","parties":["dana"],"about":"retry logic","explanation":"x","confidence":1.0},
 		{"kind":"stale-assumption","parties":["dana","sam"],"about":"other","explanation":"y","confidence":1.0}
 	]}`)}
-	knots, err := detWith(m).ReconcileSelf(context.Background(), atoms)
+	tangles, err := detWith(m).ReconcileSelf(context.Background(), atoms)
 	if err != nil {
 		t.Fatalf("ReconcileSelf error: %v", err)
 	}
-	if len(knots) != 1 || !singleAuthor(knots[0].Parties) {
-		t.Fatalf("got %+v, want only the single-author self-knot", knots)
+	if len(tangles) != 1 || !singleAuthor(tangles[0].Parties) {
+		t.Fatalf("got %+v, want only the single-author self-tangle", tangles)
 	}
 }
 
@@ -268,11 +268,11 @@ func TestInferImplicitScrubsSecrets(t *testing.T) {
 	}
 }
 
-func TestVoteKnotsConfidenceDedupesWithinRun(t *testing.T) {
+func TestVoteTanglesConfidenceDedupesWithinRun(t *testing.T) {
 	// A single run can name one divergence in BOTH the pairwise and team-wide pass
 	// (reconcileBoth concatenates them). That run must count once for the
 	// confidence mean, not twice — so the mean is over distinct runs, not items.
-	runs := [][]Knot{
+	runs := [][]Tangle{
 		{ // run 0 names it twice at 0.9
 			{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename collision", Confidence: 0.9},
 			{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob"}, About: "the GetUser rename", Confidence: 0.9},
@@ -281,9 +281,9 @@ func TestVoteKnotsConfidenceDedupesWithinRun(t *testing.T) {
 			{Kind: KindCollision, Parties: []string{"bob", "alice"}, About: "GetUser rename", Confidence: 0.5},
 		},
 	}
-	got, _ := voteKnots(runs)
+	got, _ := voteTangles(runs)
 	if len(got) != 1 {
-		t.Fatalf("voteKnots kept %d, want 1 clustered knot: %+v", len(got), got)
+		t.Fatalf("voteTangles kept %d, want 1 clustered tangle: %+v", len(got), got)
 	}
 	// Per-run-deduped mean = (0.9 + 0.5)/2 = 0.70, NOT (0.9+0.9+0.5)/3 = 0.767.
 	if got[0].Confidence < 0.69 || got[0].Confidence > 0.71 {
@@ -313,37 +313,37 @@ func TestConfFromWord(t *testing.T) {
 
 func TestFirm(t *testing.T) {
 	// Single-run path (no votes): confidence decides.
-	if !(Knot{Confidence: 0.5}).Firm() {
+	if !(Tangle{Confidence: 0.5}).Firm() {
 		t.Error("0.5 should be FIRM (>= threshold)")
 	}
-	if (Knot{Confidence: 0.49}).Firm() {
+	if (Tangle{Confidence: 0.49}).Firm() {
 		t.Error("0.49 should be SOFT")
 	}
 	// Voted path (Samples>0): recurrence frequency decides, confidence ignored.
-	if !(Knot{Votes: 3, Samples: 5, Confidence: 0.1}).Firm() {
+	if !(Tangle{Votes: 3, Samples: 5, Confidence: 0.1}).Firm() {
 		t.Error("3/5 (majority) should be FIRM regardless of low confidence")
 	}
-	if (Knot{Votes: 2, Samples: 5, Confidence: 0.99}).Firm() {
+	if (Tangle{Votes: 2, Samples: 5, Confidence: 0.99}).Firm() {
 		t.Error("2/5 (minority) should be SOFT regardless of high confidence")
 	}
-	if !(Knot{Votes: 5, Samples: 5, Confidence: 0}).Firm() {
+	if !(Tangle{Votes: 5, Samples: 5, Confidence: 0}).Firm() {
 		t.Error("5/5 should be FIRM")
 	}
-	if (Knot{Votes: 1, Samples: 12}).Firm() {
+	if (Tangle{Votes: 1, Samples: 12}).Firm() {
 		t.Error("1/12 (fabrication-frequency) should be SOFT")
 	}
-	// Per-kind bar: a flickery-but-real decision-rights knot (2/5 = 0.4) clears its
+	// Per-kind bar: a flickery-but-real decision-rights tangle (2/5 = 0.4) clears its
 	// lowered 0.3 bar and asserts, where the same recurrence at the default bar is
 	// soft. This is the recall fix for auth-migration K2.
-	if !(Knot{Kind: KindDecisionRights, Votes: 2, Samples: 5}).Firm() {
+	if !(Tangle{Kind: KindDecisionRights, Votes: 2, Samples: 5}).Firm() {
 		t.Error("decision-rights 2/5 should be FIRM at its lowered 0.3 bar")
 	}
-	if (Knot{Kind: KindCollision, Votes: 2, Samples: 5}).Firm() {
+	if (Tangle{Kind: KindCollision, Votes: 2, Samples: 5}).Firm() {
 		t.Error("collision 2/5 should be SOFT at the default 0.5 bar")
 	}
 	// The lowered bar still clears the ~0.17 fabrication ceiling: a single stray
 	// sample (1/5 = 0.2) does NOT assert even for decision-rights.
-	if (Knot{Kind: KindDecisionRights, Votes: 1, Samples: 5}).Firm() {
+	if (Tangle{Kind: KindDecisionRights, Votes: 1, Samples: 5}).Firm() {
 		t.Error("decision-rights 1/5 should be SOFT — below the 0.3 bar, in the fabrication band")
 	}
 }
@@ -389,28 +389,28 @@ func TestMinConfForParties(t *testing.T) {
 	if got := minConfForParties(atoms, []string{"alice"}); got != 1.0 {
 		t.Errorf("got %v, want 1.0", got)
 	}
-	// no party matches → LOW (0.3), so an unanchored/hallucinated-party knot is a
+	// no party matches → LOW (0.3), so an unanchored/hallucinated-party tangle is a
 	// question, not asserted (previously this returned 1.0).
 	if got := minConfForParties(atoms, []string{"nobody"}); got != 0.3 {
 		t.Errorf("got %v, want 0.3 low fallback when no party matches", got)
 	}
 }
 
-func TestSameKnot(t *testing.T) {
-	base := Knot{Parties: []string{"alice", "bob"}, About: "the GetUser rename"}
+func TestSameTangle(t *testing.T) {
+	base := Tangle{Parties: []string{"alice", "bob"}, About: "the GetUser rename"}
 	cases := []struct {
 		name string
-		b    Knot
+		b    Tangle
 		want bool
 	}{
-		{"relabeled + reordered", Knot{Kind: KindDecisionRights, Parties: []string{"bob", "alice"}, About: "rename of GetUser"}, true},
-		{"same parties, different subject", Knot{Parties: []string{"alice", "bob"}, About: "cache invalidation"}, false},
-		{"shared subject, no party", Knot{Parties: []string{"carol", "dave"}, About: "the GetUser rename"}, false},
-		{"only stopwords overlap", Knot{Parties: []string{"alice"}, About: "the will of the"}, false},
+		{"relabeled + reordered", Tangle{Kind: KindDecisionRights, Parties: []string{"bob", "alice"}, About: "rename of GetUser"}, true},
+		{"same parties, different subject", Tangle{Parties: []string{"alice", "bob"}, About: "cache invalidation"}, false},
+		{"shared subject, no party", Tangle{Parties: []string{"carol", "dave"}, About: "the GetUser rename"}, false},
+		{"only stopwords overlap", Tangle{Parties: []string{"alice"}, About: "the will of the"}, false},
 	}
 	for _, c := range cases {
-		if got := SameKnot(base, c.b); got != c.want {
-			t.Errorf("%s: SameKnot = %v, want %v", c.name, got, c.want)
+		if got := SameTangle(base, c.b); got != c.want {
+			t.Errorf("%s: SameTangle = %v, want %v", c.name, got, c.want)
 		}
 	}
 }
@@ -423,7 +423,7 @@ func TestSingleAuthor(t *testing.T) {
 		t.Error("same person twice (case/space) is a single author")
 	}
 	if singleAuthor([]string{"alice", "bob"}) {
-		t.Error("two distinct people is not a self-knot")
+		t.Error("two distinct people is not a self-tangle")
 	}
 	if singleAuthor(nil) {
 		t.Error("no party is not a single author")
@@ -431,21 +431,21 @@ func TestSingleAuthor(t *testing.T) {
 }
 
 func TestDedupeSelf(t *testing.T) {
-	self := []Knot{
+	self := []Tangle{
 		{Kind: KindStaleAssumption, Parties: []string{"alice"}, About: "the launch deadline"},
 		{Kind: KindStaleAssumption, Parties: []string{"bob"}, About: "cache ownership"},
 	}
-	cross := []Knot{
+	cross := []Tangle{
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob", "carol"}, About: "launch deadline"},
 	}
 	got := DedupeSelf(self, cross)
 	if len(got) != 1 || !SamePerson(got[0].Parties[0], "bob") {
-		t.Fatalf("DedupeSelf = %+v, want only bob's self-knot (alice's covered team-wide)", got)
+		t.Fatalf("DedupeSelf = %+v, want only bob's self-tangle (alice's covered team-wide)", got)
 	}
 }
 
-func TestVoteKnots(t *testing.T) {
-	runs := [][]Knot{
+func TestVoteTangles(t *testing.T) {
+	runs := [][]Tangle{
 		{
 			{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename", Confidence: 0.9},
 			{Kind: KindDuplication, Parties: []string{"carol", "dave"}, About: "hallucinated overlap", Confidence: 0.8},
@@ -457,22 +457,22 @@ func TestVoteKnots(t *testing.T) {
 			{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename collision", Confidence: 0.8},
 		},
 	}
-	got, floored := voteKnots(runs)
+	got, floored := voteTangles(runs)
 	// Keep-all: the 3-run GetUser cluster AND the 1-run carol/dave one-off both
 	// survive (frequency ranks firm/soft, it does not drop). Output is sorted
 	// most-voted first. At samples=3 the floor is inert, so nothing is dropped.
 	if len(got) != 2 {
-		t.Fatalf("voteKnots kept %d, want 2 (cluster + kept one-off): %+v", len(got), got)
+		t.Fatalf("voteTangles kept %d, want 2 (cluster + kept one-off): %+v", len(got), got)
 	}
 	if floored != 0 {
 		t.Errorf("floor must be inert at samples=3, dropped %d", floored)
 	}
 	k := got[0]
 	if k.Votes != 3 || k.Samples != 3 {
-		t.Errorf("top knot votes/samples = %d/%d, want 3/3", k.Votes, k.Samples)
+		t.Errorf("top tangle votes/samples = %d/%d, want 3/3", k.Votes, k.Samples)
 	}
 	if !k.Firm() {
-		t.Error("a 3/3 knot must be FIRM (asserted)")
+		t.Error("a 3/3 tangle must be FIRM (asserted)")
 	}
 	if k.Confidence < 0.89 || k.Confidence > 0.91 {
 		t.Errorf("voted confidence = %v, want mean ~0.9", k.Confidence)
@@ -487,30 +487,30 @@ func TestVoteKnots(t *testing.T) {
 }
 
 // TestDropFloor pins the abstention gate (dropFloorFraction). At samples=5 the
-// single-appearance tail (the fabrication signature) is DROPPED while >=2/5 knots
+// single-appearance tail (the fabrication signature) is DROPPED while >=2/5 tangles
 // survive; at samples=3 the floor is inert (default --ab is unaffected); and the
-// floor never drops a knot the per-kind firm bar would assert.
+// floor never drops a tangle the per-kind firm bar would assert.
 func TestDropFloor(t *testing.T) {
-	// 5 runs. Recurrence by knot:
+	// 5 runs. Recurrence by tangle:
 	//   collision alice/bob   : 5/5 → kept, FIRM
 	//   collision eve/finn    : 2/5 → kept (above floor, below the 0.5 collision firm
 	//                                  bar → SOFT) — proves "kept but soft"
 	//   decision-rights gid/hal: 2/5 → FIRM by the 0.3 bar (2>=1.5) AND kept (2>=1.25)
 	//                                  — the floor∩firm invariant, operationally
 	//   duplication carol/dave : 1/5 → DROPPED (1 < 0.25*5 = 1.25)
-	clear := Knot{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename", Confidence: 0.9}
-	twice := Knot{Kind: KindCollision, Parties: []string{"eve", "finn"}, About: "ledger schema", Confidence: 0.8}
-	rights := Knot{Kind: KindDecisionRights, Parties: []string{"gid", "hal"}, About: "who owns the cutover", Confidence: 0.7}
-	oneOff := Knot{Kind: KindDuplication, Parties: []string{"carol", "dave"}, About: "spurious overlap", Confidence: 0.8}
-	runs := [][]Knot{
+	clear := Tangle{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "GetUser rename", Confidence: 0.9}
+	twice := Tangle{Kind: KindCollision, Parties: []string{"eve", "finn"}, About: "ledger schema", Confidence: 0.8}
+	rights := Tangle{Kind: KindDecisionRights, Parties: []string{"gid", "hal"}, About: "who owns the cutover", Confidence: 0.7}
+	oneOff := Tangle{Kind: KindDuplication, Parties: []string{"carol", "dave"}, About: "spurious overlap", Confidence: 0.8}
+	runs := [][]Tangle{
 		{clear, twice, rights, oneOff},
 		{clear, twice, rights},
 		{clear},
 		{clear},
 		{clear},
 	}
-	got, floored := voteKnots(runs)
-	by := map[string]Knot{}
+	got, floored := voteTangles(runs)
+	by := map[string]Tangle{}
 	for _, k := range got {
 		by[k.Kind+"\x00"+strings.Join(k.Parties, "+")] = k
 	}
@@ -522,7 +522,7 @@ func TestDropFloor(t *testing.T) {
 		t.Errorf("floorDropped = %d, want 1 (the 1/5 one-off)", floored)
 	}
 	if len(got) != 3 {
-		t.Fatalf("voteKnots kept %d, want 3 (5/5, 2/5, 2/5; the 1/5 dropped): %+v", len(got), got)
+		t.Fatalf("voteTangles kept %d, want 3 (5/5, 2/5, 2/5; the 1/5 dropped): %+v", len(got), got)
 	}
 	if c := by[KindCollision+"\x00alice+bob"]; c.Votes != 5 || !c.Firm() {
 		t.Errorf("5/5 collision = %d/%d firm=%v, want 5/5 FIRM", c.Votes, c.Samples, c.Firm())
@@ -530,17 +530,17 @@ func TestDropFloor(t *testing.T) {
 	if e := by[KindCollision+"\x00eve+finn"]; e.Votes != 2 || e.Firm() {
 		t.Errorf("2/5 collision = %d/%d firm=%v, want 2/5 KEPT-but-SOFT", e.Votes, e.Samples, e.Firm())
 	}
-	// The invariant: a knot the per-kind firm bar would assert is never floored away.
+	// The invariant: a tangle the per-kind firm bar would assert is never floored away.
 	r, ok := by[KindDecisionRights+"\x00gid+hal"]
 	if !ok {
-		t.Fatal("a FIRM 2/5 decision-rights knot was dropped by the floor — invariant violated")
+		t.Fatal("a FIRM 2/5 decision-rights tangle was dropped by the floor — invariant violated")
 	}
 	if !r.Firm() {
 		t.Errorf("2/5 decision-rights should be FIRM by the 0.3 bar, got firm=%v", r.Firm())
 	}
 
-	// Inertness at samples=3: the floor (threshold 0.75) cannot drop a Votes>=1 knot.
-	small, smallFloored := voteKnots([][]Knot{
+	// Inertness at samples=3: the floor (threshold 0.75) cannot drop a Votes>=1 tangle.
+	small, smallFloored := voteTangles([][]Tangle{
 		{clear, oneOff},
 		{clear},
 		{clear},

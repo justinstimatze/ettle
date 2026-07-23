@@ -1,8 +1,8 @@
 # duplicate-bugs corpus — provenance
 
 The first **real-data** `ettle eval` corpora (everything else under `testdata/`
-is synthetic). They test the **duplication** knot: two people independently
-reporting the same underlying bug should reconcile into one duplication knot,
+is synthetic). They test the **duplication** tangle: two people independently
+reporting the same underlying bug should reconcile into one duplication tangle,
 while a surface-similar but substantively different bug should *not*.
 
 Three corpus files, **eight real duplicate pairs** total plus one distractor:

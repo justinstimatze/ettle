@@ -8,7 +8,7 @@
     "testdata/dupbug/zane.md",
     "testdata/dupbug/ora.md"
   ],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "Y1",
       "parties": ["vik", "wren"],

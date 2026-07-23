@@ -4,23 +4,23 @@ import "testing"
 
 import "github.com/justinstimatze/ettle/internal/ettlemesh"
 
-func knot(kind string, parties ...string) ettlemesh.Knot {
-	return ettlemesh.Knot{Kind: kind, Parties: parties, Confidence: 1.0}
+func tangle(kind string, parties ...string) ettlemesh.Tangle {
+	return ettlemesh.Tangle{Kind: kind, Parties: parties, Confidence: 1.0}
 }
 
-func TestKnotKeyOrderIndependentAndFolded(t *testing.T) {
-	a := KnotKey(knot(ettlemesh.KindCollision, "Alice", "Bob"))
-	b := KnotKey(knot(ettlemesh.KindCollision, "bob", " alice "))
+func TestTangleKeyOrderIndependentAndFolded(t *testing.T) {
+	a := TangleKey(tangle(ettlemesh.KindCollision, "Alice", "Bob"))
+	b := TangleKey(tangle(ettlemesh.KindCollision, "bob", " alice "))
 	if a != b {
 		t.Fatalf("keys should match regardless of order/case/space: %q vs %q", a, b)
 	}
-	if KnotKey(knot(ettlemesh.KindDuplication, "alice", "bob")) == a {
+	if TangleKey(tangle(ettlemesh.KindDuplication, "alice", "bob")) == a {
 		t.Fatal("different kind must produce a different key")
 	}
 }
 
 func TestComputeStabilityPerfectAgreement(t *testing.T) {
-	run := RunKeys([]ettlemesh.Knot{knot(ettlemesh.KindCollision, "a", "b")}, nil)
+	run := RunKeys([]ettlemesh.Tangle{tangle(ettlemesh.KindCollision, "a", "b")}, nil)
 	res := ComputeStability([]map[string]bool{run, run, run})
 	if res.MeanJaccard != 1.0 || res.MinJaccard != 1.0 {
 		t.Fatalf("identical runs should be perfectly stable, got mean=%.2f min=%.2f", res.MeanJaccard, res.MinJaccard)
@@ -29,7 +29,7 @@ func TestComputeStabilityPerfectAgreement(t *testing.T) {
 		t.Fatalf("no flicker expected, got %v", res.Flickering())
 	}
 	if len(res.Stable()) != 1 {
-		t.Fatalf("the one knot should be stable across all runs, got %v", res.Stable())
+		t.Fatalf("the one tangle should be stable across all runs, got %v", res.Stable())
 	}
 }
 
@@ -42,8 +42,8 @@ func TestComputeStabilityEmptyRunsAgree(t *testing.T) {
 }
 
 func TestComputeStabilityFlickerDetected(t *testing.T) {
-	stable := KnotKey(knot(ettlemesh.KindCollision, "a", "b"))
-	flick := KnotKey(knot(ettlemesh.KindDuplication, "a", "c"))
+	stable := TangleKey(tangle(ettlemesh.KindCollision, "a", "b"))
+	flick := TangleKey(tangle(ettlemesh.KindDuplication, "a", "c"))
 	runs := []map[string]bool{
 		{stable: true, flick: true}, // run 1: both
 		{stable: true},              // run 2: only the stable one
@@ -51,10 +51,10 @@ func TestComputeStabilityFlickerDetected(t *testing.T) {
 	}
 	res := ComputeStability(runs)
 	if got := res.Flickering(); len(got) != 1 || got[0] != flick {
-		t.Fatalf("flicker should be exactly the duplication knot, got %v", got)
+		t.Fatalf("flicker should be exactly the duplication tangle, got %v", got)
 	}
 	if got := res.Stable(); len(got) != 1 || got[0] != stable {
-		t.Fatalf("stable should be exactly the collision knot, got %v", got)
+		t.Fatalf("stable should be exactly the collision tangle, got %v", got)
 	}
 	// 3 pairs: {1,2}=1/2, {1,3}=1/2, {2,3}=1/1 → mean = (0.5+0.5+1)/3.
 	if res.MinJaccard != 0.5 {
@@ -67,7 +67,7 @@ func TestComputeStabilityFlickerDetected(t *testing.T) {
 }
 
 func TestComputeStabilitySingleRunNoPairs(t *testing.T) {
-	res := ComputeStability([]map[string]bool{RunKeys([]ettlemesh.Knot{knot(ettlemesh.KindCollision, "a", "b")}, nil)})
+	res := ComputeStability([]map[string]bool{RunKeys([]ettlemesh.Tangle{tangle(ettlemesh.KindCollision, "a", "b")}, nil)})
 	if res.MeanJaccard != 1.0 {
 		t.Fatalf("a single run has no pairs to disagree; report 1.0, got %.2f", res.MeanJaccard)
 	}

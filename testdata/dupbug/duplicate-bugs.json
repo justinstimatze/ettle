@@ -7,7 +7,7 @@
     "testdata/dupbug/luca.md",
     "testdata/dupbug/mara.md"
   ],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["dana", "evan"],

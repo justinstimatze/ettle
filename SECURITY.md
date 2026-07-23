@@ -10,7 +10,7 @@ open a public issue for a security problem until it's been addressed.
 ettle is pre-production. Two surfaces matter most:
 
 - **The transport carries sensitive coordination state.** Typed atoms (and, for
-  contested knots, the crux) cross between machines. The atom bus (NATS) is
+  contested tangles, the crux) cross between machines. The atom bus (NATS) is
   reached over TLS with credentials; gemot is reached over TLS with a per-agent
   bearer token, and the client refuses to connect off-localhost without one
   (localhost-tokenless is an explicit `--insecure-local` opt-in for dev only).

@@ -23,26 +23,26 @@ func TestDistinctPeopleFoldsCaseAndSpace(t *testing.T) {
 }
 
 func TestFilterTeamwideQuorumDropsUnderThree(t *testing.T) {
-	in := []Knot{
+	in := []Tangle{
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob"}, About: "two-party fabrication"},
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob", "cleo"}, About: "genuine teamwide"},
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "Alice", "alice"}, About: "one person dressed as three"},
 	}
 	out := filterTeamwideQuorum(in)
 	if len(out) != 1 {
-		t.Fatalf("expected only the >=3-distinct knot to survive, got %d: %+v", len(out), out)
+		t.Fatalf("expected only the >=3-distinct tangle to survive, got %d: %+v", len(out), out)
 	}
 	if out[0].About != "genuine teamwide" {
-		t.Errorf("kept the wrong knot: %q", out[0].About)
+		t.Errorf("kept the wrong tangle: %q", out[0].About)
 	}
 }
 
 // The quorum gate is keyed on the teamwide kind only; other kinds pass through
 // untouched even with two parties (a pairwise collision is supposed to have two).
 func TestFilterTeamwideQuorumIgnoresOtherKinds(t *testing.T) {
-	in := []Knot{
+	in := []Tangle{
 		{Kind: KindCollision, Parties: []string{"alice", "bob"}, About: "real pairwise"},
-		{Kind: KindStaleAssumption, Parties: []string{"alice"}, About: "self knot"},
+		{Kind: KindStaleAssumption, Parties: []string{"alice"}, About: "self tangle"},
 	}
 	out := filterTeamwideQuorum(in)
 	if len(out) != 2 {
@@ -51,7 +51,7 @@ func TestFilterTeamwideQuorumIgnoresOtherKinds(t *testing.T) {
 }
 
 func TestFilterTeamwideQuorumDoesNotAliasInput(t *testing.T) {
-	in := []Knot{
+	in := []Tangle{
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob"}, About: "dropped"},
 		{Kind: KindTeamwideDivergence, Parties: []string{"alice", "bob", "cleo"}, About: "kept"},
 	}

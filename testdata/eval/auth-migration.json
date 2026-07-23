@@ -1,7 +1,7 @@
 {
   "name": "auth-migration",
   "inputs": ["testdata/sessions/kit.jsonl", "testdata/sessions/sol.jsonl"],
-  "expected_knots": [
+  "expected_tangles": [
     {
       "id": "K1",
       "parties": ["kit", "sol"],
