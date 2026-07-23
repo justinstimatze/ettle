@@ -2,23 +2,6 @@
 
 ## Unreleased
 
-- **Renamed the core object: `knot` → `tangle`.** A knot can be tied in a *single*
-  thread; a tangle is several threads interfering by definition — which is exactly
-  what the object is (a cross-person condition), so the name now carries the
-  semantics that distinguish ettle from a per-person summarizer. Also drops knot's
-  jargon collisions (knot theory, nautical, node/knot in graph contexts). Same
-  fabric/thread vocabulary, better fit.
-  Mechanical across code, docs, and the committed eval fixtures (`expected_knots`
-  → `expected_tangles`). **Two compatibility guarantees:** the `ettle_respond` MCP
-  input still accepts the old `knot` field as a deprecated alias (`tangle` wins if
-  both are set), so an agent holding a pre-rename horizon can still answer it; and
-  the *key format* is unchanged (`kind|parties` never contained the word), so every
-  verdict label captured so far stays valid calibration data.
-  Changelog entries above this one are left in the old vocabulary on purpose —
-  they describe what shipped when it shipped, and rewriting them would make the
-  history lie about what the tool said at the time.
-  Test: `TestRespondAcceptsDeprecatedKnotAlias`.
-
 - **Client-side distillation — a teammate no longer needs an API key to take part.**
   `ettle_emit` now accepts already-typed `atoms` as an alternative to raw `notes`
   (exactly one of the two; supplying both is an error rather than a silent
@@ -67,9 +50,9 @@
   agent-native infra anyway), and two things worth taking (bidirectional access as an
   explicit invariant; the "fog of AI" three-month-direction planning posture).
 
-- **Verdict labels now record the knot's recurrence (calibration capture polish).**
+- **Verdict labels now record the tangle's recurrence (calibration capture polish).**
   `ettle_respond` already logged a human verdict (`real` / `not_real` / `handled`) on
-  a surfaced knot; the captured `Label` now also carries the knot's **recurrence
+  a surfaced tangle; the captured `Label` now also carries the tangle's **recurrence
   (`Votes`/`Samples`) + kind + firm/soft tier** — the exact per-kind feature a future
   calibration loop would threshold on, which was previously discarded at capture time.
   Populated by joining the verdict to the horizon the same server just surfaced (a
@@ -83,14 +66,14 @@
 
 - **`ettle room status` — the presence view (L0 co-presence).** Shows who's in a
   room and what each person is currently working on, read straight off the bus (the
-  atoms standup already published) with **no knot detection and no model call**.
+  atoms standup already published) with **no tangle detection and no model call**.
   Participants are sorted, atoms framed by type (intent → "working on", commitment →
   "committed", dependency → "depends on", assumption → "assuming"), each with a coarse
   freshness cue (active / today / yesterday / Nd ago). To make freshness survive the
   leat path, the leat adapter now stamps `EmittedAt` on publish if unset (display-only,
   never used for ordering — leat's per-lane seq is authoritative). The render is a pure
   function (`renderRoomStatus`, clock injected) and unit-tested (`TestRenderRoomStatus`).
-  This is the co-presence layer the project had skipped on the way to knot detection: a
+  This is the co-presence layer the project had skipped on the way to tangle detection: a
   room is useful — "what is my crew's agents doing right now" — before any reconciliation.
 
 - **`ettle room` — one-command join for distributed mode.** Collapses the leat
@@ -179,13 +162,13 @@
   touches them); `--by-observer` opts into attribution. Read-only, no correction
   propagation yet (that's stage 2); no model call beyond drift's distill. Tested
   deterministically (`TestMirror`: beliefs shown, drift flagged stale, coarsen-by-
-  default vs `--by-observer`). Also folded `printKnot`/`printAsk`'s duplicated
+  default vs `--by-observer`). Also folded `printTangle`/`printAsk`'s duplicated
   vote-suffix into one `voteSuffix` (calque dual-path, score 0.44).
 - **Label capture (stage 0c-2) — `ettle_respond` records the human verdict**
   (`internal/mcpserver`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)). A new MCP tool lets
-  a person's agent answer a cross-person knot from `ettle_horizon` — `real` /
-  `not_real` / `handled` — keyed by the knot's wording-independent `key` (now on every
-  `knotView`). Each verdict is appended as a `Label` (`{key, verdict, by, note, ts}`)
+  a person's agent answer a cross-person tangle from `ettle_horizon` — `real` /
+  `not_real` / `handled` — keyed by the tangle's wording-independent `key` (now on every
+  `tangleView`). Each verdict is appended as a `Label` (`{key, verdict, by, note, ts}`)
   to a local JSONL (`ETTLE_LABELS_PATH`, default `ettle-labels.jsonl`, gitignored).
   This is the **active-learning label stream** stage 2's calibration loop will consume
   — written now so the data accrues before the loop exists (a detector flag-rate is
@@ -193,42 +176,42 @@
   **only**: no binding, no horizon mutation — humans stay the deciders. Label sink is
   an interface (file by default; tests inject memory). Tested:
   `TestRespondCapturesLabel` (capture + verdict/field validation, no-capture on
-  reject), `TestKnotKeyStableAndCrossCallMatch` (order/case-stable key).
-- **Interrogative register (stage 0c) — cross-person knots are posed as questions,
+  reject), `TestTangleKeyStableAndCrossCallMatch` (order/case-stable key).
+- **Interrogative register (stage 0c) — cross-person tangles are posed as questions,
   not asserted** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The detector has no
   ground truth for a cross-person conflict, and recurrence is test-retest *stability*,
   not validity — so it has no standing to assert one. The CLI `surface` now routes
-  **self knots** (a person's own drift, which they can verify) to an asserted "worth a
-  look" lane and **every cross-person knot** to a "worth checking together (a question,
+  **self tangles** (a person's own drift, which they can verify) to an asserted "worth a
+  look" lane and **every cross-person tangle** to a "worth checking together (a question,
   not a claim)" lane — "[possible collision] … Real, or already handled?" — ordered
   firm-first; contested ones still pre-stage their either/or. The MCP `horizon` marks
-  each cross-person `knotView` `question:true` so agent consumers present it as a
+  each cross-person `tangleView` `question:true` so agent consumers present it as a
   question too. Grounded in mixed-initiative design (act when confident+positive-sum,
   ask otherwise) and trust calibration (communicate true uncertainty, don't overclaim).
-  The Firm-and-bindable act-lane for cross-person knots opens later, *earned per kind*
+  The Firm-and-bindable act-lane for cross-person tangles opens later, *earned per kind*
   against the calibration label (stage 2) — so this register is also the active-learning
   query front-end that loop will need. Deterministically tested (`TestSurfaceActAskRouting`).
 - **Legible abstention (stage 0a) — the coupling check stops dropping silently**
-  (`GroundKnots` now returns `(kept, suppressed)`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
+  (`GroundTangles` now returns `(kept, suppressed)`; [docs/LEGIBILITY.md](docs/LEGIBILITY.md)).
   A clear horizon that silently hid a suppressed call trains the human to stop
   watching — the exact failure a structured adversarial pressure-test (legibility /
-  extraction-skepticism lenses) flagged. Knots the coupling check judges
+  extraction-skepticism lenses) flagged. Tangles the coupling check judges
   *not a real conflict* are now surfaced
   **off the agenda**, in a "held back — shown in case that's wrong" section (CLI
   `surface`) / a `held_back` field + summary tail (MCP `horizon`), filtered to `me`.
   Coupling-check kills are *listed* (high-recurrence, a human might overrule them);
   the abstention-floor drops (≤1/5 samples, noise by design) surface as a single
   quiet **aggregate count** ("+N below the confidence floor, not shown") so the
-  notice doesn't get trained into the ignore pile — `ReconcileVoted`/`voteKnots` now
-  return that count alongside the kept knots. Deterministically tested
+  notice doesn't get trained into the ignore pile — `ReconcileVoted`/`voteTangles` now
+  return that count alongside the kept tangles. Deterministically tested
   (`TestSurfaceHeldBack` captures both the listed section and the floor line;
   `TestDropFloor` asserts the count; `applyGroundingVerdicts` returns the suppressed
   set). First increment of the
   legibility program drafted in `docs/LEGIBILITY.md` (the response to the panel:
   turn the model's output from a private assertion into a legible, contestable
-  signal). No detection-accuracy change — the eval still scores only kept knots.
+  signal). No detection-accuracy change — the eval still scores only kept tangles.
 - **Cross-person coupling check — generalizes the collision direction-check to
-  duplication + teamwide-divergence** (`GroundKnots`/`groundableKnots` in
+  duplication + teamwide-divergence** (`GroundTangles`/`groundableTangles` in
   `internal/ettlemesh/ground.go`). The collision pass (below) closed the *collision*
   vector, but a `--samples 5` re-measure found the **same root error** — two people
   bridged on a shared topic word while working in *independent scopes* — surviving
@@ -236,23 +219,23 @@
   cache and a Grafana metrics dashboard read as redundant work) and a fake
   `[teamwide-divergence] alice,bob,cleo` (cleo's unscheduled internal maintenance
   swept into a product launch deadline), together **0.40 FIRM cross-boundary
-  knots/run** on `superposition-userservice-vs-infra`. The pass now asks a
+  tangles/run** on `superposition-userservice-vs-infra`. The pass now asks a
   kind-appropriate **coupling** question of each cross-person collision/duplication/
-  teamwide knot: collision → do both *edit the same artifact*; duplication → are both
+  teamwide tangle: collision → do both *edit the same artifact*; duplication → are both
   *building the same deliverable twice*; teamwide → does the named assumption actually
   *govern every party* and do they hold it *differently*. decision-rights is excluded
   (a who-decides truth condition the coupling question would misjudge). Measured
   (haiku, `--samples 5`): userservice-vs-infra FIRM cross-boundary **0.40 → 0.00**
-  (CI 0.00–0.00, both fabs gone); **real-knot recall held 1.00 across kinds** — real
+  (CI 0.00–0.00, both fabs gone); **real-tangle recall held 1.00 across kinds** — real
   teamwide (calendar K1), real duplication (duplicate-util K1), real collision
   (schema-collision K1) all kept at precision 1.00; labeled fakes duplicate-util D1
   (CI test-retry vs HTTP backoff) and shared-deadline-null D1 (agreed Q3 freeze)
   dropped. To keep each kind's instruction undiluted, the pass makes **one focused
   call per kind present** (collision / duplication / teamwide) rather than one merged
   3-kind prompt — cost is +1 model call per additional distinct kind. The same change
-  numbers each prompt's knots by their **full-slice index**, fixing a latent
+  numbers each prompt's tangles by their **full-slice index**, fixing a latent
   verdict-mismap that silently failed to drop a fabrication whenever a
-  self/decision-rights knot preceded a groundable one (fail-open kept it).
+  self/decision-rights tangle preceded a groundable one (fail-open kept it).
   Re-smoke-tested after the split: userservice-vs-infra FIRM still **0.00**, real
   teamwide (calendar K1) and real duplication (duplicate-util K1) recall held **1.00**.
   **Caveat:** the pass is a *single probabilistic judge call*, not a deterministic
@@ -262,7 +245,7 @@
   now. Default ON across `standup`, `eval`, and the **MCP horizon**; disable with
   `--no-ground`.
 - **Collision direction-check — closes the residual fabrication the floor couldn't
-  reach, now ON by default** (`GroundKnots` in `internal/ettlemesh/ground.go`). The
+  reach, now ON by default** (`GroundTangles` in `internal/ettlemesh/ground.go`). The
   abstention floor (below) kills the flickery fabrication tail, but a *high*-recurrence
   misread survives it: a producer/consumer pipeline read as a collision because both
   people name the same topic word (mabel "consuming the metrics API" vs opal "writing
@@ -282,22 +265,22 @@
   `--no-ground`. Scope: collisions only — duplication/teamwide/decision-rights have
   different truth conditions and pass through.
 - **Abstention gate — the recurrence noise floor** (`dropFloorFraction` in
-  `internal/ettlemesh/mesh.go`, applied in `voteKnots`) closes the bulk of the
-  cross-group fabrication the robustness battery surfaced. A voted knot recurring
+  `internal/ettlemesh/mesh.go`, applied in `voteTangles`) closes the bulk of the
+  cross-group fabrication the robustness battery surfaced. A voted tangle recurring
   below the floor (0.25 of samples — strictly under the lowest per-kind firm bar, so
-  it can never drop a knot the firm bar would assert) is dropped entirely: not
+  it can never drop a tangle the firm bar would assert) is dropped entirely: not
   asserted, not asked. It catches the fabrication *tail* (separability: fabricated
-  cross-group knots recur ≤~0.17 of runs), which is most fabrications, at **zero
-  clear-knot recall cost**. Measured (haiku, `--samples 5`): on the worst corpus
+  cross-group tangles recur ≤~0.17 of runs), which is most fabrications, at **zero
+  clear-tangle recall cost**. Measured (haiku, `--samples 5`): on the worst corpus
   `superposition-frontend-vs-data` FIRM (asserted) cross-boundary fabrication fell
-  **2.60 → 0.50 knots/run** (~80%); on `superposition-userservice-vs-infra`,
-  **0.40 → 0.00**. Real-knot recall held 1.00 on all eight clear-knot corpora;
-  pooled real-knot false positives halved (4 → 2). The only recall casualty is
-  auth-migration K2, a flickery `decision-rights` knot already lost to detection
+  **2.60 → 0.50 tangles/run** (~80%); on `superposition-userservice-vs-infra`,
+  **0.40 → 0.00**. Real-tangle recall held 1.00 on all eight clear-tangle corpora;
+  pooled real-tangle false positives halved (4 → 2). The only recall casualty is
+  auth-migration K2, a flickery `decision-rights` tangle already lost to detection
   flicker pre-floor — an accepted miss under the **"lighter agenda, not no meeting"**
-  framing (precision is the goal; missing a flickery knot just leaves it on the human
+  framing (precision is the goal; missing a flickery tangle just leaves it on the human
   agenda). Residual: high-recurrence *polysemy* misreads (e.g. `mabel↔opal` both on
-  "analytics") survive — the floor structurally can't reach a 0.5-recurrence knot;
+  "analytics") survive — the floor structurally can't reach a 0.5-recurrence tangle;
   that needs a separate structural fix on the collision/teamwide pass (out of scope).
 - **`eval --superposition` now measures what ships** — runs *voted* at `--samples`
   (not single-shot) and splits the headline into **FIRM** cross-boundary (asserted —
@@ -315,7 +298,7 @@ First runnable cut of the multiplayer coordination PoC.
   engine over the Model Context Protocol so any MCP client (Claude Code, Cursor)
   drives it directly: `ettle_emit` distills a person's notes server-side through
   the privacy boundary (stores only atoms, drops the raw notes), `ettle_horizon`
-  reconciles the team's atoms into firm/soft knots filtered to `me`, and
+  reconciles the team's atoms into firm/soft tangles filtered to `me`, and
   `ettle_self_check` runs the N=1 self pass with no team. MCP is the consent-clean
   surface a meeting bot is not (each agent emits only its own person; nothing
   harvested — see ADOPTION.md). Depends on a narrow `reconciler` interface so the
@@ -329,12 +312,12 @@ First runnable cut of the multiplayer coordination PoC.
   a Coverage/staleness roster so a partially-synced horizon is never read as a bare
   "all clear". NATS stays a scheme-selected option (`file://` | `nats://` |
   inproc), the `file://` parse single-sourced so it can't drift across build tags.
-- **Per-kind firm bar** — recurrence-voting ranks knots firm (assert) vs soft
-  (ask), and the bar is now per-kind: a genuinely flickery `decision-rights` knot
+- **Per-kind firm bar** — recurrence-voting ranks tangles firm (assert) vs soft
+  (ask), and the bar is now per-kind: a genuinely flickery `decision-rights` tangle
   asserts at a lower recurrence (0.3) than the default (0.5), staying clear of the
   fabrication floor. The hand-set seed of the Phase-3 calibration loop. (The
   separability diagnostic established recurrence-frequency, not model confidence,
-  is what discriminates real knots from fabricated ones.)
+  is what discriminates real tangles from fabricated ones.)
 - **L2 — the directed-model layer — is built (structural form).** The pipeline used
   to skip straight from distill (L1) to a flat-pool reconcile (L3); the documented
   centerpiece between them, the per-pair directed models, was specced but absent.
@@ -374,14 +357,14 @@ First runnable cut of the multiplayer coordination PoC.
   absent on the other.
   Also: the connection-string redactor now catches credentials-only URLs
   (`redis://:pass@host`) and `@`-in-password DSNs (both previously leaked); `clip` no
-  longer splits a multibyte rune across the boundary; `voteKnots` confidence no longer
+  longer splits a multibyte rune across the boundary; `voteTangles` confidence no longer
   double-counts a run that names one divergence in both the pairwise and team-wide
   pass; a bare `name:` header no longer blanks a participant into the `--me ""`
   full-team sentinel; and the gemot poll loop honors parent-context cancellation
   instead of spinning to its local deadline. Doc-honesty corrections from the same
   panel: CONCEPT/README no longer state the semantic layer as "enforced" or "0% leak"
   as a settled property (it is model judgment, measured on a synthetic corpus);
-  `EXAMPLE_RUN` no longer shows a 0.5 knot as soft (the code routes ≥0.5 to firm); the
+  `EXAMPLE_RUN` no longer shows a 0.5 tangle as soft (the code routes ≥0.5 to firm); the
   README banner disambiguates the unbuilt N=1 *safety wedge* from the working N=1
   self-assumption pass; and BENCHMARKS states the dupbug A/B's structural ceiling
   (single-shot 8/8 leaves the McNemar "voting helps" cell pinned at zero) and a
@@ -409,7 +392,7 @@ First runnable cut of the multiplayer coordination PoC.
 
 - **Boundary transparency + structural caps** — `ettle standup --show-atoms`
   prints exactly the typed atoms that cross (the privacy surface) before
-  surfacing knots; atoms are now structurally capped (subject/content length,
+  surfacing tangles; atoms are now structurally capped (subject/content length,
   whitespace collapsed to one clause) so the boundary is partly enforced, not
   only trusted. Per-person distillation runs in parallel (latency is the "no
   meeting" competitor), and the Anthropic client retries 429/5xx (SDK-native,
@@ -469,7 +452,7 @@ First runnable cut of the multiplayer coordination PoC.
   to abort a whole `--ab` run. Unit-tested with a sequenced fake messager
   (garble-then-recover, fail-after-budget, transport-not-retried).
 
-- **First real-data eval corpus** (`testdata/dupbug/`) — the duplication knot,
+- **First real-data eval corpus** (`testdata/dupbug/`) — the duplication tangle,
   validated against real bug-tracker data instead of synthetic fixtures.
   Confirmed `RESOLVED DUPLICATE` pairs pulled from the **public Mozilla Bugzilla
   REST API** are anonymized and reworded into standup-style notes (raw responses
@@ -493,7 +476,7 @@ First runnable cut of the multiplayer coordination PoC.
 
 - **Privacy-boundary leak eval** (`ettle eval --leak`, `internal/eval/leak.go`) —
   the orthogonal harness: it measures whether the typed-atom boundary *leaks*,
-  rather than whether the detector finds the right knots. Synthetic notes
+  rather than whether the detector finds the right tangles. Synthetic notes
   (`testdata/leak/*.json`) carry planted private facts that must NOT cross — a comp
   number, a plaintext credential, a medical reason, a private opinion of a named
   teammate — each with markers whose appearance in a crossed atom counts as a leak;
@@ -510,13 +493,13 @@ First runnable cut of the multiplayer coordination PoC.
   so the accuracy claim is inspectable, not gitignored. The corpus now carries
   **plausible-but-wrong distractors** (`Real=false` — single-person open questions
   like "which payment provider?" that a miscalibrated detector might wrongly assert
-  as a cross-person knot); a FIRM knot that matches one is reported as a **named
+  as a cross-person tangle); a FIRM tangle that matches one is reported as a **named
   trap the detector fell for**, not just a bare false positive. `--ab` runs
   single-shot vs multi-sample voting with a McNemar test that is now **pooled
   across corpora** — per-corpus the discordant N is always too small to reach the
   reliability gate, so a per-corpus test could never find significance regardless
-  of the effect. Fixed the voting clustering it exercises: `SameKnot` uses a
-  Jaccard threshold (was: any one shared keyword) and `voteKnots` uses
+  of the effect. Fixed the voting clustering it exercises: `SameTangle` uses a
+  Jaccard threshold (was: any one shared keyword) and `voteTangles` uses
   order-invariant union-find (was: order-dependent first-match).
 
 - **L1 live-session capture** (`internal/capture`, `ettle capture`) — distills a
@@ -530,19 +513,19 @@ First runnable cut of the multiplayer coordination PoC.
 
 - **`ettle standup`** — distills each participant's notes into typed atoms,
   reconciles them (pairwise + team-wide + a single-party self pass) into
-  coordination knots, and surfaces only what's relevant to each human (`--me`).
-  Routes FIRM knots as "worth a look", SOFT (inference-backed) as "worth a
+  coordination tangles, and surfaces only what's relevant to each human (`--me`).
+  Routes FIRM tangles as "worth a look", SOFT (inference-backed) as "worth a
   question".
 - **Useful at N=1** — a single-party **self-assumption** pass (`ReconcileSelf`)
   surfaces an assumption a person's own later work has quietly made false; the
   pairwise/team passes are blind to it by construction. Deduped against the
-  cross-person knots (shared `SameKnot` matcher) so a team-wide divergence isn't
+  cross-person tangles (shared `SameTangle` matcher) so a team-wide divergence isn't
   also reported privately.
 - **Multi-sample voting** (`--samples K`, `ReconcileVoted`) — re-runs the
-  reconcile passes K times and keeps only knots recurring across a majority,
+  reconcile passes K times and keeps only tangles recurring across a majority,
   turning the stochastic detector's run-to-run noise into a confidence signal
-  (each surviving knot carries `Votes`/`Samples`, kept separate from
-  Confidence). Clustering uses the same `SameKnot` matcher, so a knot relabeled
+  (each surviving tangle carries `Votes`/`Samples`, kept separate from
+  Confidence). Clustering uses the same `SameTangle` matcher, so a tangle relabeled
   collision→decision-rights across runs still votes as one. Default `K=1` is the
   original single-run cost.
 - **Transport seam** — in-process (default, zero infrastructure) and a NATS
@@ -551,9 +534,9 @@ First runnable cut of the multiplayer coordination PoC.
     flow over core pub/sub would race and silently drop a peer's atoms;
     retention removes the race. Covered by an embedded-server integration test
     (in CI) and a live three-process docker run.
-- **Crux seam** — contested knots route to a gemot deliberation (TLS + bearer
+- **Crux seam** — contested tangles route to a gemot deliberation (TLS + bearer
   token, refuses anonymous off localhost) or an infra-free inline either/or.
-  Validated live against gemot 0.13.1: a decision-rights knot produced a scored
+  Validated live against gemot 0.13.1: a decision-rights tangle produced a scored
   crux + binding compromise. gemot poll default 90s → 180s (`--gemot-timeout`)
   after its multi-round analysis outran the old timeout.
 - **Safeguards** — `--me` validated against the roster; collected-vs-published
@@ -563,7 +546,7 @@ First runnable cut of the multiplayer coordination PoC.
   (demo mode) in one `docker compose up`, run ettle against it with
   `--insecure-local`.
 - **Scaling design** — `docs/SCALING.md`: the anti-runaway firewalls for the
-  future continuous loop (L3 emits knots not atoms; surprise-gated emit; O(1)
+  future continuous loop (L3 emits tangles not atoms; surprise-gated emit; O(1)
   shared reconcile; per-agent budget). The production hook path is gated on them.
 - **Project** — MIT LICENSE, SECURITY.md, architecture diagram + example run,
   synthetic fixture, parser/loader + NATS tests, CI (both build configs),

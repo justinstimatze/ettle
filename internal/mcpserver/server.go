@@ -496,19 +496,6 @@ type respondIn struct {
 	Tangle  string `json:"tangle" jsonschema:"the tangle's key field from ettle_horizon"`
 	Verdict string `json:"verdict" jsonschema:"one of: real | not_real | handled"`
 	Note    string `json:"note,omitempty" jsonschema:"optional free-text context"`
-	// Knot is the pre-rename name of Tangle, accepted so an agent holding a
-	// horizon from before the rename can still answer it. Deprecated; Tangle wins
-	// when both are set.
-	Knot string `json:"knot,omitempty" jsonschema:"deprecated alias for tangle"`
-}
-
-// key returns the tangle key the caller meant, preferring the current field and
-// falling back to the deprecated one.
-func (r respondIn) key() string {
-	if k := strings.TrimSpace(r.Tangle); k != "" {
-		return k
-	}
-	return strings.TrimSpace(r.Knot)
 }
 
 type respondOut struct {
@@ -525,7 +512,7 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 		return nil, respondOut{}, fmt.Errorf("label capture is not configured on this server")
 	}
 	me := strings.TrimSpace(in.Me)
-	key := in.key()
+	key := strings.TrimSpace(in.Tangle)
 	if me == "" || key == "" {
 		return nil, respondOut{}, fmt.Errorf("both `me` and `tangle` (the key from ettle_horizon) are required")
 	}

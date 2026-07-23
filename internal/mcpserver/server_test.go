@@ -560,23 +560,3 @@ func TestEmitScrubsSecretsInClientSuppliedAtoms(t *testing.T) {
 		}
 	}
 }
-
-// The rename knot -> tangle changed a published MCP input field. An agent holding
-// a horizon from before the rename must still be able to answer it.
-func TestRespondAcceptsDeprecatedKnotAlias(t *testing.T) {
-	sink := &memLabelSink{}
-	s := &server{det: &fakeReconciler{}, h: newHorizon(), labels: sink}
-	if _, _, err := s.respond(context.Background(), nil, respondIn{Me: "alice", Knot: "collision|alice+bob", Verdict: "real"}); err != nil {
-		t.Fatalf("deprecated `knot` alias must still work: %v", err)
-	}
-	if len(sink.got) != 1 || sink.got[0].Key != "collision|alice+bob" {
-		t.Fatalf("alias did not reach the label: %+v", sink.got)
-	}
-	// Current field wins when both are set.
-	if _, _, err := s.respond(context.Background(), nil, respondIn{Me: "alice", Tangle: "new|a+b", Knot: "old|a+b", Verdict: "real"}); err != nil {
-		t.Fatalf("respond: %v", err)
-	}
-	if sink.got[1].Key != "new|a+b" {
-		t.Errorf("tangle should win over the deprecated knot, got %q", sink.got[1].Key)
-	}
-}
