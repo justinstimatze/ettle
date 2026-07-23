@@ -98,7 +98,7 @@ func selectBus(cfg runConfig) (transport.Transport, error) {
 
 func runRoom(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: ettle room <init|join|list> ...")
+		return fmt.Errorf("usage: ettle room <init|join|list|status> ...")
 	}
 	switch args[0] {
 	case "init":
