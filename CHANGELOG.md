@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.2.0 — 2026-07-22
+
+The distributed release: ettle stopped being a single-host demo. A team can now
+join a room with one command over a private git repo, see who's present, and —
+new in this release — take part without an API key of their own. The core object
+was also renamed `knot` → `tangle`.
+
 - **Client-side distillation — a teammate no longer needs an API key to take part.**
   `ettle_emit` now accepts already-typed `atoms` as an alternative to raw `notes`
   (exactly one of the two; supplying both is an error rather than a silent

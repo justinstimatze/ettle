@@ -72,13 +72,32 @@ person*: teammates driving ettle from their own agent (Claude Code, Cursor) can
 distill locally and never need a key of their own. See the `ettle_distill` note
 at the end of this block.
 
+Install the binary:
+
 ```sh
-# one Anthropic API key in .env (see .env.example)
-cp .env.example .env && $EDITOR .env
+go install github.com/justinstimatze/ettle/cmd/ettle@latest
+```
 
-# surface the coordination tangles across a team's notes — no meeting
+It self-describes its version (`ettle version`). If you'd rather read the code
+first — or want the bundled `testdata/` the examples below use — clone instead
+and swap `ettle` for `go run ./cmd/ettle` in every command:
+
+```sh
+git clone https://github.com/justinstimatze/ettle && cd ettle
+```
+
+**Start here — this one command is the whole idea.** Three people's notes go in;
+what comes out is only the coordination tangles, filtered to the one person:
+
+```sh
+cp .env.example .env && $EDITOR .env      # one Anthropic API key
 go run ./cmd/ettle standup --me alice testdata/standup/*.md
+```
 
+(No key handy? [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) is exactly what that
+prints, on the bundled fixture.) Everything below is the rest of the surface.
+
+```sh
 # or run it on real LIVE sessions — Claude Code transcripts, not notes —
 # the L1 layer that distills what each person actually reasoned about and did
 go run ./cmd/ettle standup testdata/sessions/*.jsonl
