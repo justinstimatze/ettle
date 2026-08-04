@@ -21,6 +21,6 @@ func busFor(name string, insecureLocal bool) (transport.Transport, error) {
 	case "nats":
 		return transport.DialNATS(transport.NATSConfig{InsecureTCP: insecureLocal})
 	default:
-		return nil, fmt.Errorf("unknown transport %q (inproc | file://<path> | leat://<repoDir> | nats)", name)
+		return nil, fmt.Errorf("unknown transport %q (inproc | file://<path> | leat://<repoDir> | linear://<room> | nats)", name)
 	}
 }

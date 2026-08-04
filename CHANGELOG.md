@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **A Linear-backed transport (`linear://<room>`), for teams already on Linear +
+  Claude Code.** The room is a Linear project, each participant owns one document,
+  and that document's content is their current envelope — so the bus is a project
+  the team already has rather than a git repo to stand up. Set `LINEAR_API_KEY`
+  (and `LINEAR_TEAM_ID` the first time, to create the project); it slots in behind
+  the existing `transport.Transport` seam next to `file://`, `leat://`, and `nats`.
+  Storage is replace-current (`documentUpdate` overwrites in place), so the
+  footprint is N documents for N people — bounded like `DirBus`, with no per-emit
+  accumulation. Measured, not assumed: API `documentUpdate` accrued zero visible
+  revision-history snapshots over 12 rapid writes, so no doc-rotation is needed.
+  Honest limit: one room token means Linear's actor is the token owner, not the
+  participant, so identity rides the document title (`ettle/<slug>`, authoritative
+  on read) and the envelope, without Linear-actor corroboration — leat's git-author
+  check stays strictly stronger. As a guest on their platform the client sends a
+  `User-Agent` identifying ettle and surfaces a 429 as a distinct rate-limit error.
+
 ## v0.2.1 — 2026-07-22
 
 The onboarding release. v0.2.0 shipped a key-free teammate path that could not

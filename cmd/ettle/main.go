@@ -101,7 +101,7 @@ func main() {
 	me := fs.String("me", "", "surface tangles relevant to this participant (their agent's view); empty = full team view")
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested tangles (e.g. https://gemot.example/mcp); empty = inline either/or")
-	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | nats (needs -tags nats)")
+	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | linear://<room> (a Linear project as the bus; needs LINEAR_API_KEY) | nats (needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks tangles firm (assert) vs soft (ask) — tangles recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
@@ -1716,7 +1716,7 @@ func runMCP(args []string) error {
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
 	room := fs.String("room", "", "serve the horizon over a configured leat room (see `ettle room join`) so teammates on other machines share it; empty = in-process, this process only")
-	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | nats")
+	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	_ = fs.Parse(args)
 

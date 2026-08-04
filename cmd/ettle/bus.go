@@ -21,7 +21,26 @@ func dirBusFor(name string) (transport.Transport, bool, error) {
 		b, err := leatBusFor(repoDir)
 		return b, true, err
 	}
+	if room, ok := strings.CutPrefix(name, "linear://"); ok {
+		b, err := linearBusFor(room)
+		return b, true, err
+	}
 	return nil, false, nil
+}
+
+// linearBusFor builds a Linear-backed transport from linear://<room> plus the
+// environment: LINEAR_API_KEY (a Linear personal API key, required) and
+// LINEAR_TEAM_ID (the team that owns the room's project, required only the first
+// time — to create it; ignored once it exists). The room maps to a project named
+// "ettle-<room>". Meant for a team already on Linear + Claude Code, so the bus is
+// a Linear project they already have rather than a git repo to stand up.
+func linearBusFor(room string) (transport.Transport, error) {
+	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
+	if key == "" {
+		return nil, fmt.Errorf("linear transport needs LINEAR_API_KEY (a Linear personal API key)")
+	}
+	team := strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID"))
+	return transport.NewLinearBus(key, room, team, buildVersion())
 }
 
 // leatBusFor builds a leat git-bus transport from the repo path plus the
