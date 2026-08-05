@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`ettle pull` — a teammate who never installs ettle can contribute through
+  Linear's native agent UI.** When someone replies to ettle in a Linear agent
+  session, `ettle pull --room <room>` reads that reply (a plain member key — no
+  OAuth app token), distills it **locally** under that teammate's identity, and
+  publishes the atoms to the room. So a non-ettle coworker becomes a first-class
+  voice in reconcile without running anything or holding a key of their own. Raw
+  prose never touches the bus — distillation stays on the machine that pulls, the
+  same privacy boundary as everywhere else. It runs automatically before a
+  `linear://` standup's `Collect` (non-fatal, and cursor-bounded so a quiet pull is
+  one cheap query returning nothing new), so nobody has to remember it; the
+  standalone command is for explicit runs. Deliberately deferred: the *emit* half
+  (surfacing ettle's own knots as Linear elicitations, which needs the OAuth
+  app-actor token) and a hosted webhook relay — the receive path is member-key
+  polling, no always-on server.
+
 - **A Linear-backed transport (`linear://<room>`), for teams already on Linear +
   Claude Code.** The room is a Linear project, each participant owns one document,
   and that document's content is their current envelope — so the bus is a project
