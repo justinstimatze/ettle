@@ -167,6 +167,20 @@ Not a search pass: a close read of one primary source, an [MLOps Community Podca
 
 *Recency note: single-source for §10(a)–(e), from a podcast; product facts (pods, GCS-fuse backing, no undo) are as described by the speaker in mid-2026 and will move. The durable finding is the positioning: Dust answers multiplayer AI with a shared workspace and pooled state; ettle answers it with bounded per-person state and automated cross-person reconciliation. Same problem, opposite premise.*
 
+## 11. GitHub Next's repo-assist study (May 2026) — the first outside measurement of the human-decision clamp
+
+Not a search pass: a close read of one primary source, GitHub Next's [*The Impact of Automated Repository Maintenance Assistance*](https://github.com/githubnext/repo-assist-impact/blob/main/report.md) (14 May 2026). Numbers below are read off the report, not the summary card on githubnext.com, which is stale — the card says 13 repositories and 578 issues where the report says **15** and **651 net**.
+
+**(a) What it measured.** Repo Assist, a proactive repository agent, deployed across 15 open-source repos through 2026. Open issue counts fell in every one. Median issue-closure and PR-merge velocity both rose **9×** — 0.13 → 3.61 issues/week, 0.34 → 5.63 PRs/week — turning largely dormant projects into actively maintained ones. The report then applies Theory of Constraints (Goldratt 1984) and Little's Law and reaches a conclusion in its own words: **throughput is gated by human decision-making**, and the driver of low backlog clearance is where the pipeline blocks rather than the difficulty of the issues.
+
+**(b) Why it matters here.** [SCALING.md](SCALING.md) argues that a coordination system must clamp to the rate a person actually decides things, and that a cascade running faster than that produces queue rather than output. That has been an argument from first principles. This is the same claim with instrumentation on it, from a team with no stake in ettle's design. The three blocked shapes the report names are all human-side: **inaction** (FSharp.Stats, dowhy), **rejection** (fantomas), and **mixed** (FsAutoComplete). In dowhy, 43 of 61 PRs sat in the review queue at an average of 18.2 days, with arrivals outrunning departures 4.7:1 — a queue growing without bound behind an agent that was working correctly.
+
+**(c) The finding ettle should take personally.** Two of the fifteen maintainers throttled a functioning agent for attention cost rather than quality. fantomas rejected 64% of its PRs (41 of 64) and cut to a monthly cadence, with "the automation's output exceeded available attention" among the stated causes. FsAutoComplete's maintainer paused the workflow outright, and the report is explicit that this was to manage notification pressure and **not** a quality concern. That is the exact failure ettle's whisper-first surface, the FIRM/soft split, and `ettle mute` exist to prevent — someone turning off a system that was right, because being right too often is its own cost. It is no longer a hypothesized risk in [ADOPTION.md](ADOPTION.md); it is a documented one, with names attached.
+
+**(d) What it is not.** Fifteen repos, one agent, one deployment, and open-source maintainers whose attention is volunteered rather than salaried — a population with a lower tolerance for notification load than a paid team. Repo Assist is a maintenance agent, not a coordination tool, so nothing here measures reconciliation *between* people. The transferable part is the constraint analysis, not the effect size.
+
+*Recency note: single-source, and the products move. The durable finding is the shape — production got cheap, the human decision step became the binding constraint, and the systems that ignored that constraint got switched off by the people they were helping.*
+
 ## The map, in one view
 
 - Transport/discovery (A2A, MCP, AGNTCY, ACP) + the A2A "agent economy": crowded, funded, production — but cross-org and transactional, not intra-team.
@@ -179,6 +193,7 @@ Not a search pass: a close read of one primary source, an [MLOps Community Podca
 - Machine theory of mind (ToMnet, LLM-ToM): exists, brittle, not wired to coordination products.
 - Shared-state multiplayer workspaces (Dust pods §10, GitHub Next's Ace §9(d)): the same diagnosis, answered by pooling everything into one visible space. The opposite premise to ettle's bounded per-person state — and the sharpest available contrast for explaining what ettle is.
 - Fully autonomous / zero-human corporations (TheAgentCompany benchmark, Moltcorp): the opposite pole — the *interior* humans removed. ettle is the layer for the humans-at-the-*edges*; the ~30% autonomy ceiling is why that edge persists.
+- Deployed-agent field measurement (GitHub Next's repo-assist study §11): the only outside data here on what happens *after* production gets cheap — throughput gated by human decision-making, and two maintainers switching off a working agent over attention cost. Evidence for the clamp in [SCALING.md](SCALING.md) and for the risk in [ADOPTION.md](ADOPTION.md).
 - **The integration ettle describes — personal-agent people-modeling + privacy-bounded metaperception + per-human calibration + friction-in-the-right-spots, inside a consenting trust boundary: still empty. The sides are increasingly built-for-us; the middle is the work.**
 
 The plumbing being done for us is what makes ettle buildable now. The unbuilt middle — L2/L3 metaperception plus per-human calibration plus a contextual-integrity boundary — is the genuinely novel and genuinely hard part. That is both the opportunity and the warning.
