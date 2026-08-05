@@ -2,7 +2,24 @@
 
 ## Unreleased
 
-- **A verdict typed at the shell now carries the recurrence it was answering.** Only
+- **`ettle calibrate` now says where the evidence puts a cut point, and refuses to
+  when it does not.** It used to report a kind as readable and then say nothing about
+  where the bar should go. It sweeps the labelled recurrences and reports the interval
+  of cut points that separate `real` from `not_real` best — an interval and not a
+  point, because recurrence is votes over a small sample, ties are the normal case,
+  and collapsing one to its midpoint would invent precision the rows do not carry.
+  The score is Youden's J rather than accuracy, because the log over-represents
+  `not_real` by construction and an accuracy-maximising cut drifts toward asserting
+  nothing just because most rows are negative.
+- **Two ways it declines.** When no cut beats chance it says so instead of naming the
+  best-scoring one — there is always a best-scoring cut, and printing it would dress a
+  coin flip as a measurement; the finding is that recurrence is not what decides these
+  verdicts, which moving the bar cannot fix. And it compares the bar in force to the
+  suggestion by the SPLIT each produces, not by whether the number falls inside the
+  interval: candidate cuts are the observed recurrences, so a bar below all of them
+  can still classify every row identically, and reporting that as a reason to move
+  would be the tool inventing work. Both were live bugs caught by running it against
+  separable and overlapping fixtures rather than only the unit tests. Only
   the MCP server could attach that before — it holds the surfaced set in memory, so
   an agent answering the horizon it just read wrote a learnable row, while `ettle
   confirm` and `ettle mute` wrote the kind and zero. That is backwards from where the

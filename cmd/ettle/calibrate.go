@@ -76,11 +76,57 @@ func renderCalibration(rep *calib.Report) string {
 		}
 		if k.Blocked != "" {
 			out("    ✗ %s\n", k.Blocked)
-		} else {
-			out("    ✓ both arms present with recurrence — readable; the bar is still yours to move, in mesh.go\n")
+			continue
 		}
+		out("%s", renderSuggestion(k))
 	}
 	out("%s", structuralNote(rep))
+	return string(b)
+}
+
+// renderSuggestion says where the evidence puts the cut and what moving there would
+// cost, in the two currencies a person actually trades between: false alarms on the
+// horizon, and real tangles demoted to a question.
+//
+// It reports an interval because ties are the normal case on discrete recurrence, and
+// it never phrases the result as an instruction. Which end of a tie to take depends
+// on whether a false alarm or a miss is worse for this team, and that is theirs.
+func renderSuggestion(k calib.KindReport) string {
+	s := k.Suggest
+	if s == nil {
+		return "    ✓ readable, but no labelled recurrences to sweep\n"
+	}
+	var b []byte
+	out := func(format string, a ...any) { b = append(b, fmt.Sprintf(format, a...)...) }
+
+	// No cut beats chance: the verdicts and the recurrence are unrelated for this
+	// kind. There is still a best-scoring cut — there always is — and printing it
+	// would dress a coin flip as a measurement.
+	if !s.Separates {
+		out("    ✗ recurrence does not separate these verdicts (best Youden's J %.2f, chance is 0.00)\n", s.J)
+		out("      real and not_real are recorded at the same recurrences, so no cut point\n")
+		out("      does better than asserting everything. Either the signal is wrong for this\n")
+		out("      kind, or something other than recurrence is deciding — neither is fixed by\n")
+		out("      moving the bar.\n")
+		return string(b)
+	}
+
+	if s.Lo == s.Hi {
+		out("    → the labelled rows separate best at %.2f", s.Lo)
+	} else {
+		out("    → every cut from %.2f to %.2f separates these rows equally well", s.Lo, s.Hi)
+	}
+	out(" (Youden's J %.2f)\n", s.J)
+	out("      at that cut:  %d asserted right, %d asserted wrong, %d real demoted to soft\n",
+		s.AtCut.TP, s.AtCut.FP, s.AtCut.FN)
+	if s.SameAsCurrent {
+		out("      the bar in force (%.2f) splits these rows identically — nothing here argues for moving it.\n", k.FirmBar)
+		return string(b)
+	}
+	out("      at %.2f today: %d asserted right, %d asserted wrong, %d real demoted to soft\n",
+		k.FirmBar, s.AtCurrent.TP, s.AtCurrent.FP, s.AtCurrent.FN)
+	out("      whether to move is a trade: a lower bar asserts more and is wrong more often.\n")
+	out("      the constant is firmVoteFractionByKind in internal/ettlemesh/mesh.go.\n")
 	return string(b)
 }
 
