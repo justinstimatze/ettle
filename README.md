@@ -322,10 +322,12 @@ and a tangle resting only on an inference surfaces as a *question* rather than a
 fact. Add `--show-atoms` to any run to see exactly what crosses the boundary —
 typed atoms, never the raw session.
 
-Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo. The git URL is the invite:
+For a team on neither Linear nor GitHub, the bus is a plain private git repo — no
+server, no key beyond repo access, the same seam, so everything above works
+unchanged. The git URL is the invite:
 
 ```sh
-# (installed-binary form — the distributed path needs no bundled testdata)
+# (installed-binary form — this path needs no bundled testdata)
 # the bus is a private git repo. one person starts it, everyone else joins:
 ettle room init git@github.com:crew/standup-room.git   # first person — creates + seeds it
 ettle room join git@github.com:crew/standup-room.git   # everyone else, on their own machine
@@ -367,7 +369,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 ## Relationship to sibling projects
 
 - **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** — their stated intent plus the work they committed — into the same digest a note would produce, so the tool runs end-to-end on real reasoning-in-progress (`ettle standup session.jsonl`). A richer per-person model can feed this layer from outside the repo. What ettle adds on top is the multiplayer half: the directed and collective layers, and the actionable one.
-- **the atom bus** — behind a transport seam, so it swaps freely. Default is zero-infra in-process (local runs/tests). For a distributed team the light path is **[leat](https://github.com/justinstimatze/leat)** — a private git repo used as an append-only, per-author-lane message bus (durable, cross-machine, identity-hardened, `git log` = the audit trail; a stdlib-only Go package owned by [mcp-dispatch](https://github.com/justinstimatze/mcp-dispatch), the canonical impl of a shared git-transport wire contract, which ettle consumes). A [NATS](https://nats.io) bus (TLS + auth, pub/sub, replay) is the heavier alternative behind `-tags nats`; other rails (Slack, Matrix, A2A) can drop in later.
+- **the atom bus** — behind a transport seam, so it swaps freely. Default is zero-infra in-process (local runs/tests). For a team it's a Linear project, or a private repo's GitHub Discussion — the two rails `ettle init` sets up. For a team on neither, **[leat](https://github.com/justinstimatze/leat)** — a private git repo used as an append-only, per-author-lane message bus (durable, cross-machine, identity-hardened, `git log` = the audit trail; a stdlib-only Go package owned by [mcp-dispatch](https://github.com/justinstimatze/mcp-dispatch), the canonical impl of a shared git-transport wire contract, which ettle consumes). A [NATS](https://nats.io) bus (TLS + auth, pub/sub, replay) is the heavier alternative behind `-tags nats`; other rails (Slack, Matrix, A2A) can drop in later.
 - **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant tangle back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.
 - **[gemot](https://github.com/justinstimatze/gemot)** — structured deliberation (positions → cruxes → binding compromise, with EigenTrust reputation). The inter-agent negotiation organ for *contested* tangles: it locates the crux (where friction belongs) and binds the rest, and its reputation deltas become the team-tier calibration signal. Reached over TLS with auth — the crux is the most sensitive payload on the wire.
