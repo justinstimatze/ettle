@@ -2,25 +2,10 @@
 
 ## Unreleased
 
-- **"knot" was back, 234 times — the word this project deliberately erased.**
-  `cbedf79` removed *knot* from the tree entirely in favour of **tangle**, alias and
-  changelog history included, on the reasoning that ettle has no users and the
-  cheapest moment to hold one vocabulary is before anyone reads two. Everything built
-  in this batch put it back: an `internal/knotstate` package, `PostKnot`,
-  `renderKnotBody`, the block injected into every session, the README, SURFACES.md.
-  Nothing caught it, because a renamed concept compiles perfectly under either name —
-  the only thing that breaks is the reader, silently, by wondering whether a knot and
-  a tangle are two different things. Renamed throughout (`internal/tanglestate`,
-  `escalatableTangles`, `renderTangleBody`, `postTangles`, `tanglePoster`,
-  `transport.PostTangle`), and the injected block reads "coordination tangles" again.
-- **`make ci` now runs a prose vocabulary gate**, because the above should not have
-  needed a human to notice it. `calque vocab-check` fails on a load-bearing compound
-  absent from `.calque/vocab-allowlist.txt`; the list is seeded from the tree as it
-  now reads, so the next dead word arriving is a build failure rather than a
-  conversation three weeks later. The target skips itself when calque is not
-  installed, so it never blocks a contributor without it. `.calque/README.md` says
-  what to do with a warning — add the slug only after reading it.
-
+- **`make ci` runs a prose vocabulary gate** (`calque vocab-check` against
+  `.calque/vocab-allowlist.txt`), so a second word competing with an existing one
+  fails the build instead of surfacing in review weeks later. Skips itself when
+  calque isn't installed.
 - **Muting was silently broken on every bus except Linear.** The per-room tangle stores
   keyed off the *Linear room*, so on a `github://` or leat room the key fell through
   to a shared `"default"` bucket — every non-Linear room on the machine muting each
