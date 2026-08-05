@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 — 2026-08-05
 
 - **The MCP surface now carries the whole engine.** ettle is agent-first — the CLI is
   for completeness — but three things were reachable only from a shell, and an agent
@@ -22,6 +22,19 @@
   baseline that chased the current state would report every mirror clean.
 - **`ettle init` stays the one shell-only command**, because it creates the room the
   server connects to. Noted in README and `docs/SURFACES.md` rather than left implicit.
+- **Docs caught up with the lead path.** Two README paragraphs and `docs/ARCHITECTURE.md`
+  still read as though the git-repo bus were how a team goes multiplayer — ARCHITECTURE
+  called NATS "the default distributed rail" — and `docs/DEPLOY.md`, the doc about
+  running this for a team, had no Linear or GitHub tier at all. That rail is now Tier 1
+  there, with the folder and git tiers at 1b/1c.
+- **`docs/ADOPTION.md` was making three claims the code no longer supports.**
+  Requirement 3 said nothing enters the shared layer but a participant's own session,
+  which `ettle pull` contradicts: the consenting act is writing in the room, not running
+  the binary, and the inference that buys is now stated where it can be argued with.
+  Requirement 4 said the L2 model was unreadable by its subject, which `ettle mirror`
+  fixed. Requirement 6 promised a clean exit the append-only git bus cannot give — the
+  property that makes that tier's identity non-spoofable is the one that keeps what you
+  wrote in `git log`.
 
 ## v0.3.5 — 2026-08-05
 
