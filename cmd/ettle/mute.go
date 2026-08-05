@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
+	"github.com/justinstimatze/ettle/internal/mcpserver"
 	"github.com/justinstimatze/ettle/internal/tanglestate"
 )
 
@@ -27,7 +29,10 @@ func runMute(args []string) error {
 	fs := flag.NewFlagSet("mute", flag.ContinueOnError)
 	room := fs.String("room", "", "the room whose tangles to mute (default: this project's `.ettle-room`)")
 	transportName := fs.String("transport", "", "transport spec, when not using --room")
+	me := fs.String("me", "", "who is judging (default: the room's identity, else $USER)")
 	clear := fs.Bool("clear", false, "unmute instead of mute — the named tangle, or all of them with no name")
+	wrong := fs.Bool("wrong", false, "the tangle is a false alarm: ettle was wrong to raise it")
+	handled := fs.Bool("handled", false, "the tangle was real and is now dealt with")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -56,13 +61,50 @@ func runMute(args []string) error {
 		return nil
 	case key == "":
 		return listMutes(stateKey)
+	}
+
+	verdict, err := muteVerdict(*wrong, *handled)
+	if err != nil {
+		return err
+	}
+	if err := tanglestate.Add(tanglestate.Muted, stateKey, key); err != nil {
+		return err
+	}
+	fmt.Printf("muted %s in %s — horizon will stop surfacing it and escalate won't post it.\n", key, stateKey)
+
+	// The mute is the visible half; the verdict is the half the project actually needs.
+	// A silence recorded without WHY teaches the calibration loop nothing, so this
+	// writes the same label ettle_respond would, into the same log.
+	lbl := mcpserver.Label{Key: key, Verdict: verdict, By: captureIdentity(*me, *room, *transportName)}
+	if err := mcpserver.RecordLabel(lbl); err != nil {
+		// The mute already landed and is what the human asked for; losing the label is
+		// worth saying out loud and not worth failing over.
+		fmt.Fprintf(os.Stderr, "ettle: muted, but the verdict was not recorded: %v\n", err)
+	} else {
+		fmt.Printf("recorded %q by %s in %s — the calibration signal, kept.\n", verdict, lbl.By, mcpserver.LabelsPath())
+	}
+	fmt.Println("undo with `ettle mute --clear " + key + "`.")
+	return nil
+}
+
+// muteVerdict refuses to guess between the two reasons for silencing a tangle. They
+// are opposite calibration signals: `not_real` says the detector should not have
+// raised it, `handled` says it was right and the work is done. Recording one as the
+// other poisons the only ground truth the calibration loop will have, and defaulting
+// would do that silently every time someone typed the short form.
+func muteVerdict(wrong, handled bool) (string, error) {
+	switch {
+	case wrong && handled:
+		return "", fmt.Errorf("--wrong and --handled say opposite things about the same tangle; pick one")
+	case wrong:
+		return "not_real", nil
+	case handled:
+		return "handled", nil
 	default:
-		if err := tanglestate.Add(tanglestate.Muted, stateKey, key); err != nil {
-			return err
-		}
-		fmt.Printf("muted %s in %s — horizon will stop surfacing it and escalate won't post it.\n", key, stateKey)
-		fmt.Println("undo with `ettle mute --clear " + key + "`.")
-		return nil
+		return "", fmt.Errorf("say why, so the verdict is worth something:\n" +
+			"  --wrong     ettle should not have raised this (a false alarm)\n" +
+			"  --handled   it was real and you have dealt with it\n" +
+			"both stop it resurfacing; they are opposite signals to the calibration loop")
 	}
 }
 
@@ -97,8 +139,9 @@ func listMutes(stateKey string) error {
 	}
 	if len(set) == 0 {
 		fmt.Printf("nothing muted in %s.\n\n", stateKey)
-		fmt.Println("  ettle mute <kind> <person> <person>   stop a tangle resurfacing")
-		fmt.Println("  ettle mute duplication ivo mara       — as it reads off the horizon line")
+		fmt.Println("  ettle mute --wrong <kind> <person>...     ettle should not have raised it")
+		fmt.Println("  ettle mute --handled <kind> <person>...   it was real and you dealt with it")
+		fmt.Println("  ettle mute --wrong duplication ivo mara   — as it reads off the horizon line")
 		return nil
 	}
 	keys := make([]string, 0, len(set))

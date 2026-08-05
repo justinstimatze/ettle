@@ -542,6 +542,32 @@ type fileLabelSink struct {
 
 func newFileLabelSink(path string) *fileLabelSink { return &fileLabelSink{path: path} }
 
+// LabelsPath is where verdicts accrue: an append-only JSONL file in the working dir,
+// overridable by ETTLE_LABELS_PATH. Exported because the CLI writes the same log —
+// a verdict recorded by `ettle mute` has to land in the same place as one recorded by
+// ettle_respond, or the calibration data splits by which surface someone happened to
+// use.
+func LabelsPath() string {
+	if p := strings.TrimSpace(os.Getenv("ETTLE_LABELS_PATH")); p != "" {
+		return p
+	}
+	return "ettle-labels.jsonl"
+}
+
+// RecordLabel appends one verdict to the label log, filling the timestamp and
+// recovering the tangle kind from the key. The recurrence features (votes, samples,
+// firm) stay zero: only the server that surfaced the tangle held them, and inventing
+// them would make an un-learnable row look learnable.
+func RecordLabel(l Label) error {
+	if strings.TrimSpace(l.TS) == "" {
+		l.TS = time.Now().UTC().Format(time.RFC3339)
+	}
+	if l.Kind == "" {
+		l.Kind = kindFromKey(l.Key)
+	}
+	return newFileLabelSink(LabelsPath()).record(l)
+}
+
 func (f *fileLabelSink) record(l Label) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -768,14 +794,10 @@ func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPrompt
 // ettle_escalate is enabled (posts as the OAuth app actor); otherwise the tool
 // reports it is not configured.
 func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string) error {
-	// Label capture is local-first: an append-only JSONL file in the working dir,
-	// overridable by ETTLE_LABELS_PATH. The verdicts are the calibration loop's future
-	// input (stage 2); writing them now means the data exists before the loop does.
-	path := os.Getenv("ETTLE_LABELS_PATH")
-	if path == "" {
-		path = "ettle-labels.jsonl"
-	}
-	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(path), stateKey: stateKey, room: linRoom}
+	// Label capture is local-first (see LabelsPath). The verdicts are the calibration
+	// loop's future input (stage 2); writing them now means the data exists before the
+	// loop does.
+	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(LabelsPath()), stateKey: stateKey, room: linRoom}
 	// Enable ettle_escalate only for a Linear room with an app-actor token present —
 	// the member key can read agent activities but not post them.
 	if tok := strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")); tok != "" && strings.TrimSpace(linRoom) != "" {

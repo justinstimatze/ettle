@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.3.5 — 2026-08-05
+
+- **`ettle mute` now records the verdict, and refuses to guess it.** The MCP path
+  (`ettle_respond`) has always captured a `Label` — verdict, kind, recurrence, firm
+  tier — which is the ground truth the calibration loop is meant to consume. The
+  shell mute wrote the silence and dropped the reason, so a verdict entered from a
+  terminal vanished. It now writes the same JSONL log through `mcpserver.RecordLabel`,
+  at the same `ETTLE_LABELS_PATH`, and requires `--wrong` (a false alarm) or
+  `--handled` (real and dealt with) rather than defaulting: those are opposite claims
+  about whether the detector was right, and conflating them silently poisons the only
+  data the loop will have. Recurrence features stay zero on a shell verdict, because
+  only the server that surfaced the tangle held them.
+- The horizon block leads with `ettle_respond` and keeps the shell form as the
+  fallback, matching how ettle is actually driven.
+
+## v0.3.4 — 2026-08-05
+
+- The horizon block named only the shell mute. It leads with `ettle_respond` now.
+
 ## v0.3.3 — 2026-08-05
 
 - **A wrong tangle had no off switch on the install we tell people to use.** The mute

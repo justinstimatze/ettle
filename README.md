@@ -140,18 +140,21 @@ escalate it on purpose. A few commands stay worth knowing:
 ettle room status            # who's on the bus and what they're on (no key, no model call)
 ettle horizon                # what the room knows right now that concerns you
 ettle horizon --all          # the same, unfiltered — the whole team's tangles
-ettle mute <kind> <people>   # this one is wrong or handled — stop it coming back
+ettle mute --wrong <kind> <people>    # ettle shouldn't have raised this — stop it
 ettle escalate               # post the firm cross-person tangles where a non-adopter can see them
 ```
 
-`ettle mute duplication ivo mara` reads straight off the horizon line. It stops that
-tangle surfacing and keeps it out of any escalation, on every bus, and
-`ettle mute --clear` undoes it. Reach for it the first time something wrong shows
-up — a tool that interrupts you and can't be told it was wrong is a tool you turn
-off. From inside a session the same thing is `ettle_respond` with verdict
-`not_real` or `handled`, which mutes it *and* records the verdict as the
-calibration ground truth; the shell command is for when the MCP server isn't
-loaded.
+`ettle mute --wrong duplication ivo mara` reads straight off the horizon line, and
+`--handled` is the other case: the tangle was real and you've dealt with it. Both
+stop it surfacing on every bus and keep it out of any escalation; `ettle mute
+--clear` undoes it. Reach for one the first time something wrong shows up — a tool
+that interrupts you and can't be told it was wrong is a tool you turn off.
+
+Saying *which* is not ceremony. `not_real` and `handled` are opposite signals about
+whether the detector was right, and they are the only ground truth the calibration
+loop will ever have, so ettle refuses to guess between them. From inside a session
+this is `ettle_respond`, which is where it normally happens; the shell form exists
+for a session with no MCP server loaded, and writes the same log.
 
 None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
 the hooks can be global and still do the right thing per project. To drive it from

@@ -279,7 +279,7 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	// ettle_respond leads because the MCP server is the surface this is normally driven
 	// from, and because it records the verdict as calibration ground truth on the way
 	// past; the CLI is for a session without the tools loaded.
-	b.WriteString("If one of these is wrong or already handled, tell ettle rather than living with it: `ettle_respond` with verdict `not_real` or `handled` records the verdict and stops the tangle resurfacing (or `ettle mute <kind> <the people in it>` from a shell). Either way it also stays out of any escalation, and `ettle mute --clear` undoes it.\n")
+	b.WriteString("If one of these is wrong or already handled, tell ettle rather than living with it: `ettle_respond` with verdict `not_real` (ettle shouldn't have raised it) or `handled` (real, and dealt with) stops it resurfacing and keeps it out of any escalation. From a shell without the tools loaded, `ettle mute --wrong` / `--handled <kind> <the people in it>` does the same; `ettle mute --clear` undoes it.\n")
 	if res.escalated != nil {
 		b.WriteString(shareLegend(res, who))
 	}
