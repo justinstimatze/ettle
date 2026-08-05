@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-08-05
 
+- **Docs stop calling the calibration loop unbuilt, and stop calling it built.** The
+  README banner, the Status section, the architecture diagram, CONCEPT.md and
+  CONTRIBUTING all said the correction half does not run. Two of its three parts now
+  do: verdicts are captured with the recurrence they answered, and `ettle calibrate`
+  reads them back. What does not run is anything that acts — no threshold moves, no
+  per-pair model corrects, and per-pair trust is still global-per-kind. Part of that
+  gap is permanent by invariant and part is genuinely unbuilt, and the docs now say
+  which is which rather than collapsing both into "not built yet".
 - **`ettle calibrate` now says where the evidence puts a cut point, and refuses to
   when it does not.** It used to report a kind as readable and then say nothing about
   where the bar should go. It sweeps the labelled recurrences and reports the interval
@@ -19,7 +27,8 @@
   interval: candidate cuts are the observed recurrences, so a bar below all of them
   can still classify every row identically, and reporting that as a reason to move
   would be the tool inventing work. Both were live bugs caught by running it against
-  separable and overlapping fixtures rather than only the unit tests. Only
+  separable and overlapping fixtures rather than only the unit tests.
+- **A verdict typed at the shell now carries the recurrence it was answering.** Only
   the MCP server could attach that before — it holds the surfaced set in memory, so
   an agent answering the horizon it just read wrote a learnable row, while `ettle
   confirm` and `ettle mute` wrote the kind and zero. That is backwards from where the

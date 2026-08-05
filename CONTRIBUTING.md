@@ -20,13 +20,19 @@ the cost of one of these will be declined no matter how clean the code.
 
 ## Where help matters most (ranked by leverage)
 
-1. **The calibration loop (the biggest unbuilt thing).** Today the detector runs
-   but nothing measures whether a surfaced tangle was *real to the humans
-   involved*. The honest first version: a "did this tangle help?" signal per
-   surfaced tangle, per pair, accumulated into a per-relationship trust estimate.
-   This is the invariant the whole project rests on; it is also the hardest part.
-   See the calibration framing in CONCEPT.md and the necessity-prediction prior
-   art in [CALO_LINEAGE.md §5](docs/CALO_LINEAGE.md).
+1. **The rest of the calibration loop (the biggest unbuilt thing).** Whether a
+   surfaced tangle was *real to the humans involved* is now measured: verdicts
+   are captured with the recurrence they answered, and `ettle calibrate` reads
+   them back and says where a cut point would sit — or declines, which on a young
+   log is most of the time. What is missing is everything downstream of that
+   reading. Two pieces, and they are not the same kind of work. **Per-pair trust**
+   is a real gap: today a verdict is global to a kind, and "did this tangle help
+   *these two people*" is the estimate the design actually calls for. **Acting on
+   it** is deliberately not automatic — a system that retunes itself from the
+   tangles it chose to surface is the machine-speed loop the invariants forbid —
+   so the useful work there is making a human's move well-informed and cheap, not
+   removing them. See the calibration framing in CONCEPT.md and the
+   necessity-prediction prior art in [CALO_LINEAGE.md §5](docs/CALO_LINEAGE.md).
 
 2. **A measured privacy boundary (now a thin first version — make it real).**
    ettle used to only *assert* its typed-atom boundary; `ettle eval --leak`

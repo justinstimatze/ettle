@@ -14,7 +14,7 @@ The error: **ettle treats a model's output as a fact about someone who can neith
 - The **tangle** is asserted into a teammate's view as a typed, confidence-stamped claim about a named colleague — an intervention, not a report (situated-action lens). The negotiation that would have resolved it is pre-empted by the object that names it.
 - **Surprise = L2-vs-L1 divergence** scores everyone's understanding against Bob's *self-account* as if it were ground truth. It isn't; it's another distillation of another text (extraction-skepticism lens). Calibrating L2 against L1 is *inter-model agreement*, not calibration against reality.
 - An **inferred atom** manufactures a claim about a person that exists in no originating context, and the `--leak` eval — which scans for markers the person *wrote* — is structurally blind to it (contextual-integrity lens).
-- The **sanction** for over-emitting lands on a resettable agent while the human principal keeps the benefit; the **monitor** that would detect over-grazing is the unbuilt calibration loop (commons-governance lens).
+- The **sanction** for over-emitting lands on a resettable agent while the human principal keeps the benefit; the **monitor** that would detect over-grazing is the unbuilt half of the calibration loop (commons-governance lens).
 
 The fix each lens points to:
 

@@ -28,7 +28,7 @@ the *detection* corpora below is wired up yet; this is a research note, not a cl
 > run a multi-round scenario, accumulate the crossed atoms into a per-recipient
 > model, and ask a probe model to reconstruct a held-out secret from the
 > *aggregate*, scoring reconstruction confidence rather than substring presence.
-> That is a stub, not built — it belongs with the unbuilt calibration loop, and
+> That is a stub, not built — it belongs with the unbuilt half of the calibration loop, and
 > until it exists the 0% leak rate is an honest per-atom number, not a
 > whole-boundary guarantee (see [SECURITY.md](../SECURITY.md)).
 

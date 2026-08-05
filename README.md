@@ -11,12 +11,14 @@ The other answer to this is a shared workspace: move the team into one multiplay
 > ⚠️ **Very early — a design-stage proof-of-concept, published well before it's proven.** The engine
 > runs; its accuracy is unmeasured. `ettle eval` is an inspectable smoke test over a tiny synthetic
 > corpus, and the demos are hand-seeded. Two pieces the design leans on are **specced and unbuilt**: the
-> N=1 safety wedge (a prior-decision guard), and the calibration loop that would make any of this safe to
-> trust. The N=1 demo below runs a stale-self-assumption pass, which is a narrower thing than that wedge
+> N=1 safety wedge (a prior-decision guard), and the half of the calibration loop that would close it —
+> verdicts are now captured and `ettle calibrate` reads them back, but nothing corrects a model or a
+> threshold on its own, and per-pair trust is still global-per-kind. The N=1 demo below runs a
+> stale-self-assumption pass, which is a narrower thing than that wedge
 > (see [Status](#status)). Expect breakage, rethinks, and some of this to be wrong. Read the `docs/`
 > caveats before trusting anything. Feedback very welcome.
 
-Distill and reconcile are the two ends — L1 and L3. Between them sits the *directed-model layer* — L2, what your agent believes each teammate is assuming, held per-pair and carried across rounds so it can go **stale**. Its structural half now runs (`ettle drift`): each session emits only the deltas that would leave a teammate's model of it stale — the staleness is *computed*, not guessed — so a change reaches exactly the teammates it affects, before it becomes a surprise. (What's still open there is the *semantic* enrichment — your agent inferring what a teammate is assuming beyond what they stated — and the calibration loop; see [Status](#status).) The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
+Distill and reconcile are the two ends — L1 and L3. Between them sits the *directed-model layer* — L2, what your agent believes each teammate is assuming, held per-pair and carried across rounds so it can go **stale**. Its structural half now runs (`ettle drift`): each session emits only the deltas that would leave a teammate's model of it stale — the staleness is *computed*, not guessed — so a change reaches exactly the teammates it affects, before it becomes a surprise. (What's still open there is the *semantic* enrichment — your agent inferring what a teammate is assuming beyond what they stated — and the closing half of the calibration loop; see [Status](#status).) The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
 
 There's no dashboard here, and no shared channel a human reads — your own agent surfaces only what's relevant to *you*. What friction remains is deliberate, kept at the genuine choices a person should own. (Distillation is a model judgment, not a verified redaction: what an atom *contains* is the real privacy surface, not the raw note. See [SECURITY.md](SECURITY.md).)
 
@@ -44,7 +46,7 @@ flowchart TB
     SURF["each agent surfaces only<br/>what's relevant to ITS OWN human"]
     SURF -. "to Alice" .-> AN
     SURF -. "to Bob" .-> BN
-    SURF -.-> CAL["did-it-help?<br/>(calibration loop —<br/><b>designed, NOT built</b>)"]
+    SURF -.-> CAL["did-it-help?<br/>(verdicts captured and read;<br/><b>nothing retunes itself</b>)"]
     CAL -. "would keep each model<br/>correctable by its human" .-> RC
 ```
 
@@ -76,7 +78,9 @@ After that, four things happen on their own. **Capture** distills each of your s
 
 The hooks name no room and read the project pointer, so one global config serves every repo on the machine and stays a silent no-op in the ones that aren't ettle projects. Setup is [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md); why "put the tangle in the ticket" is the obvious design and the wrong default is [docs/SURFACES.md](docs/SURFACES.md). Two limits: the receive path **polls** with a cursor rather than taking a webhook (nothing is hosted, by choice), and escalation needs an OAuth app-actor token that takes about ten minutes to mint.
 
-What's **deliberately unbuilt** is the part that needs the most care: the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector — the fast people-modeling half — runs. The correction half doesn't, so any safety claim leaning on calibration is borrowing against unbuilt code; see [CONCEPT.md](docs/CONCEPT.md). The concept demos are local simulations on cheap models with agents standing in for the humans, there to show the payoff shape. They're illustrations.
+The **measuring** half of calibration runs. Every surfaced tangle can be answered — `real`, `not_real`, or `handled`, from an agent session or the shell — and the answer is recorded with the recurrence it was answering, which is the signal the cut points threshold on. `ettle calibrate` reads that log back, sweeps it for where the cut points would sit, and declines to name one when the rows don't support it: a kind with no `real` verdicts, or one where recurrence doesn't separate the answers at all. It reports; it never writes a threshold.
+
+What's **deliberately unbuilt** is the part that needs the most care: the longitudinal loop that closes — anything that moves a threshold or corrects a per-pair model on its own — plus the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). Today the constants live in `internal/ettlemesh/mesh.go` and a human moves them, which is the design invariant and not a staging decision: a system that retunes itself from the tangles it chose to surface and got judged on is the machine-speed feedback loop [CONCEPT.md](docs/CONCEPT.md) rules out. So the detector runs, the measurement of it runs, and any safety claim leaning on *automatic* correction is still borrowing against unbuilt code. The concept demos are local simulations on cheap models with agents standing in for the humans, there to show the payoff shape. They're illustrations.
 
 ## Quickstart
 
@@ -366,7 +370,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — candidate public datasets for validating the detector on real logged coordination, and the honest method/caveats.
 - [docs/ADOPTION.md](docs/ADOPTION.md) — consent-first, bottom-up adoption; the anti-viral stance.
 - [docs/SF_LINEAGE.md](docs/SF_LINEAGE.md) — the fictional touchstones and the bright/dark fork they mark.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — where help matters most, ranked by leverage (the unbuilt calibration loop first), gated on the non-negotiable invariants.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — where help matters most, ranked by leverage (the unbuilt half of the calibration loop first), gated on the non-negotiable invariants.
 
 ## Relationship to sibling projects
 
