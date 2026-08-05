@@ -5,12 +5,12 @@ is what to do about the ✗ lines. Two of the four are required; the other two e
 unlock one specific thing, so a missing one is a feature that's off, not a broken
 install.
 
-| Variable | Required? | What it buys |
+| Variable | Who needs it | What it buys |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | yes | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
-| `LINEAR_API_KEY` | yes | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |
-| `LINEAR_TEAM_ID` | first run only | Creating the room's project. Ignored once the project exists, so only the first person in a room needs it. |
-| `LINEAR_AGENT_TOKEN` | no | Escalation only — posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. |
+| `LINEAR_API_KEY` | everyone running ettle | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |
+| `ANTHROPIC_API_KEY` | whoever reconciles; one per room | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
+| `LINEAR_TEAM_ID` | the first person in the room | Creating the room's project. Ignored once the project exists. |
+| `LINEAR_AGENT_TOKEN` | nobody, until you escalate | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. One person holds it, not one per teammate. |
 
 **Where to put them: `~/.config/ettle/env`**, one `KEY=VALUE` per line, `chmod 600`.
 Every ettle command reads it, which is the point — the Claude Code hooks inherit

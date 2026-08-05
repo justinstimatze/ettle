@@ -125,8 +125,20 @@ you** rather than failing on the first, resolves or creates that project, writes
 `~/.claude/settings.json` — backing up the previous file and skipping anything
 already there. Drop `--install-hooks` to print the JSON and merge it yourself; add
 `--json` if an agent is driving the setup. Every teammate runs the same line with
-their own `--me`. What each key buys, and the ten minutes the optional escalation
-token costs: [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md).
+their own `--me`.
+
+Only one of the four keys is per-person:
+
+| Key | Who needs it | What it buys |
+|---|---|---|
+| `LINEAR_API_KEY` | everyone running ettle | The atom bus — a Linear project's documents — and reading teammates' replies. A personal member key: Settings → Security & access, no admin. |
+| `ANTHROPIC_API_KEY` | whoever reconciles; one per room | Distilling notes into atoms and reconciling the room, both on your machine. A teammate driving ettle from their own agent distills client-side and needs none. |
+| `LINEAR_TEAM_ID` | the first person in the room | Creating the room's project. Ignored once it exists. |
+| `LINEAR_AGENT_TOKEN` | nobody, until you escalate — then one person holds it | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth app-actor token, because a member key cannot post agent activities. Workspace admin, about ten minutes. |
+
+A teammate who never installs ettle needs none of them: they reply in Linear's agent
+UI and `ettle pull` distills it under their identity. How to mint each one:
+[docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md).
 
 Linear has no internet-public project, so there is nothing to lock down; `init`
 reports which teams can read the room so you know the audience you just picked.
