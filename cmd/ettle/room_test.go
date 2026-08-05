@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -81,7 +82,7 @@ func TestRenderRoomStatus(t *testing.T) {
 			},
 		},
 	}
-	out := renderRoomStatus("crew", envs, nil, now)
+	out := renderRoomStatus("crew", envs, nil, nil, now)
 
 	if !strings.Contains(out, `room "crew" — 2 present`) {
 		t.Fatalf("header/count missing:\n%s", out)
@@ -112,7 +113,7 @@ func TestRenderRoomStatus(t *testing.T) {
 	}
 
 	// Empty room gives the join hint, not a bare header.
-	if empty := renderRoomStatus("crew", nil, nil, now); !strings.Contains(empty, "nobody has published yet") {
+	if empty := renderRoomStatus("crew", nil, nil, nil, now); !strings.Contains(empty, "nobody has published yet") {
 		t.Fatalf("empty room should hint how to publish:\n%s", empty)
 	}
 }
@@ -180,5 +181,50 @@ func TestRoomNameFromURL(t *testing.T) {
 		if got := roomNameFromURL(url); got != want {
 			t.Errorf("roomNameFromURL(%q) = %q, want %q", url, got, want)
 		}
+	}
+}
+
+func TestIssueIdentsAndLinkFooter(t *testing.T) {
+	envs := []transport.Envelope{
+		{Participant: "ivo", Atoms: []ettlemesh.Atom{
+			{Typ: ettlemesh.Intent, Subject: "IWS-33 rollout", Content: "picking up IWS-33, blocked on CUR-97"},
+			{Typ: ettlemesh.Dependency, Subject: "encoding", Content: "needs UTF-8 output and IWS-33 merged"},
+		}},
+	}
+	got := issueIdents(envs)
+	// Order of appearance, deduped. UTF-8 rides along on purpose: the resolver drops
+	// what the workspace doesn't own, so a loose regex costs a filter term, not a
+	// wrong link, while a strict one would miss real ticket prefixes.
+	want := []string{"IWS-33", "CUR-97", "UTF-8"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("issueIdents = %v, want %v", got, want)
+	}
+
+	// Only what came back from the workspace is rendered, sorted, with the title —
+	// an identifier alone doesn't tell the reader whether the link is worth a click.
+	out := renderIssueLinks([]transport.IssueRef{
+		{Identifier: "IWS-40", Title: "Second", URL: "https://linear.app/x/issue/IWS-40"},
+		{Identifier: "IWS-33", Title: "First", URL: "https://linear.app/x/issue/IWS-33"},
+	})
+	if strings.Index(out, "IWS-33") > strings.Index(out, "IWS-40") {
+		t.Errorf("issue links should be sorted:\n%s", out)
+	}
+	for _, want := range []string{"issues this work refers to:", "First", "https://linear.app/x/issue/IWS-33"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("footer missing %q:\n%s", want, out)
+		}
+	}
+	if renderIssueLinks(nil) != "" {
+		t.Error("a room whose atoms name no ticket gets no footer at all")
+	}
+}
+
+func TestIssueIdentsCapsRunawayInput(t *testing.T) {
+	var atoms []ettlemesh.Atom
+	for i := 0; i < 60; i++ {
+		atoms = append(atoms, ettlemesh.Atom{Subject: fmt.Sprintf("ABC-%d", i+1)})
+	}
+	if got := issueIdents([]transport.Envelope{{Atoms: atoms}}); len(got) != 20 {
+		t.Errorf("one noisy session must not turn the view into a link dump: got %d", len(got))
 	}
 }

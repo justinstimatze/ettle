@@ -48,6 +48,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -192,6 +193,36 @@ func (b *LinearBus) Audience(ctx context.Context) ([]TeamScope, error) {
 	return ar.audience(ctx)
 }
 
+// IssueRef is a Linear issue that an atom referred to, resolved to something the
+// reader can click. Title comes back with it because an identifier alone tells a
+// reader nothing about whether the link is worth following.
+type IssueRef struct {
+	Identifier string `json:"identifier"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+}
+
+// issueLinker is optional, like audienceReporter: a fake store in a test doesn't
+// implement it and ResolveIssues then reports nothing.
+type issueLinker interface {
+	resolveIssues(ctx context.Context, identifiers []string) ([]IssueRef, error)
+}
+
+// ResolveIssues turns identifiers mentioned in atoms ("IWS-33") into links.
+//
+// Unknown and foreign identifiers are DROPPED rather than linked. A workspace only
+// knows its own issues, and an atom distilled from a session often names a ticket in
+// some other workspace entirely — constructing a URL from the identifier would point
+// those at this workspace and 404, or worse, at an unrelated issue that happens to
+// share a number. Resolving them means a rendered link is one that exists.
+func (b *LinearBus) ResolveIssues(ctx context.Context, identifiers []string) ([]IssueRef, error) {
+	il, ok := b.store.(issueLinker)
+	if !ok || len(identifiers) == 0 {
+		return nil, nil
+	}
+	return il.resolveIssues(ctx, identifiers)
+}
+
 // Warnings returns a copy of the non-fatal issues from the last Collect
 // (unparseable documents, identity mismatches), matching DirBus/LeatBus so the
 // driver can surface them the same way.
@@ -286,6 +317,41 @@ func (s *linearDocStore) audience(ctx context.Context) ([]TeamScope, error) {
 		return nil, err
 	}
 	return q.Project.Teams.Nodes, nil
+}
+
+// resolveIssues looks up issues by identifier in ONE query. Linear has no
+// identifier filter, so each "IWS-33" is decomposed into its team key and number and
+// the pairs are OR'd together; an identifier this workspace doesn't own simply
+// matches nothing, which is the filtering we want and costs no extra round trip.
+func (s *linearDocStore) resolveIssues(ctx context.Context, identifiers []string) ([]IssueRef, error) {
+	var terms []any
+	for _, id := range identifiers {
+		key, numStr, ok := strings.Cut(strings.TrimSpace(id), "-")
+		if !ok {
+			continue
+		}
+		num, err := strconv.Atoi(numStr)
+		if err != nil {
+			continue
+		}
+		terms = append(terms, map[string]any{"and": []any{
+			map[string]any{"team": map[string]any{"key": map[string]any{"eq": key}}},
+			map[string]any{"number": map[string]any{"eq": num}},
+		}})
+	}
+	if len(terms) == 0 {
+		return nil, nil
+	}
+	var q struct {
+		Issues struct {
+			Nodes []IssueRef `json:"nodes"`
+		} `json:"issues"`
+	}
+	const query = `query($f:IssueFilter!){ issues(first:50, filter:$f){ nodes{ identifier title url } } }`
+	if err := s.do(ctx, query, map[string]any{"f": map[string]any{"or": terms}}, &q); err != nil {
+		return nil, err
+	}
+	return q.Issues.Nodes, nil
 }
 
 // resolveProject finds the project named "ettle-<room>", creating it under teamID

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -182,18 +183,33 @@ func printRoomStatus(room, transportName, label string) error {
 	if w, ok := bus.(interface{ Warnings() []string }); ok {
 		warnings = w.Warnings()
 	}
+	// If the bus can turn ticket references in the atoms into links, do that — the
+	// presence view is where someone asks "what is everyone on", and half the answer
+	// is usually a ticket they'd otherwise go hunting for. Optional and non-fatal: only
+	// Linear has issues, and a lookup failure must not cost the reader the whole view.
+	var issues []transport.IssueRef
+	if r, ok := bus.(interface {
+		ResolveIssues(context.Context, []string) ([]transport.IssueRef, error)
+	}); ok {
+		if refs, err := r.ResolveIssues(context.Background(), issueIdents(envs)); err == nil {
+			issues = refs
+		} else {
+			warnings = append(warnings, "issue links unavailable: "+err.Error())
+		}
+	}
+
 	name := label
 	// NOTE: the leat bus reads via Collect, which drops identity spoofs SILENTLY
 	// (only Receive records warnings), so today this is effectively always empty —
 	// the spoof is still dropped (security holds), just not surfaced here. The
 	// rendering below is forward-compatible for when the transport reports them.
-	fmt.Print(renderRoomStatus(name, envs, warnings, time.Now()))
+	fmt.Print(renderRoomStatus(name, envs, warnings, issues, time.Now()))
 	return nil
 }
 
 // renderRoomStatus formats the presence view. Pure (now is injected) so it is
 // testable without a clock or a bus.
-func renderRoomStatus(name string, envs []transport.Envelope, warnings []string, now time.Time) string {
+func renderRoomStatus(name string, envs []transport.Envelope, warnings []string, issues []transport.IssueRef, now time.Time) string {
 	sort.Slice(envs, func(i, j int) bool {
 		return strings.ToLower(envs[i].Participant) < strings.ToLower(envs[j].Participant)
 	})
@@ -241,6 +257,54 @@ func renderRoomStatus(name string, envs []transport.Envelope, warnings []string,
 		for _, w := range warnings {
 			fmt.Fprintf(&b, "      - %s\n", w)
 		}
+	}
+	b.WriteString(renderIssueLinks(issues))
+	return b.String()
+}
+
+// issueIdentRe matches a Linear-style ticket reference. Deliberately loose — it will
+// match ISO-8601 and UTF-8 too — because the resolver drops anything the workspace
+// doesn't own, and a false positive costs nothing while a missed ticket costs the
+// reader a search.
+var issueIdentRe = regexp.MustCompile(`\b[A-Z][A-Z0-9]{1,9}-[0-9]{1,6}\b`)
+
+// issueIdents pulls the distinct ticket references out of a room's atoms, in the
+// order they appear, capped so one noisy session can't turn the presence view into a
+// link dump (or the filter into a 50-term query).
+func issueIdents(envs []transport.Envelope) []string {
+	const max = 20
+	seen := map[string]bool{}
+	var out []string
+	for _, e := range envs {
+		for _, a := range e.Atoms {
+			for _, m := range issueIdentRe.FindAllString(a.Subject+" "+a.Content, -1) {
+				if seen[m] {
+					continue
+				}
+				seen[m] = true
+				if out = append(out, m); len(out) == max {
+					return out
+				}
+			}
+		}
+	}
+	return out
+}
+
+// renderIssueLinks is the footer: the tickets this room's work actually refers to,
+// resolved to real URLs. Sorted, because the order atoms happen to arrive in is not
+// information.
+func renderIssueLinks(issues []transport.IssueRef) string {
+	if len(issues) == 0 {
+		return ""
+	}
+	sorted := append([]transport.IssueRef(nil), issues...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Identifier < sorted[j].Identifier })
+	var b strings.Builder
+	b.WriteString("\n  issues this work refers to:\n")
+	for _, r := range sorted {
+		fmt.Fprintf(&b, "    %-10s %s\n", r.Identifier, r.Title)
+		fmt.Fprintf(&b, "               %s\n", r.URL)
 	}
 	return b.String()
 }
