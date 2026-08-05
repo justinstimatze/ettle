@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **MCP operator tools: drive escalation from inside a session, and make a knot go
+  away when it's handled.** The agent (me) operates ettle through MCP tools, not by
+  remembering CLI commands, so three things landed on the `ettle mcp` surface:
+  - **`ettle_escalate`** posts one knot (by the `key` from `ettle_horizon`) as a
+    Linear elicitation on the room's coordination issue — so when I notice a
+    collision a teammate can't see, I offer it and, on yes, escalate that one knot
+    inline. Enabled only for a Linear room with `LINEAR_AGENT_TOKEN` set.
+  - **`ettle_horizon` tags each knot `escalated`** and **suppresses muted knots**
+    (with an honest `muted` count), so I offer to escalate only what a non-adopter
+    can't already see and stop re-raising what's resolved.
+  - **`ettle_respond` now acts:** a `not_real` or `handled` verdict **mutes** the
+    knot so it stops re-surfacing and won't be escalated (the calibration loop that
+    consumes verdicts is still unbuilt — muting makes the verdict do something now).
+  A new shared `internal/knotstate` package keys a knot the same way everywhere and
+  holds the per-room escalated/muted sets, so a knot escalated by `ettle escalate`
+  (CLI) is recognized as escalated by `ettle_horizon` (MCP), and a mute from either
+  side is honored by both. Verified: the tool is gated on the app token, the write
+  path is the same live-proven `LinearAgentWriter`, and the handler/mute/suppress
+  logic is unit-tested.
 - **`ettle escalate` — surface a coordination knot to a teammate who won't install
   ettle, on Linear.** The emit half of the Linear agent path and the one command
   that writes *onto* Linear. It reconciles the room's atoms, takes the **firm

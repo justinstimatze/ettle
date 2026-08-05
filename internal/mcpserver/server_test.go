@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,20 @@ import (
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
+
+// TestMain isolates the per-room knotstate stores (escalated/muted) to a throwaway
+// config dir, so a test that mutes a knot via ettle_respond never writes the
+// developer's real ~/.config nor contaminates another test's horizon.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "ettle-mcp-test")
+	if err != nil {
+		panic(err)
+	}
+	_ = os.Setenv("XDG_CONFIG_HOME", dir)
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
 
 // fakeReconciler implements the reconciler seam with canned returns — no API
 // key, no ettlemesh internals. This is the whole reason the server depends on an
@@ -62,6 +77,106 @@ func (f *fakeReconciler) ReconcileSelf(_ context.Context, _ []ettlemesh.Atom) ([
 
 func newServerWith(f *fakeReconciler) *server { return &server{det: f, h: newHorizon()} }
 
+// fakeEscalator records the escalate write path without a network or app token.
+type fakeEscalator struct {
+	ensured bool
+	posted  []string
+}
+
+func (f *fakeEscalator) EnsureCoordinationIssue(_ context.Context, _, _ string) (string, bool, error) {
+	f.ensured = true
+	return "issue-1", true, nil
+}
+func (f *fakeEscalator) OpenSession(_ context.Context, _ string) (string, error) {
+	return "sess-1", nil
+}
+func (f *fakeEscalator) PostKnot(_ context.Context, _, body string) (string, error) {
+	f.posted = append(f.posted, body)
+	return "act-1", nil
+}
+
+// collisionServer builds a server whose horizon surfaces one firm alice+bob collision.
+func collisionServer(t *testing.T) *server {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	f := &fakeReconciler{
+		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
+		voted: []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}},
+	}
+	s := &server{det: f, h: newHorizon(), labels: &memLabelSink{}, room: "room-x", team: "team-1"}
+	if _, _, err := s.emit(context.Background(), nil, emitIn{Participant: "alice", Notes: "n"}); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestEscalatePostsSurfacedKnotAndTagsItAfter(t *testing.T) {
+	s := collisionServer(t)
+	esc := &fakeEscalator{}
+	s.esc = esc
+	ctx := context.Background()
+
+	_, ho, err := s.horizon(ctx, nil, horizonIn{})
+	if err != nil || len(ho.Firm) != 1 {
+		t.Fatalf("setup horizon: %v %+v", err, ho)
+	}
+	key := ho.Firm[0].Key
+	if ho.Firm[0].Escalated {
+		t.Fatal("knot should not be tagged escalated before escalating")
+	}
+
+	_, out, err := s.escalate(ctx, nil, escalateIn{Tangle: key})
+	if err != nil {
+		t.Fatalf("escalate: %v", err)
+	}
+	if !out.Escalated || !esc.ensured || len(esc.posted) != 1 {
+		t.Fatalf("escalate didn't post: out=%+v ensured=%v posted=%d", out, esc.ensured, len(esc.posted))
+	}
+
+	// A subsequent horizon tags the same knot escalated, so the agent won't re-offer it.
+	_, ho2, _ := s.horizon(ctx, nil, horizonIn{})
+	if len(ho2.Firm) != 1 || !ho2.Firm[0].Escalated {
+		t.Fatalf("knot should be tagged escalated after posting: %+v", ho2.Firm)
+	}
+}
+
+func TestEscalateRejectsUnknownKeyAndNilEscalator(t *testing.T) {
+	s := collisionServer(t)
+	ctx := context.Background()
+	// Nil escalator (no token / not a Linear room) → not configured.
+	if _, _, err := s.escalate(ctx, nil, escalateIn{Tangle: "collision|alice+bob"}); err == nil {
+		t.Fatal("escalate with no escalator should error")
+	}
+	// Configured, but a key the horizon never surfaced → error, no post.
+	s.esc = &fakeEscalator{}
+	if _, _, err := s.escalate(ctx, nil, escalateIn{Tangle: "collision|nobody+here"}); err == nil {
+		t.Fatal("escalate of an unsurfaced key should error")
+	}
+}
+
+func TestRespondHandledMutesAndHorizonSuppresses(t *testing.T) {
+	s := collisionServer(t)
+	ctx := context.Background()
+
+	_, ho, _ := s.horizon(ctx, nil, horizonIn{})
+	if len(ho.Firm) != 1 {
+		t.Fatalf("setup: expected the collision surfaced, got %+v", ho)
+	}
+	key := ho.Firm[0].Key
+
+	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Tangle: key, Verdict: "handled"}); err != nil {
+		t.Fatalf("respond: %v", err)
+	}
+	// After a handled verdict the knot is muted: gone from the horizon, counted honestly.
+	_, ho2, _ := s.horizon(ctx, nil, horizonIn{})
+	if len(ho2.Firm) != 0 {
+		t.Fatalf("a handled knot should be suppressed, still see %+v", ho2.Firm)
+	}
+	if ho2.Muted != 1 {
+		t.Errorf("muted count should be 1, got %d", ho2.Muted)
+	}
+}
+
 // snap reads the horizon the way the tools do, failing the test on a bus error.
 func snap(t *testing.T, s *server) []transport.Envelope {
 	t.Helper()
@@ -88,6 +203,7 @@ func (m *memLabelSink) record(l Label) error {
 // Stage 0c-2: ettle_respond captures the human verdict as a label (the calibration
 // loop's future input), validates the verdict, and never mutates the horizon.
 func TestRespondCapturesLabel(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the mute store per test
 	sink := &memLabelSink{}
 	s := &server{det: &fakeReconciler{}, h: newHorizon(), labels: sink}
 	ctx := context.Background()
@@ -124,6 +240,7 @@ func TestRespondCapturesLabel(t *testing.T) {
 // loop would need. A verdict on a key never surfaced this session degrades to
 // kind-from-key with zero recurrence (no fabricated votes).
 func TestRespondEnrichesLabelFromHorizon(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the mute store per test
 	sink := &memLabelSink{}
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
@@ -245,6 +362,7 @@ func TestEmitRejectsBlank(t *testing.T) {
 }
 
 func TestHorizonFirmSoftSplitAndMeFilter(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // fresh (empty) mute/escalated stores
 	firmTangle := ettlemesh.Tangle{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}
 	softTangle := ettlemesh.Tangle{Kind: ettlemesh.KindDuplication, Parties: []string{"alice", "carol"}, Confidence: 0.4}
 	f := &fakeReconciler{

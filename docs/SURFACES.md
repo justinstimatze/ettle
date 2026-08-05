@@ -109,6 +109,28 @@ at SessionStart and spawns a detached refresh for next time, so session start st
 free and instant while the horizon stays warm. Whisper-first holds end to end: the
 knot surfaces privately in your own session, and nothing is posted anywhere.
 
+## Operating it from inside a session (the MCP tools)
+
+The hooks are the passive, set-and-forget layer — they run without anyone driving
+them. The *active* layer is the agent operating ettle mid-session through MCP tools
+(`ettle mcp --transport linear://<room>`), because an agent uses tools far more
+reliably than it remembers to shell out to a CLI. Three affordances make the agent an
+effective operator rather than a forgetful one:
+
+- **`ettle_horizon`** tags each surfaced knot `escalated: true/false` and suppresses
+  the ones the human has muted (with an honest `muted` count) — so the agent offers
+  to escalate only what a teammate can't already see, and stops re-raising what's
+  resolved.
+- **`ettle_escalate`** posts one knot (by `key`) to the coordination issue — the
+  agent offers it to the human, and on yes escalates that knot inline, no CLI recall.
+- **`ettle_respond`** with `not_real`/`handled` **mutes** the knot so it stops
+  re-surfacing. That's what lets the agent make a knot go away when the human says
+  it's settled, instead of nagging about it every session.
+
+The shared `internal/knotstate` package is why these compose with the CLI: it keys a
+knot the same way and holds the per-room escalated/muted sets, so an escalation or a
+mute from either surface is honored by both.
+
 ## What this commits us to (and what it defers)
 
 - **Default install never posts to an issue.** Whisper + bus only.

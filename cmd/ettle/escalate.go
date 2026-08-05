@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,6 +12,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
+	"github.com/justinstimatze/ettle/internal/knotstate"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -35,35 +33,24 @@ type knotPoster interface {
 	PostKnot(ctx context.Context, sessionID, body string) (activityID string, err error)
 }
 
-// escalateKey is the wording-independent identity of a coordination knot (kind +
-// sorted distinct parties), so re-running escalate skips knots already posted even
-// as their explanation wording drifts. Mirrors the MCP tangleKey semantics.
+// escalateKey is the wording-independent identity of a coordination knot, shared
+// with the MCP server so a knot escalated here is recognized there (and vice versa).
 func escalateKey(k ettlemesh.Tangle) string {
-	ps := make([]string, 0, len(k.Parties))
-	seen := map[string]bool{}
-	for _, p := range k.Parties {
-		n := strings.ToLower(strings.TrimSpace(p))
-		if n == "" || seen[n] {
-			continue
-		}
-		seen[n] = true
-		ps = append(ps, n)
-	}
-	sort.Strings(ps)
-	return k.Kind + "|" + strings.Join(ps, "+")
+	return knotstate.Key(k.Kind, k.Parties)
 }
 
 // escalatableKnots picks what to post: FIRM (the calibration gate) and cross-person
 // (an escalation is inherently between people — a self-tangle is your own drift, not
-// something to raise with a teammate) and NOT already emitted. Pure, so it's the
-// unit-tested core of the decision.
-func escalatableKnots(res horizonResult, already map[string]bool) []ettlemesh.Tangle {
+// something to raise with a teammate) and neither already emitted NOR muted (the
+// human marked it handled). Pure, so it's the unit-tested core of the decision.
+func escalatableKnots(res horizonResult, already, muted map[string]bool) []ettlemesh.Tangle {
 	var out []ettlemesh.Tangle
 	for _, k := range res.firm {
 		if !ettlemesh.MultiPerson(k.Parties) {
 			continue
 		}
-		if already[escalateKey(k)] {
+		key := escalateKey(k)
+		if already[key] || muted[key] {
 			continue
 		}
 		out = append(out, k)
@@ -113,54 +100,14 @@ func postKnots(ctx context.Context, w knotPoster, room, teamID string, knots []e
 	return issueID, created, postedKeys, nil
 }
 
-// --- emitted-key store (idempotency, per room) ---------------------------
-
-func emittedPath(room string) (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("locate config dir: %w", err)
-	}
-	return filepath.Join(dir, "ettle", "emit", transport.SanitizeID(room)+".json"), nil
-}
-
+// loadEmitted / saveEmitted are the per-room escalated-knot store (idempotency),
+// now backed by the shared knotstate package so the MCP server reads the same set.
 func loadEmitted(room string) (map[string]bool, error) {
-	path, err := emittedPath(room)
-	if err != nil {
-		return nil, err
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]bool{}, nil
-		}
-		return nil, err
-	}
-	var keys []string
-	if err := json.Unmarshal(data, &keys); err != nil {
-		return nil, fmt.Errorf("emitted store %s: corrupt: %w", path, err)
-	}
-	set := make(map[string]bool, len(keys))
-	for _, k := range keys {
-		set[k] = true
-	}
-	return set, nil
+	return knotstate.Load(knotstate.Escalated, room)
 }
 
 func saveEmitted(room string, set map[string]bool) error {
-	path, err := emittedPath(room)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	keys := make([]string, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	data, _ := json.Marshal(keys)
-	return os.WriteFile(path, data, 0o644)
+	return knotstate.Save(knotstate.Escalated, room, set)
 }
 
 // runEscalate is `ettle escalate --room <room>`.
@@ -208,7 +155,11 @@ func runEscalate(args []string) error {
 	if err != nil {
 		return err
 	}
-	knots := escalatableKnots(res, already)
+	muted, err := knotstate.Load(knotstate.Muted, *room)
+	if err != nil {
+		return err
+	}
+	knots := escalatableKnots(res, already, muted)
 	if len(knots) == 0 {
 		fmt.Println("ettle: no new firm cross-person knots to escalate.")
 		return nil

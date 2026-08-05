@@ -30,12 +30,15 @@ func TestEscalatableKnotsFirmCrossPersonNew(t *testing.T) {
 		},
 		soft: []ettlemesh.Tangle{firmT("collision", "dave", "eve")}, // soft is never escalated
 	}
-	got := escalatableKnots(res, already)
-	if len(got) != 1 {
-		t.Fatalf("want exactly the one new cross-person firm knot, got %d", len(got))
+	muted := map[string]bool{escalateKey(firmT("duplication", "alice", "carol")): true} // muted → also skipped
+	got := escalatableKnots(res, already, muted)
+	if len(got) != 0 {
+		t.Fatalf("the only remaining firm cross-person knot is muted, so nothing should escalate, got %d", len(got))
 	}
-	if escalateKey(got[0]) != "duplication|alice+carol" {
-		t.Errorf("wrong knot selected: %q", escalateKey(got[0]))
+	// Without the mute, that knot escalates.
+	got = escalatableKnots(res, already, map[string]bool{})
+	if len(got) != 1 || escalateKey(got[0]) != "duplication|alice+carol" {
+		t.Fatalf("want the one new cross-person firm knot, got %d", len(got))
 	}
 }
 

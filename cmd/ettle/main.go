@@ -1803,11 +1803,23 @@ func runMCP(args []string) error {
 		return err
 	}
 
+	// The escalate tool posts onto Linear, so it only applies when the bus IS Linear:
+	// pass the linear room (empty otherwise) so the server keys its stores and targets
+	// escalation correctly.
+	linRoom := ""
+	if r, ok := strings.CutPrefix(*transportName, "linear://"); ok {
+		linRoom = strings.TrimSpace(r)
+	}
+
 	// The stdio MCP server owns stdout (the JSON-RPC channel); diagnostics go to
 	// stderr. Run until the client disconnects or the process is interrupted.
 	fmt.Fprintf(os.Stderr, "ettle mcp: serving on stdio (%s, horizon: %s)\n", modelNote(key, *model), horizonNote(*room, *transportName))
-	fmt.Fprintln(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond · prompt: ettle_distill")
-	return mcpserver.Serve(context.Background(), det, bus, buildVersion())
+	escNote := ""
+	if linRoom != "" && strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")) != "" {
+		escNote = ", ettle_escalate"
+	}
+	fmt.Fprintf(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond%s · prompt: ettle_distill\n", escNote)
+	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), linRoom)
 }
 
 // mcpserverReconciler mirrors the (unexported) interface mcpserver.Serve takes, so
