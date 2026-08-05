@@ -1,4 +1,17 @@
 name: Auto-merge Dependabot
+
+# Enables auto-merge on Dependabot's patch and minor bumps. Majors wait for a
+# human.
+#
+# This only does anything useful while CI is a required status check on main.
+# With no required check, `gh pr merge --auto` merges on the spot instead of
+# waiting for CI. ettle requires `build`.
+#
+# `pull_request` is the right trigger, not `pull_request_target`: the explicit
+# permissions block below is honoured for Dependabot PRs, so the token is not
+# read-only, and pull_request never runs with a write token in base-repo
+# context.
+
 on: pull_request
 
 permissions:
@@ -8,10 +21,35 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+      - name: Fetch update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Retried because this is the only shot. Dependabot will not push again
+      # on its own, so the event never re-fires and a PR that loses this call
+      # sits open forever with green checks.
+      - name: Enable auto-merge for non-major updates
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge --auto --squash "$PR_URL"; then
+              echo "auto-merge enabled on attempt $attempt"
+              exit 0
+            fi
+            delay=$((attempt * 10))
+            echo "attempt $attempt failed, retrying in ${delay}s"
+            sleep "$delay"
+          done
+          echo "::error::could not enable auto-merge after 5 attempts — merge $PR_URL by hand"
+          exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Note majors left for review
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: echo "::notice::Major update ${{ steps.meta.outputs.dependency-names }} left for manual review"
