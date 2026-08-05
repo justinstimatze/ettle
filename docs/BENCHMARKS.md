@@ -62,7 +62,7 @@ clearest ground truth. Be explicit about which gap any given benchmark closes.
 | **Government FOIA email dumps** — Clinton State Dept (FOIA reading room), [Jeb Bush gubernatorial](https://www.politifact.com/factchecks/2015/aug/31/jeb-bush/jeb-bush-says-he-has-released-all-his-emails/) (~280k) | hierarchical principal/staff coordination | Public records | Hierarchy is present, but the data is redacted, politically charged, and messy — high annotation cost, low signal-to-noise for coordination tangles. |
 
 (The **CALO Meeting Assistant** also produced a multimodal meeting corpus, but its
-current public availability is unclear; AMI/ICSI are the clean public meeting bet.)
+current public availability is unclear. AMI/ICSI remain the clean public bet.)
 
 ## Honest caveats for any of these
 
@@ -120,15 +120,15 @@ That is *not* a sample-count problem. There is also a **structural ceiling**:
 single-shot already scores 8/8, so voting's recall can only match or fall below
 it — the "voted-only win" cell of the McNemar table is pinned at zero by the data,
 not by chance. The test can therefore detect *voting hurts* but is blind to
-*voting helps*, which is the direction the A/B most wants to probe; demonstrating
-the helpful direction needs a corpus with headroom (single-shot below ceiling),
-i.e. the borderline corpus noted below. Voting exists to damp the detector's
+*voting helps*, which is the direction the A/B most wants to probe. Showing that
+would take a corpus with headroom — single-shot scoring below the ceiling, i.e.
+the borderline corpus noted below. Voting exists to damp the detector's
 run-to-run noise; on clear-cut duplications the detector is already confident, so
 both conditions recover the same tangles and there is nothing for voting to fix. An
 earlier single-corpus run where voting dropped a real duplication did **not**
 replicate at this scale — it was one stochastic draw, not an effect. Voting would
-only earn its cost on *borderline* tangles where the detector wobbles, which this
-corpus deliberately does not contain; measuring that is the natural next corpus.
+only earn its cost on *borderline* tangles where the detector wobbles. This corpus
+deliberately holds none, so measuring it is what the next corpus is for.
 This remains a **retrospective artifact test** (see the caveat above), not
 validation of the live capture path.
 

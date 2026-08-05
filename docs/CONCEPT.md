@@ -1,6 +1,6 @@
 # ettle — the concept
 
-ettle is, fundamentally, about helping humans ambiently work together better. The topology is a torus, not a hierarchy: humans talk to agents, agents talk to agents, agents talk back to humans — and the loop is *required to return*. The agent↔agent interior (the gemot, the bindable subset reconciled below) exists only to close the human-to-human loop faster; it is instrumentation, never a destination. Travel "up" the abstraction ladder — delegate to your agent, your agent deliberates with mine — and you do not arrive somewhere new, you come back down to two humans coordinating. This is the discipline that separates ettle from the opposite pole, the fully-autonomous ("zero-human") corporation ([PRIOR_ART.md](PRIOR_ART.md) §8): the distinction is not "ettle has humans and they don't" but *where the loop closes*. A zero-human corp tries to close agent→agent→agent with no return; ettle's loop must return to a person. Everything below is the mechanism for making that return cheap, calibrated, and honest.
+ettle is, fundamentally, about helping humans ambiently work together better. The topology is a torus, not a hierarchy: humans talk to agents, agents talk to agents, agents talk back to humans — and the loop is *required to return*. The agent↔agent interior (the gemot, the bindable subset reconciled below) exists only to close the human-to-human loop faster; it is instrumentation, never a destination. Travel "up" the abstraction ladder — delegate to your agent, your agent deliberates with mine — and you do not arrive somewhere new, you come back down to two humans coordinating. This is the discipline that separates ettle from the opposite pole, the fully-autonomous ("zero-human") corporation ([PRIOR_ART.md](PRIOR_ART.md) §8). What separates them is *where the loop closes*: a zero-human corp tries to close agent→agent→agent with no return, and ettle's loop has to return to a person. Both have humans somewhere. Everything below is the mechanism for making that return cheap, calibrated, and honest.
 
 ## The premise: which parts of a meeting actually die
 
@@ -9,7 +9,7 @@ The bottleneck in a high-trust team where everyone already works through their r
 1. **Information sync** — "here's what I changed / am blocked on / you should know." This is the redundant part; agents can collapse it to near-zero.
 2. **Preference aggregation, commitment, conflict surfacing** — whose priority wins, who is now on the hook, where a latent disagreement becomes visible. This is not information transfer; it is politics among people with divergent interests, and it does not vanish because the agents are well-informed.
 
-So the honest claim: the sync meeting dies, and the decision meeting gets shorter because nobody arrives uninformed. The bottleneck relocates to intent nobody has written down anywhere, and to commitment, which is a speech-act rather than an inference. ettle shrinks both and abolishes neither.
+So the honest claim: the sync meeting dies outright, and what's left of the decision meeting is shorter because nobody arrives uninformed. The bottleneck relocates to intent nobody has written down anywhere, and to commitment, which is a speech-act rather than an inference. ettle shrinks both and abolishes neither.
 
 ## The three-layer model
 

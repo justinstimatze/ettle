@@ -279,13 +279,19 @@ func freshnessLabel(emittedAt string, now time.Time) string {
 	if err != nil {
 		return ""
 	}
+	// Say WHEN, never "active". The bus is written by session-end hooks, so a recent
+	// envelope means someone's session ended recently — it is no evidence a person is
+	// at the keyboard now, and calling a two-hour-old publish "active" invited exactly
+	// that reading. A timestamp lets the reader decide what counts as current.
 	switch d := now.Sub(t); {
 	case d < 0:
-		return "active"
-	case d < 2*time.Hour:
-		return "active"
+		return "just now" // clock skew between machines; don't render a negative age
+	case d < 10*time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return "today"
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
 	case d < 48*time.Hour:
 		return "yesterday"
 	default:

@@ -49,7 +49,7 @@ What the agents do in the negotiation is mature *planning*, none of it new: depe
 
 ## The seeded scenario
 
-Three engineers on a shared service, with the three classic coordination frictions planted:
+Three engineers on a shared service, with the classic coordination frictions planted:
 
 - **Alice** (user-service) is about to rename `GetUser`→`FetchUser` and enrich the struct — and already has a user cache from last sprint.
 - **Bob** (billing) is about to call `GetUser` in a tight loop, assuming the signature is stable. → **collision** + **stale-assumption** with Alice.
