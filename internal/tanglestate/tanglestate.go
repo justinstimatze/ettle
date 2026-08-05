@@ -40,7 +40,10 @@ func Key(kind string, parties []string) string {
 		ps = append(ps, n)
 	}
 	sort.Strings(ps)
-	return kind + "|" + strings.Join(ps, "+")
+	// The kind normalizes like the parties do. The detector already emits lowercase
+	// kinds, so no stored key moves; what this fixes is a human typing "Duplication"
+	// at `ettle mute` and silencing a tangle that does not exist.
+	return strings.ToLower(strings.TrimSpace(kind)) + "|" + strings.Join(ps, "+")
 }
 
 func storePath(store, room string) (string, error) {
@@ -104,4 +107,20 @@ func Add(store, room, key string) error {
 	}
 	set[key] = true
 	return Save(store, room, set)
+}
+
+// Remove unmarks one key. Reports whether it was there, because a caller telling a
+// human "unmuted" when nothing changed is worse than saying nothing happened.
+// Muting has to be reversible: a mute that can only be added is a trap, since the
+// human who silenced the wrong tangle has no way back.
+func Remove(store, room, key string) (bool, error) {
+	set, err := Load(store, room)
+	if err != nil {
+		return false, err
+	}
+	if !set[key] {
+		return false, nil
+	}
+	delete(set, key)
+	return true, Save(store, room, set)
 }

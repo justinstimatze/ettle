@@ -274,6 +274,9 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	}
 	// Address the agent directly: this is context to act on, not a message to post.
 	fmt.Fprintf(&b, "You are %s's ettle agent. These are cross-person coordination tangles involving %s, surfaced privately for you — nothing is posted anywhere. When %s's current work touches one, raise it with them; don't dump the list unprompted. Firm = worth a look; soft = worth a question with the other person.\n", who, who, who)
+	// Every bus, not only Linear: muting is the only way a wrong tangle stops opening
+	// every session, and an agent that doesn't know the command can't offer it.
+	b.WriteString("If one of these is wrong or already handled, say so and run `ettle mute <kind> <the people in it>` — that stops it resurfacing here and keeps it out of any escalation. `ettle mute --clear` undoes it.\n")
 	if res.escalated != nil {
 		b.WriteString(shareLegend(res, who))
 	}

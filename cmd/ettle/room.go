@@ -250,7 +250,9 @@ func workLabel(t ettlemesh.AtomType) string {
 	case ettlemesh.Intent:
 		return "working on"
 	case ettlemesh.Commitment:
-		return "committed"
+		// "committed to", not "committed" — in a tool whose atoms come out of coding
+		// sessions, a bare "committed:" reads as git and the promise is lost.
+		return "committed to"
 	case ettlemesh.Dependency:
 		return "depends on"
 	case ettlemesh.Assumption:

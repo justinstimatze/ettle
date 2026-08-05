@@ -134,14 +134,21 @@ reports which teams can read the room so you know the audience you just picked.
 Nothing after that is a command you run. Your sessions publish your atoms as they
 end; teammates' Linear replies come in; the tangles that involve you appear at the
 top of your next session; and **nothing is posted anywhere shared** unless you
-escalate it on purpose. Four commands stay worth knowing:
+escalate it on purpose. A few commands stay worth knowing:
 
 ```sh
 ettle room status            # who's on the bus and what they're on (no key, no model call)
 ettle horizon                # what the room knows right now that concerns you
 ettle horizon --all          # the same, unfiltered — the whole team's tangles
+ettle mute <kind> <people>   # this one is wrong or handled — stop it coming back
 ettle escalate               # post the firm cross-person tangles where a non-adopter can see them
 ```
+
+`ettle mute duplication ivo mara` reads straight off the horizon line. It stops that
+tangle surfacing and keeps it out of any escalation, on every bus, and
+`ettle mute --clear` undoes it. Reach for it the first time something wrong shows
+up — a tool that interrupts you and can't be told it was wrong is a tool you turn
+off.
 
 None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
 the hooks can be global and still do the right thing per project. To drive it from

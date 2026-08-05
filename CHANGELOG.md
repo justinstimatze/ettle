@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.3 — 2026-08-05
+
+- **A wrong tangle had no off switch on the install we tell people to use.** The mute
+  store had exactly one writer — the MCP server's `ettle_respond` — and
+  `ettle init --install-hooks` wires the hooks and not the MCP server, so anyone on
+  the default path who got a wrong tangle watched it re-inject at the top of every
+  session until the underlying atoms happened to change. `ettle mute <kind> <people>`
+  is that off switch: it reads the way a horizon line does (`ettle mute duplication
+  ivo mara`, case and comma tolerant, exact key accepted), suppresses on every bus,
+  and `--clear` undoes it — a mute that could only be added would be its own trap.
+  The horizon block now tells the agent the command exists, so it can offer it at the
+  moment the wrong tangle lands. `tanglestate.Key` lowercases the kind alongside the
+  parties, so a hand-typed `Duplication` mutes the tangle instead of a phantom.
+- **`committed:` read as git.** In a tool whose atoms come out of coding sessions, the
+  presence view labelling a commitment `committed:` invited exactly the wrong reading.
+  It's `committed to:` now.
+
 ## v0.3.2 — 2026-08-05
 
 - **The horizon told the agent that an adopter couldn't see their own tangle.** Every
