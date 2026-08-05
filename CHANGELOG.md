@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.1 — 2026-08-05
 
 - **A contested tangle now arrives in the session already staged as the choice.**
   `internal/mcpserver` never touched `internal/crux`, so the resolver stage was
