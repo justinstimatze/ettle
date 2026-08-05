@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Horizon injection: the knots relevant to you appear in your session at start,
+  unprompted.** `ettle horizon --room <room> --me <you>` reconciles the atoms
+  capture/pull already put on the bus into the coordination tangles involving you —
+  no note files, just the live bus. `ettle horizon-hook` wires that to a Claude Code
+  **SessionStart** hook: because reconcile is a model call, the hook injects a
+  **cached** rendered horizon instantly (never blocks, no per-start cost) and spawns
+  a **detached** `ettle horizon --cache` to refresh it for next time — the cache
+  self-warms from use. Surfaced **privately** into your own session; nothing is ever
+  posted (whisper-first — see [docs/SURFACES.md](docs/SURFACES.md)). The refresh is
+  debounced per identity so session churn doesn't spam reconciles. This is the
+  surface half of set-and-forget; with capture (send) and pull (receive) the loop
+  closes with no command to run.
 - **Auto-capture: a session puts you on the bus with no command to run.** `ettle
   capture --room <room>` distills *this* Claude Code session's own reasoning
   **locally** (reusing `internal/capture` + the detector) and publishes the atoms

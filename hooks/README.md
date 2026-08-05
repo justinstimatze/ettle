@@ -1,16 +1,20 @@
 # Set-and-forget: hook ettle into every Claude Code session
 
 The point is that ettle is not a thing to remember. You install it, configure it
-once, and it works in every session without a command to run. Two hooks do that,
-and both are non-blocking — they never stall the agent:
+once, and it works in every session without a command to run. Three hooks do that,
+and all are non-blocking — they never stall the agent:
 
+- **`ettle horizon-hook`** injects the coordination knots relevant to *you* into
+  the session at start — the SURFACE half. You see them unprompted; nothing is
+  posted anywhere.
 - **`ettle capture-hook`** distills *this* session's own reasoning and publishes
   it as your atoms — the SEND half. Raw prose never crosses; only typed atoms do.
 - **`ettle pull-hook`** ingests replies teammates post in Linear's native agent
   UI — the RECEIVE half (see the main [README](../README.md#status)).
 
-Together: your sessions put you on the bus, teammates come in over Linear, and
-the coordination surfaces in your own horizon. Nothing hosted, no daemon.
+Together: your sessions put you on the bus, teammates come in over Linear, and the
+coordination surfaces in your own session — no dashboard to check. Nothing hosted,
+no daemon.
 
 ## Wire it up
 
@@ -32,8 +36,22 @@ needs no OAuth app token) in its environment.
 
 ## What the hooks do
 
-Both spawn their work **detached** and return immediately, so a distill in the
-background never stalls a tool call or session exit.
+They spawn their work **detached** and return immediately, so a distill or reconcile
+in the background never stalls a tool call or session exit.
+
+`ettle horizon-hook --room <room>`:
+
+- **Fires on SessionStart** and injects the cached horizon — the tangles relevant
+  to you — into the session's context, so you see them without asking. Reconcile is
+  a model call, so it does NOT run in the hook: the hook injects the *cached* block
+  instantly and spawns a detached `ettle horizon --cache` to refresh it for next
+  time. The cache self-warms from use; the first session on a fresh room injects
+  nothing and warms the cache for the next.
+- **Debounces the refresh** (default 5m; `--debounce` to widen) so session churn
+  doesn't spam reconciles. Identity is `--me`, else the room's agent, else `$USER`
+  (pass `--me` when the room is a `linear://` room, which stores no agent).
+- Run `ettle horizon --room <room> --me <you>` yourself anytime for the live view —
+  it reconciles the atoms capture/pull already put on the bus, no note files needed.
 
 `ettle capture-hook --room <room>`:
 

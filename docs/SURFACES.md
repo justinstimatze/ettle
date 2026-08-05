@@ -80,7 +80,7 @@ Three hooks close the instruction-free loop:
 
 | Hook | Job | Status |
 |------|-----|--------|
-| **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant knots the instant a session opens | pull **built**; horizon-injection **unbuilt** |
+| **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant knots the instant a session opens | **built** (`ettle horizon-hook` injects a cached reconcile; `ettle pull-hook` pulls) |
 | **PostToolUse(`mcp__linear`)** | pull, so touching Linear catches you up | **built** (`ettle pull-hook`, `hooks/settings.example.json`) |
 | **SessionEnd / Stop** | distill *this* session's transcript into the person's own atoms and publish them to the bus | **built** (`ettle capture-hook` → `ettle capture --room`) |
 
@@ -96,11 +96,14 @@ debounced), detached so it never blocks the agent. Only typed atoms cross; the r
 transcript stays local. A session that distills to no atoms publishes nothing, so
 an empty session never wipes your existing atoms off the bus.
 
-With capture and pull both wired, the loop closes with no command to run: your
-sessions put you on the bus, teammates come in over Linear, coordination surfaces
-in each person's own horizon. The remaining unbuilt piece is the *surface* — the
-SessionStart horizon-injection that shows the knots without being asked; capture
-puts the atoms there, injection is what makes them visible unprompted.
+With capture, pull, and horizon-injection all wired, the loop closes with no
+command to run: your sessions put you on the bus (capture), teammates come in over
+Linear (pull), and the knots relevant to you appear in your next session
+unprompted (horizon-injection). Because reconcile is a model call, the injection
+never runs it inline — `ettle horizon-hook` injects a *cached* reconcile instantly
+at SessionStart and spawns a detached refresh for next time, so session start stays
+free and instant while the horizon stays warm. Whisper-first holds end to end: the
+knot surfaces privately in your own session, and nothing is posted anywhere.
 
 ## What this commits us to (and what it defers)
 
