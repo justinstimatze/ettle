@@ -77,8 +77,16 @@ The thing a person installs:
   mechanism that makes it session-agnostic, because hooks there fire in every
   session and every project with no per-session instruction,
 - config once: the keys (`LINEAR_API_KEY` + `ANTHROPIC_API_KEY`) in the shell
-  profile — genuinely once — and the room carried with the project via a
-  `.ettle` file in the repo root, so it is never re-specified.
+  profile — genuinely once — and the room carried with the project in a
+  `.ettle-room` file at its root, so it is never re-specified.
+
+`ettle init <room>` does all three but the binary, and the room file is what makes
+the global hook config coherent: because the hook commands name no room, the *same*
+four lines serve every repo on the machine, resolve the right room in each, and stay
+silent no-ops in the ones that aren't ettle projects. The file holds only the room —
+a fact about the project, safe to commit. Identity is a fact about the person and is
+kept per-machine, because a committed `me = alice` would publish Bob's atoms as
+Alice's, which is exactly the misattribution the transport works to prevent.
 
 Three hooks close the instruction-free loop:
 
@@ -87,6 +95,12 @@ Three hooks close the instruction-free loop:
 | **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant knots the instant a session opens | **built** (`ettle horizon-hook` injects a cached reconcile; `ettle pull-hook` pulls) |
 | **PostToolUse(`mcp__linear`)** | pull, so touching Linear catches you up | **built** (`ettle pull-hook`, `hooks/settings.example.json`) |
 | **SessionEnd / Stop** | distill *this* session's transcript into the person's own atoms and publish them to the bus | **built** (`ettle capture-hook` → `ettle capture --room`) |
+
+Getting them installed is itself a step, so it is one command: `ettle init <room>
+--install-hooks` merges the four into `~/.claude/settings.json`, idempotently (a
+re-run adds nothing), never joining a group someone else's hooks live in, and backing
+up the previous file first. Keys are checked and reported rather than assumed —
+[LINEAR_SETUP.md](LINEAR_SETUP.md) is what to do about each ✗.
 
 ## Auto-capture (the send half of set-and-forget)
 

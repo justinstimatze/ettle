@@ -64,19 +64,27 @@ func TestPublishCaptureEmptyNoteNoPublish(t *testing.T) {
 func TestCaptureIdentity(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("USER", "zoe")
+	t.Chdir(t.TempDir()) // no project pointer above us, so the fallbacks are the only input
 
-	if got := captureIdentity("bob", "anyroom"); got != "bob" {
+	if got := captureIdentity("bob", "anyroom", ""); got != "bob" {
 		t.Errorf("explicit --me should win: got %q, want bob", got)
 	}
-	if got := captureIdentity("", ""); got != "zoe" {
+	if got := captureIdentity("", "", ""); got != "zoe" {
 		t.Errorf("no me/room should fall back to $USER: got %q, want zoe", got)
 	}
 	// A configured room's agent is the default identity when --me is empty.
 	if err := saveRoom(roomConfig{Name: "crew", RepoDir: "/tmp/x", Agent: "carol"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := captureIdentity("", "crew"); got != "carol" {
+	if got := captureIdentity("", "crew", ""); got != "carol" {
 		t.Errorf("empty me + known room should use the room's agent: got %q, want carol", got)
+	}
+	// A Linear room stores no agent, so `ettle init`'s saved identity is what answers.
+	if err := saveIdentity("linear://crew", "dana"); err != nil {
+		t.Fatal(err)
+	}
+	if got := captureIdentity("", "", "linear://crew"); got != "dana" {
+		t.Errorf("a Linear room should use the saved identity: got %q, want dana", got)
 	}
 }
 

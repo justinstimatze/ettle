@@ -48,14 +48,15 @@ func runHorizon(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	*room, *transportName = applyRoomFile(*room, *transportName)
 	if *room == "" && *transportName == "" {
-		return fmt.Errorf("usage: ettle horizon --room <room>   (reconciles the atoms capture/pull put on the bus into the tangles relevant to you)")
+		return fmt.Errorf("no room: run `ettle init <room>` in this project, or pass --room/--transport   (horizon reconciles the atoms capture/pull put on the bus into the tangles relevant to you)")
 	}
 	key := apiKey()
 	if key == "" {
 		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file) — the reconcile runs locally")
 	}
-	who := captureIdentity(*me, *room)
+	who := captureIdentity(*me, *room, *transportName)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -368,13 +369,18 @@ func runHorizonHook(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *room == "" && *transportName == "" {
-		return fmt.Errorf("usage: ettle horizon-hook --room <room>   (wire it to SessionStart)")
-	}
-	// Drain the hook payload so the pipe never blocks the caller.
+	// Drain the hook payload so the pipe never blocks the caller — before any early
+	// return, or a no-op in a non-ettle project would leave the writer blocked.
 	_, _ = io.Copy(io.Discard, os.Stdin)
 
-	who := captureIdentity(*me, *room)
+	// Wired globally, this fires in every session of every project. A project with no
+	// room is not an error, it is simply not an ettle project: say nothing and exit 0.
+	*room, *transportName = applyRoomFile(*room, *transportName)
+	if *room == "" && *transportName == "" {
+		return nil
+	}
+
+	who := captureIdentity(*me, *room, *transportName)
 	target := *room
 	if target == "" {
 		target = *transportName

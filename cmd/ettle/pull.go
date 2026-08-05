@@ -193,12 +193,16 @@ func runPullHook(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *room == "" {
-		return fmt.Errorf("usage: ettle pull-hook --room <room>   (wire it to SessionStart + a PostToolUse matcher on the Linear MCP tools)")
-	}
 	// Claude Code writes the hook payload to stdin; we don't need it, but drain it
-	// so the pipe never blocks the caller.
+	// so the pipe never blocks the caller — before any early return.
 	_, _ = io.Copy(io.Discard, os.Stdin)
+
+	// Wired globally, this fires in every session of every project. No Linear room
+	// here means this simply isn't an ettle-on-Linear project: say nothing, exit 0.
+	*room = linearRoomFor(*room)
+	if *room == "" {
+		return nil
+	}
 
 	due, err := dueForPull(*room, *debounce)
 	if err != nil {
@@ -264,8 +268,9 @@ func runPull(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	*room = linearRoomFor(*room)
 	if *room == "" {
-		return fmt.Errorf("usage: ettle pull --room <room>   (reads teammates' Linear agent replies into the room; needs LINEAR_API_KEY + ANTHROPIC_API_KEY)")
+		return fmt.Errorf("no Linear room: run `ettle init <room>` in this project, or pass --room   (pull reads teammates' Linear agent replies into the room; needs LINEAR_API_KEY + ANTHROPIC_API_KEY)")
 	}
 	key := apiKey()
 	if key == "" {

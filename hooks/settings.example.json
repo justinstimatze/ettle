@@ -1,25 +1,25 @@
 {
-  "//": "ettle hooks — see hooks/README.md. Merge into your Claude Code settings (~/.claude/settings.json for all projects, or a project's .claude/settings.json). Replace YOUR_ROOM everywhere with your room, and adjust the PostToolUse matcher to your Linear MCP server's tool prefix. horizon-hook injects the coordination knots relevant to you at session start; capture-hook distills THIS session and publishes your own atoms; pull-hook ingests teammates' Linear replies. Together they are the set-and-forget loop: install once, works in every session with no command to run.",
+  "//": "ettle hooks — see hooks/README.md. `ettle init <room> --install-hooks` merges these for you; this file is the same thing to paste by hand. Put them in ~/.claude/settings.json so they serve EVERY project: the commands name no room because each project's .ettle-room says which room it belongs to, and a project without one makes every hook a silent no-op. Adjust the PostToolUse matcher to your Linear MCP server's tool prefix. horizon-hook injects the coordination knots relevant to you at session start; capture-hook distills THIS session and publishes your own atoms; pull-hook ingests teammates' Linear replies. Together they are the set-and-forget loop: install once, works in every session with no command to run.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "ettle horizon-hook --room YOUR_ROOM" },
-          { "type": "command", "command": "ettle pull-hook --room YOUR_ROOM" }
+          { "type": "command", "command": "ettle horizon-hook" },
+          { "type": "command", "command": "ettle pull-hook" }
         ]
       }
     ],
     "SessionEnd": [
       {
         "hooks": [
-          { "type": "command", "command": "ettle capture-hook --room YOUR_ROOM" }
+          { "type": "command", "command": "ettle capture-hook" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "ettle capture-hook --room YOUR_ROOM" }
+          { "type": "command", "command": "ettle capture-hook" }
         ]
       }
     ],
@@ -27,7 +27,7 @@
       {
         "matcher": "mcp__linear",
         "hooks": [
-          { "type": "command", "command": "ettle pull-hook --room YOUR_ROOM" }
+          { "type": "command", "command": "ettle pull-hook" }
         ]
       }
     ]

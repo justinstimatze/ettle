@@ -46,6 +46,12 @@ func main() {
 		case "version", "-version", "--version", "-v":
 			fmt.Println("ettle", buildVersion())
 			return
+		case "init":
+			if err := runInit(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		case "capture":
 			if err := runCapture(os.Args[2:]); err != nil {
 				fmt.Fprintln(os.Stderr, "ettle:", err)
@@ -124,7 +130,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: ettle standup [flags] <input>...")
 		fmt.Fprintln(os.Stderr, "  each input is one participant: a note file, or a Claude Code")
 		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
-		fmt.Fprintln(os.Stderr, "  ettle room <init|join|list|status>  # join a team's shared bus once, then use --room <name>")
+		fmt.Fprintln(os.Stderr, "  ettle init <room>                  # START HERE on Linear + Claude Code: verify keys, set up the room, wire the hooks")
+		fmt.Fprintln(os.Stderr, "  ettle room <init|join|list|status>  # no Linear? the git-repo bus instead — join once, then --room <name>")
 		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview a session's digest; add --room <room> to distill + publish it as your atoms")
 		fmt.Fprintln(os.Stderr, "  ettle drift <prev-dir> <curr-dir>  # L2: directed models + surprise-gated deltas across two rounds")
 		fmt.Fprintln(os.Stderr, "  ettle mirror --me <name> <prev> <curr> # what the team's models believe ABOUT you, stale flagged")
@@ -151,6 +158,13 @@ func main() {
 	room := fs.String("room", "", "use a configured leat room (created by `ettle room init|join`) as the transport — resolves that room's repo, agent, and remote; overrides --transport")
 	_ = fs.Parse(os.Args[2:])
 
+	// A project with a `.ettle-room` needs neither flag; an explicit one still wins.
+	// --transport defaults to "inproc", so only treat it as set when it isn't that.
+	if *transportName == "inproc" {
+		if r, t := applyRoomFile(*room, ""); r != "" || t != "" {
+			*room, *transportName = r, t
+		}
+	}
 	cfg := runConfig{me: *me, model: *model, gemotURL: *gemotURL, transport: *transportName, room: *room, insecureLocal: *insecureLocal, gemotTimeout: *gemotTimeout, samples: *samples, showAtoms: *showAtoms, ground: !*noGround, groundModel: *groundModel, shareInferred: *shareInferred, paths: fs.Args()}
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "ettle:", err)
@@ -1785,6 +1799,10 @@ func runMCP(args []string) error {
 	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	_ = fs.Parse(args)
+
+	// A project with a `.ettle-room` needs neither flag, so `claude mcp add ettle --
+	// ettle mcp` is the same line in every project. An explicit flag still wins.
+	*room, *transportName = applyRoomFile(*room, *transportName)
 
 	// The key is OPTIONAL. Client-side distillation exists so a teammate never needs
 	// one: ettle_emit with `atoms` and ettle_respond make no model call. Refusing to

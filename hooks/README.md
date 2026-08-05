@@ -18,28 +18,33 @@ no daemon.
 
 ## Wire it up
 
-Merge [`settings.example.json`](settings.example.json) into your Claude Code
-settings — `~/.claude/settings.json` for every project, or a repo's
-`.claude/settings.json` for just that one — then:
+`ettle init <room> --install-hooks` merges all four into `~/.claude/settings.json`
+for you (backing up the previous file, and skipping anything already there). To do
+it by hand, merge [`settings.example.json`](settings.example.json) yourself.
 
-- Replace `YOUR_ROOM` (in all four hooks) with your room — a leat room name from
-  `ettle room join`, or a `linear://<room>`.
-- Adjust the `PostToolUse` `matcher` to your Linear MCP server's tool prefix. It
-  is a regex over the tool name; `mcp__linear` matches a server named `linear`
-  (`mcp__linear__*`). If yours is named differently, match that. (If you don't use
-  Linear at all, drop the two `pull-hook` entries — `capture-hook` alone still
-  puts you on the bus.)
+Put them in `~/.claude/settings.json`, not a project's `.claude/settings.json` —
+that is what makes them serve every project at once. **The commands name no room.**
+Each project's `.ettle-room` (written by `ettle init`) says which room that tree
+belongs to, and every hook walks up from the working directory to find it. A project
+without one makes all four hooks silent no-ops, which is why one global config can
+sit over every repo on the machine, ettle or not.
+
+One thing to adjust: the `PostToolUse` `matcher` is a regex over the tool name, and
+`mcp__linear` matches a server named `linear` (`mcp__linear__*`). If yours is named
+differently, match that. If you don't use Linear at all, drop the two `pull-hook`
+entries — `capture-hook` alone still puts you on the bus.
 
 The session needs `ANTHROPIC_API_KEY` (capture and pull both distill locally) and,
 for the Linear receive half, `LINEAR_API_KEY` (a member key — reading agent replies
-needs no OAuth app token) in its environment.
+needs no OAuth app token) in its environment. `ettle init` reports which of those
+you have; [`docs/LINEAR_SETUP.md`](../docs/LINEAR_SETUP.md) is how to get each.
 
 ## What the hooks do
 
 They spawn their work **detached** and return immediately, so a distill or reconcile
 in the background never stalls a tool call or session exit.
 
-`ettle horizon-hook --room <room>`:
+`ettle horizon-hook`:
 
 - **Fires on SessionStart** and injects the cached horizon — the tangles relevant
   to you — into the session's context, so you see them without asking. Reconcile is
@@ -48,12 +53,12 @@ in the background never stalls a tool call or session exit.
   time. The cache self-warms from use; the first session on a fresh room injects
   nothing and warms the cache for the next.
 - **Debounces the refresh** (default 5m; `--debounce` to widen) so session churn
-  doesn't spam reconciles. Identity is `--me`, else the room's agent, else `$USER`
-  (pass `--me` when the room is a `linear://` room, which stores no agent).
-- Run `ettle horizon --room <room> --me <you>` yourself anytime for the live view —
-  it reconciles the atoms capture/pull already put on the bus, no note files needed.
+  doesn't spam reconciles. Identity is `--me`, else a leat room's agent, else what
+  `ettle init` saved for this room on this machine, else `$USER`.
+- Run `ettle horizon` yourself anytime for the live view — it reconciles the atoms
+  capture/pull already put on the bus, no note files and no flags needed.
 
-`ettle capture-hook --room <room>`:
+`ettle capture-hook`:
 
 - **Fires on SessionEnd** (once, when the session closes) and, if you want
   mid-session freshness, on **Stop** (each turn). It reads the transcript path off
@@ -61,11 +66,12 @@ in the background never stalls a tool call or session exit.
 - **Debounces** (default 2m; `--debounce 5m` to widen) — so wiring it to Stop,
   which fires every turn, collapses a long session to the occasional distill
   instead of one per turn.
-- **Publishes as you.** Identity is `--me`, else the room's configured agent, else
-  `$USER`. A session that distills to no atoms publishes nothing (an empty
+- **Publishes as you.** Same identity chain as above — `ettle init` records who you
+  are per machine, so a shared `.ettle-room` never publishes your atoms under a
+  teammate's name. A session that distills to no atoms publishes nothing (an empty
   envelope would erase your atoms).
 
-`ettle pull-hook --room <room>`:
+`ettle pull-hook`:
 
 - **Fires on SessionStart and after a Linear MCP tool call**, so any new teammate
   replies are already in the room by the time you look.
@@ -78,4 +84,8 @@ Prefer the smallest wiring? Each works as a single backgrounded line without the
 `-hook` subcommand — you lose only the debounce:
 
 - `nohup ettle capture --room YOUR_ROOM "$transcript_path" >/dev/null 2>&1 &`
-- `nohup ettle pull --room YOUR_ROOM >/dev/null 2>&1 &`
+- `nohup ettle pull >/dev/null 2>&1 &`
+
+(`capture` is the one that still needs the room named, and it must come before the
+transcript path — with no target `capture` is the digest inspector, and having a
+preview silently publish instead would be a surprising thing to do.)

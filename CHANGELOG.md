@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **`ettle init <room>` — the Linear + Claude Code setup, in one command.** Everything
+  was built and the assembly was six manual steps, only one of which (the OAuth
+  app-actor token) was documented anywhere but an error string. `ettle init` now
+  verifies the environment and **says what each missing key costs you** rather than
+  failing on the first one — a missing `LINEAR_AGENT_TOKEN` reads as "escalation is
+  off," not as a broken install. It resolves or creates the room's Linear project by
+  actually building the transport (an env var being set proves nothing about whether
+  the key works), reports who is already publishing there, writes the project's
+  `.ettle-room` pointer, and with `--install-hooks` merges the four Claude Code hooks
+  into `~/.claude/settings.json` — backing up the previous file, skipping anything
+  already wired (including a hand-tuned entry that added flags), and never joining a
+  group someone else's hooks live in. A new [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md)
+  walks each of the four keys, including the `actor=app` OAuth flow escalation needs
+  and what ettle touches in a workspace.
+- **The hooks no longer name a room, so one global config serves every project.**
+  A hook bundle in `~/.claude/settings.json` fires in every session of every project,
+  which meant a hard-coded `--room` was wrong everywhere but one repo. The room now
+  travels with the project in a `.ettle-room` file that every command walks up to find
+  (`cmd/ettle/roomfile.go`), so `ettle horizon`, `ettle escalate`, and `ettle pull` take
+  no flags inside a project, and the three `-hook` commands are **silent no-ops** outside
+  one — a non-ettle repo produces no output and exit 0 rather than a usage error in every
+  session. Explicit flags still win. The file holds only the room, deliberately: identity
+  is kept per-machine (`ettle init --me`), because a committed `me = alice` would publish
+  Bob's atoms under Alice's name.
+- **README brought back to what the code does.** The status section still described the
+  Linear emit half as deliberately unbuilt after `ettle escalate` shipped, and said
+  nothing at all about capture, horizon injection, or the hooks — so the whole
+  set-and-forget loop existed only in `docs/SURFACES.md`. The status paragraph now
+  describes the loop that runs, and the quickstart leads with the team setup instead of
+  ending at a demo over note files. `.env.example` grew the three Linear variables it
+  had never mentioned.
+
 - **The injected SessionStart horizon is now agent-framed and at parity with the MCP
   tool.** The cached block `ettle horizon-hook` injects used to read as a note to a
   human. It now addresses its actual reader — the agent — as a standing instruction

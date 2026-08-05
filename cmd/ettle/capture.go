@@ -37,7 +37,7 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 	if key == "" {
 		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file) — capture distills the session locally")
 	}
-	who := captureIdentity(me, room)
+	who := captureIdentity(me, room, transportName)
 
 	// Read + digest each transcript; union the notes so one person's several
 	// transcripts publish as a single envelope (Publish is replace-current).
@@ -106,7 +106,7 @@ func publishCapture(ctx context.Context, det distiller, bus transport.Transport,
 // captureIdentity resolves who the published atoms belong to: an explicit --me
 // wins; otherwise a leat room's configured agent; otherwise $USER. This keeps
 // the hook config to just --room in the common case (the room already knows you).
-func captureIdentity(me, room string) string {
+func captureIdentity(me, room, transportName string) string {
 	if strings.TrimSpace(me) != "" {
 		return me
 	}
@@ -114,6 +114,15 @@ func captureIdentity(me, room string) string {
 		if rc, err := loadRoom(room); err == nil && rc.Agent != "" {
 			return rc.Agent
 		}
+	}
+	// A Linear room stores no agent, so identity comes from what `ettle init` saved
+	// for this room on this machine — the path most people are on.
+	spec := transportName
+	if spec == "" {
+		spec = room
+	}
+	if who := loadIdentity(spec); who != "" {
+		return who
 	}
 	return defaultAgent()
 }
@@ -133,17 +142,21 @@ func runCaptureHook(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *room == "" && *transportName == "" {
-		return fmt.Errorf("usage: ettle capture-hook --room <room>   (wire it to SessionEnd, and optionally Stop for mid-session freshness)")
-	}
-
-	// The hook payload (SessionEnd / Stop) carries transcript_path. Read stdin
-	// fully so the pipe never blocks the caller, then pull the path out.
+	// The hook payload (SessionEnd / Stop) carries transcript_path. Read stdin fully
+	// so the pipe never blocks the caller — before any early return — then pull the
+	// path out.
 	var payload struct {
 		TranscriptPath string `json:"transcript_path"`
 	}
 	if data, _ := io.ReadAll(os.Stdin); len(data) > 0 {
 		_ = json.Unmarshal(data, &payload)
+	}
+
+	// Wired globally, this fires in every session of every project. A project with no
+	// room is not an error, it is simply not an ettle project: say nothing and exit 0.
+	*room, *transportName = applyRoomFile(*room, *transportName)
+	if *room == "" && *transportName == "" {
+		return nil
 	}
 	if strings.TrimSpace(payload.TranscriptPath) == "" {
 		return nil // no transcript to distill — never error a hook
@@ -164,7 +177,7 @@ func runCaptureHook(args []string) error {
 	// Detach a background `ettle capture` so the hook returns instantly. Flags come
 	// before the positional transcript so flag parsing sees them (Go's flag package
 	// stops at the first non-flag token).
-	who := captureIdentity(*me, *room)
+	who := captureIdentity(*me, *room, *transportName)
 	exe, err := os.Executable()
 	if err != nil {
 		return err

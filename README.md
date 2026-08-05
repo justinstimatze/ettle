@@ -31,7 +31,7 @@ flowchart TB
     end
     AD -- "typed atoms only" --> BUS
     BD -- "typed atoms only" --> BUS
-    BUS{{"atom bus — leat (a git repo)<br/>· or NATS · or in-process"}}
+    BUS{{"atom bus — a Linear project<br/>· or a git repo · NATS · in-process"}}
     BUS --> L2["L2 directed models<br/>per-pair, across rounds<br/>surprise-gated emit"]
     L2 --> RC["L3 reconcile<br/>pairwise + team-wide<br/>= tangle detection"]
     RC --> CONF{"tangle<br/>confidence?"}
@@ -63,7 +63,7 @@ What runs today is the coordination **engine**: it distills typed atoms from eac
 
 The **directed-model layer (L2)** now runs in its structural form: `ettle drift <prev-dir> <curr-dir>` builds each agent's per-pair model of every teammate, carries it across two rounds, and emits only the deltas that would leave a teammate's model stale — the surprise-gated emit rule and the L2-vs-L1 staleness diff, computed deterministically (no extra model call). It is unit-tested without an API key and demonstrated on [`testdata/drift/`](testdata/drift). Two honest limits bound it: it routes by an exact `(type, subject)` slot key, so when the **stochastic distiller rewords** the subject of a still-held belief the diff reads it as drop+new rather than a reword (savings hold per-*person*, not per-*belief*; the surfaced "stale" line is hedged, not asserted, because of this); and the **semantic** enrichment — an agent inferring what a teammate is assuming *beyond* their stated atoms — is unbuilt. Both are what would make L2 more than a wording-sensitive structural projection; closing the first needs wording-independent slot identity (tracked). The *read* side of that layer now runs too: `ettle mirror --me <name> <prev-dir> <curr-dir>` shows a person what the team's directed models currently believe *about them*, flagging the beliefs that have gone **stale** — the same layer that drives how someone is treated, made legible to the person it's about (attribution coarsened by default, `--by-observer` to attribute; no model call beyond the distill).
 
-A **Linear receive path** now lets a teammate who never installs ettle take part through Linear's native agent UI: when they reply to ettle in a Linear agent session, `ettle pull --room <room>` reads that reply, distills it *locally* under their identity, and publishes the atoms to the room — a member key only, no OAuth app token, no server. It runs automatically before a `linear://` standup, so it isn't a thing to remember. The paired *emit* half (surfacing ettle's knots **as** Linear elicitations, which needs the app-actor token) and a hosted webhook relay are deliberately unbuilt — the receive path is polling, not a webhook.
+**The Linear + Claude Code loop is the path most people are on, and it now closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a `.ettle-room` pointer in the repo, and (with `--install-hooks`) merges the four Claude Code hooks into your global settings. After that, four things happen on their own. **Capture** distills each of your sessions locally and publishes *your* atoms to the room (`SessionEnd`/`Stop`). **Pull** ingests replies a teammate posts in Linear's native agent UI, distilled locally under their identity, so someone who never installs ettle still has a voice in reconcile. **Horizon injection** puts the knots that involve *you* into your next session at `SessionStart` — instantly, from a cache, with a background refresh, because reconcile is a model call and session start must stay free. And **escalation** (`ettle escalate`, or the `ettle_escalate` MCP tool) posts a firm cross-person knot onto the room's one dedicated coordination issue — opt-in, never onto your feature tickets, and only ever the bridge to a teammate who isn't running ettle. Because the hooks name no room and read the project pointer, one global config serves every repo on the machine and stays a silent no-op in the ones that aren't ettle projects. Setup is [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md); the reasoning about *which* surface gets which output — and why "put the knot in the ticket" is the obvious design and the wrong default — is [docs/SURFACES.md](docs/SURFACES.md). Two honest limits: the receive path **polls** with a cursor rather than taking a webhook (nothing is hosted, by choice), and escalation needs an OAuth app-actor token that takes about ten minutes to mint.
 
 The opening paragraphs above describe the **design**; what's **deliberately unbuilt** is the part that needs the most care — the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector (the fast people-modeling half) runs; the correction half does not yet, so any safety claim that leans on calibration is, for now, borrowing against unbuilt code — see [CONCEPT.md](docs/CONCEPT.md). Concept demos exist as local simulations on cheap models (agents standing in for the humans) to show the payoff shape; those are illustrations, not the product.
 
@@ -97,7 +97,42 @@ go run ./cmd/ettle standup --me alice testdata/standup/*.md
 ```
 
 (No key handy? [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) is exactly what that
-prints, on the bundled fixture.) Everything below is the rest of the surface.
+prints, on the bundled fixture.)
+
+### Then set it up for your team — Linear + Claude Code
+
+That demo hands ettle three note files. A real team doesn't write note files, so the
+loop below never asks anyone to. Run this once, in the repo you work in:
+
+```sh
+ettle init crew --me alice --install-hooks
+```
+
+It reports which keys you have and what each missing one costs you, resolves or
+creates the Linear project that carries the atoms (`ettle-crew`), writes a
+`.ettle-room` pointer in the repo, and merges four hooks into `~/.claude/settings.json`
+— backing up the previous file and skipping anything already there. Drop
+`--install-hooks` to print the JSON and merge it yourself. Every teammate runs the
+same line with their own `--me`. What each key buys, and the ten minutes the optional
+one costs: [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md).
+
+Nothing after that is a command you run. Your sessions publish your atoms as they
+end; teammates' Linear replies come in; the knots that involve you appear at the top
+of your next session; and **nothing is posted anywhere shared** unless you escalate
+it on purpose. Two commands stay worth knowing:
+
+```sh
+ettle horizon                # what the room knows right now that concerns you
+ettle escalate               # post the firm cross-person knots where a non-adopter can see them
+```
+
+Neither takes a `--room`: the `.ettle-room` in the repo answers that, which is also
+why the hooks can be global and still do the right thing per project. To drive it
+from inside a session instead — offer a knot, escalate it on a yes, mute it when it's
+handled — add the MCP server: `claude mcp add ettle -- ettle mcp`.
+
+Not on Linear? `ettle room init <git-url>` uses a private git repo as the bus instead,
+and everything above works the same. Everything below is the rest of the surface.
 
 ```sh
 # or run it on real LIVE sessions — Claude Code transcripts, not notes —

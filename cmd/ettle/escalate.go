@@ -120,8 +120,9 @@ func runEscalate(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	*room = linearRoomFor(*room)
 	if *room == "" {
-		return fmt.Errorf("usage: ettle escalate --room <room>   (posts the room's firm cross-person knots to its one coordination issue, for teammates who don't run ettle)")
+		return fmt.Errorf("no Linear room: run `ettle init <room>` in this project, or pass --room   (escalate posts the room's firm cross-person knots to its one coordination issue, for teammates who don't run ettle)")
 	}
 	key := apiKey()
 	if key == "" {
