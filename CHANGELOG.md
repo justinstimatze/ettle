@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- **`ettle calibrate` reads the verdict log and says what it does not support.** The
+  cut points have been hand-set from the `eval --separability` batch since they were
+  introduced, with a note that a loop would learn them from accumulated human
+  verdicts. The verdicts have been accruing in a schema built for exactly that
+  (`Kind`, `Votes`, `Samples`, `Firm` on every row) and nothing has ever read them
+  back, so whether any had accrued was unknown by construction. This reads them,
+  groups by kind, crosses verdict against recurrence, and reports per kind whether
+  the evidence can inform that kind's bar. It writes nothing — not the log, not the
+  constants. A loop that moved its own thresholds from its own surfaced-and-judged
+  tangles is the machine-speed feedback loop CONCEPT.md rules out, so the read and
+  the write are separate on purpose and not for now.
+- **Two limits print on every run, including an empty one**, because both are
+  properties of what gets recorded rather than of how much: the horizon asks for a
+  verdict when a tangle is *wrong or already handled* and confirming a good one
+  changes nothing the human can see, so the log leans negative and a kind with no
+  `real` arm cannot move its bar at any sample size; and nothing below the drop
+  floor is ever surfaced, so these rows can show the floor is too low and no row
+  in this file can ever show it is too high. A kind is blocked on the structural
+  check before the volume check, so 50 one-sided rows report the missing arm rather
+  than asking for more of the same.
+- **The bars come from the engine** (`ettlemesh.FirmBarFor` / `DropFloor`, newly
+  exported) rather than being restated in the reporter, so a report cannot keep
+  printing 0.25 the day someone changes the gate.
+
 ## v0.4.1 — 2026-08-05
 
 - **A contested tangle now arrives in the session already staged as the choice.**

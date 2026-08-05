@@ -223,6 +223,19 @@ func firmVoteFractionFor(kind string) float64 {
 	return firmVoteFractionDefault
 }
 
+// FirmBarFor and DropFloor expose the two cut points to the calibration reporter
+// (internal/calib), which has to say where a bar sits today to say anything useful
+// about whether the verdicts support moving it. Exported rather than duplicated
+// because a report carrying its own copy of 0.25 would keep printing 0.25 the day
+// someone changes the gate, and a calibration tool that lies about the current
+// setting is worse than none.
+func FirmBarFor(kind string) float64 { return firmVoteFractionFor(kind) }
+
+// DropFloor is the recurrence below which a tangle is dropped unsurfaced. It bounds
+// what the verdict log can ever contain: nothing below it is shown to a human, so no
+// verdict about it can exist.
+func DropFloor() float64 { return dropFloorFraction }
+
 // Firm reports whether a tangle is solid enough to assert rather than merely ask
 // about. With voting (Samples>0) the signal is recurrence frequency — a tangle that
 // recurs at or above its per-kind bar is firm; a flickery one is soft. In the
