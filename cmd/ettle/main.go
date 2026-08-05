@@ -55,6 +55,10 @@ func exitOn(err error) {
 }
 
 func main() {
+	// Before anything reads a key: the hooks inherit the session's environment, so
+	// this is what lets them work without an export in a shell profile.
+	loadUserEnv()
+
 	if len(os.Args) >= 2 {
 		switch os.Args[1] {
 		case "version", "-version", "--version", "-v":

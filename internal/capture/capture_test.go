@@ -90,3 +90,42 @@ func contains(xs []string, s string) bool {
 	}
 	return false
 }
+
+func TestCleanPromptDropsHarnessInjectedTurns(t *testing.T) {
+	// Each of these was observed verbatim in a real digest, read as the person's
+	// "stated intent and decisions" when it is the harness talking.
+	for _, noise := range []string{
+		"<task-notification> <task-id>b5d7olvcv</task-id> <summary>Monitor event</summary>",
+		"/compact",
+		"/check-plan some args",
+		"This session is being continued from a previous conversation that ran out of context. Summary: ...",
+	} {
+		if got := cleanPrompt(noise); got != "" {
+			t.Errorf("harness noise should be dropped, got %q from %q", got, noise)
+		}
+	}
+	// What the person actually said must survive — including a message that opens
+	// with a path, which is not a slash command.
+	for _, real := range []string{
+		"spec out the gating layer",
+		"/etc/hosts is wrong on the staging box",
+		"don't rabbit hole on this, refer to 2026 sota before reinventing",
+	} {
+		if got := cleanPrompt(real); got == "" {
+			t.Errorf("real intent must survive, dropped %q", real)
+		}
+	}
+}
+
+func TestIsSlashCommand(t *testing.T) {
+	for _, yes := range []string{"/compact", "/check-plan", "/user:thing", "/a_b-c"} {
+		if !isSlashCommand(yes) {
+			t.Errorf("%q should read as a slash command", yes)
+		}
+	}
+	for _, no := range []string{"/etc/hosts", "/", "compact", "/has space", "/dir/"} {
+		if isSlashCommand(no) {
+			t.Errorf("%q should NOT read as a slash command", no)
+		}
+	}
+}

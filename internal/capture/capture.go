@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -184,9 +185,25 @@ func cleanPrompt(s string) string {
 	noise := []string{
 		"<local-command", "<command-name>", "<command-message>", "<command-args>",
 		"<bash-", "Caveat:", "[Request interrupted", "<system-reminder>",
+		// A background task finishing is delivered as a user turn, but it is the
+		// harness talking, not the person. Left in, it reads as their stated intent
+		// and drags a whole dispatch payload into the digest.
+		"<task-notification>",
+		// The compaction preamble is a summary of a conversation, addressed to the
+		// model. Distilling it re-states old context as if it were new intent.
+		"This session is being continued from a previous conversation",
 	}
 	for _, n := range noise {
 		if strings.HasPrefix(s, n) {
+			return ""
+		}
+	}
+	// A bare slash command (`/compact`, `/check-plan foo`) is an instruction to the
+	// harness, not a statement about the work. Matched on the FIRST TOKEN only, and
+	// only when it has no second slash, so a message that opens with a path
+	// ("/etc/hosts is wrong") is still the person talking.
+	if strings.HasPrefix(s, "/") {
+		if first, _, _ := strings.Cut(s, " "); isSlashCommand(first) {
 			return ""
 		}
 	}
@@ -202,6 +219,15 @@ func cleanPrompt(s string) string {
 		s = s[:maxPromptLen] + "…"
 	}
 	return s
+}
+
+// slashCommandRe matches a bare harness command like `/compact` or `/check-plan`:
+// one leading slash then word characters, `-` or `:`. A path fails it on the second
+// slash, so a message opening with "/etc/hosts" is still the person talking.
+var slashCommandRe = regexp.MustCompile(`^/[\w:-]+$`)
+
+func isSlashCommand(tok string) bool {
+	return slashCommandRe.MatchString(strings.TrimSpace(tok))
 }
 
 func filePath(in map[string]any) string {
