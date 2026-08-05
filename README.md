@@ -66,9 +66,9 @@ A second harness measures the **privacy boundary** instead of detection. `ettle 
 
 The **directed-model layer (L2)** runs in its structural form. `ettle drift <prev-dir> <curr-dir>` builds each agent's per-pair model of every teammate, carries it across two rounds, and emits only the deltas that would leave a teammate's model stale — the surprise-gated emit rule and the L2-vs-L1 staleness diff, computed deterministically, with no extra model call. It's unit-tested without an API key and demonstrated on [`testdata/drift/`](testdata/drift).
 
-Two limits bound it. It routes by an exact `(type, subject)` slot key, so when the **stochastic distiller rewords** the subject of a still-held belief, the diff reads a drop plus a new belief — savings hold per-*person*, not per-*belief*, and the surfaced "stale" line is hedged for that reason rather than asserted. And the **semantic** enrichment — an agent inferring what a teammate assumes *beyond* their stated atoms — is unbuilt. Together those keep L2 a wording-sensitive structural projection; closing the first needs wording-independent slot identity (tracked).
+Routing goes by an exact `(type, subject)` slot key. When the **stochastic distiller rewords** the subject of a belief someone still holds, the diff reads a drop plus something new, so a reworded belief re-emits as if it had changed. The savings are per-*person*; they don't reach the individual belief, and the surfaced "stale" line is hedged rather than asserted for that reason. The **semantic** enrichment — an agent inferring what a teammate assumes *beyond* their stated atoms — is unbuilt. Both of those keep L2 a wording-sensitive structural projection. Closing the first needs wording-independent slot identity (tracked).
 
-The read side runs too. `ettle mirror --me <name> <prev-dir> <curr-dir>` shows a person what the team's directed models currently believe *about them*, flagging the beliefs that have gone **stale** — the layer that drives how someone gets treated, made legible to the person it's about. Attribution is coarsened by default (`--by-observer` to attribute), and there's no model call beyond the distill.
+`ettle mirror --me <name> <prev-dir> <curr-dir>` runs the read side, showing a person what the team's directed models currently believe *about them* and flagging the beliefs that have gone **stale** — the layer that drives how someone gets treated, made legible to the person it's about. Attribution is coarsened by default (`--by-observer` to attribute), and there's no model call beyond the distill.
 
 **The Linear + Claude Code loop closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a `.ettle-room` pointer in the repo, and (with `--install-hooks`) merges the four Claude Code hooks into your global settings.
 
@@ -80,10 +80,9 @@ What's **deliberately unbuilt** is the part that needs the most care: the longit
 
 ## Quickstart
 
-Requires **Go ≥ 1.25** and one Anthropic API key — *one per room, not one per
-person*: teammates driving ettle from their own agent (Claude Code, Cursor) can
-distill locally and never need a key of their own. See the `ettle_distill` note
-at the end of this block.
+Requires **Go ≥ 1.25** and one Anthropic API key for the room. A teammate driving
+ettle from their own agent (Claude Code, Cursor) distills locally and needs no key
+at all — see the `ettle_distill` note at the end of this block.
 
 Install the binary — it self-describes its version (`ettle version`):
 
@@ -237,9 +236,9 @@ the full team view.
 Cost is ~2N+3 model calls for N participants, cheap on Haiku. `--samples K`
 re-runs the reconcile passes K times and keeps only tangles that recur across a
 majority — the detector is stochastic, and voting turns that into a confidence
-signal at +2 calls per extra sample. At N=1 a single person's notes still get a
-self-assumption pass, catching an earlier assumption their own later work has
-quietly made false. There's **no infrastructure to stand up**: the transport
+signal at +2 calls per extra sample. At N=1 the pass still runs over one person's
+own notes and catches assumptions their later work has quietly falsified.
+There's **no infrastructure to stand up**: the transport
 defaults to in-process, and contested tangles fall back to an inline either/or.
 
 **See [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) for exactly what it prints** on
