@@ -13,6 +13,24 @@ import (
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
+// TestMain points the verdict log at a temp file for the whole test binary.
+// LabelsPath defaults to the working directory, which under `go test` is the package
+// source directory — so any test that records a verdict was appending real rows to
+// cmd/ettle/ettle-labels.jsonl and leaving them there between runs. Gitignored, so it
+// never showed up in a diff; it did show up as 210 rows of fake calibration data next
+// to the code. Setting it once here closes the whole class rather than the two tests
+// that happened to leak: a test wanting its own log still calls t.Setenv and wins.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "ettle-test-labels")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("ETTLE_LABELS_PATH", filepath.Join(dir, "labels.jsonl"))
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 // captureStdout runs f with os.Stdout redirected to a pipe and returns what it wrote.
 func captureStdout(t *testing.T, f func()) string {
 	t.Helper()
