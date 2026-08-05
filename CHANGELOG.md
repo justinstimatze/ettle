@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Saying a tangle is real now does something, so the verdict log stops arriving
+  one-armed.** `not_real` and `handled` mute — the nuisance ends, which is a payoff a
+  human can feel — while `real` left the tangle exactly as it was, asked about again
+  every session. A verdict that costs something and buys nothing is one nobody
+  records, and that is a sampling bias in the only ground truth the calibration loop
+  will ever have. `real` now confirms: the tangle stays on the horizon, because it is
+  a live conflict and hiding it would be the opposite of what confirming means, and
+  it stops being asked about. Mute means stop showing me this; confirm means stop
+  asking me about this.
+- **`ettle confirm`** is the shell half, for the same reason `ettle mute` is: the
+  default install is hooks-only, so until now the only way to record a `real` verdict
+  at all was the MCP server. Someone on that install could tell ettle it was wrong
+  and had no way to tell it that it was right.
+- **The horizon's ask names all three verdicts and disappears when they are all
+  answered.** It used to invite only `not_real` and `handled` — which is where the
+  bias came from — and it asked again every session regardless. `ettle_respond`'s
+  `clear` now withdraws a confirmation as well as a mute, because a human taking back
+  an answer means the answer, not the store it happened to land in.
 - **`ettle calibrate` reads the verdict log and says what it does not support.** The
   cut points have been hand-set from the `eval --separability` batch since they were
   introduced, with a note that a loop would learn them from accumulated human

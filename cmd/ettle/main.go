@@ -106,6 +106,9 @@ func main() {
 		case "mute":
 			exitOn(runMute(os.Args[2:]))
 			return
+		case "confirm":
+			exitOn(runConfirm(os.Args[2:]))
+			return
 		case "calibrate":
 			exitOn(runCalibrate(os.Args[2:]))
 			return
@@ -126,6 +129,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  ettle horizon --room <room> --me <you>  # reconcile the room's atoms into the tangles relevant to you (no note files)")
 		fmt.Fprintln(os.Stderr, "  ettle escalate --room <room>       # post the room's firm cross-person tangles to its coordination issue (needs LINEAR_AGENT_TOKEN)")
 		fmt.Fprintln(os.Stderr, "  ettle mute <kind> <person>...      # stop a wrong tangle resurfacing (no args lists them; --clear undoes it)")
+		fmt.Fprintln(os.Stderr, "  ettle confirm <kind> <person>...   # this one is real: keeps surfacing, stops being asked about (--clear withdraws)")
 		fmt.Fprintln(os.Stderr, "  ettle calibrate                    # what the accumulated verdicts do and don't say about the cut points (reads only)")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)

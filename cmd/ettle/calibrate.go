@@ -52,7 +52,8 @@ func renderCalibration(rep *calib.Report) string {
 	if rep.Rows == 0 {
 		out("\nno verdicts recorded yet.\n\n")
 		out("Verdicts accrue when someone answers a surfaced tangle — `ettle_respond`\n")
-		out("from an agent session, or `ettle mute --wrong` / `--handled` from a shell.\n")
+		out("from an agent session, or `ettle confirm` / `ettle mute --wrong` /\n")
+		out("`--handled` from a shell.\n")
 		out("Until then there is nothing to calibrate against, and the cut points in\n")
 		out("internal/ettlemesh/mesh.go stand as the diagnostic batch set them.\n")
 		out("%s", structuralNote(rep))
@@ -91,10 +92,11 @@ func structuralNote(rep *calib.Report) string {
 	return fmt.Sprintf(`
 Two limits, independent of how many rows accrue:
 
-  · Confirming a good tangle changes nothing the human sees, so `+"`real`"+` verdicts
-    are recorded by choice while `+"`not_real`"+` ones are recorded to stop a nuisance.
-    Expect the log to lean negative, and read a missing `+"`real`"+` arm as the ask
-    being one-sided rather than as the detector being wrong.
+  · The payoffs are not equal: muting ends a nuisance, confirming ends a question.
+    Expect fewer `+"`real`"+` rows than there were hits, and harder for rows written
+    before `+"`ettle confirm`"+` existed — until then the ask named only the two
+    negative verdicts and a hooks-only install could record nothing else. Read a
+    missing `+"`real`"+` arm as evidence about the surfaces, not the detector.
 
   · Nothing below the drop floor (%.2f recurrence) is ever surfaced, so no verdict
     about it can exist. These rows can show the floor is too low. Nothing here can

@@ -685,15 +685,28 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 	// muted earlier and writes no label, because "I muted this by mistake" is not
 	// ground truth about whether the detector was right.
 	if v == "clear" {
-		removed, err := tanglestate.Remove(tanglestate.Muted, s.stateKey, key)
+		unmuted, err := tanglestate.Remove(tanglestate.Muted, s.stateKey, key)
 		if err != nil {
 			return nil, respondOut{}, fmt.Errorf("clear %s: %w", key, err)
 		}
-		msg := fmt.Sprintf("cleared the mute on %s — it can surface again.", key)
-		if !removed {
-			msg = fmt.Sprintf("%s was not muted; nothing to clear.", key)
+		// Clear undoes whichever answer was given, and there are two now. A human who
+		// says "I answered that by mistake" means the answer, not the store it happened
+		// to land in, and making them know which one would be asking them to model
+		// ettle's internals to take back a click.
+		unconfirmed, err := tanglestate.Remove(tanglestate.Confirmed, s.stateKey, key)
+		if err != nil {
+			return nil, respondOut{}, fmt.Errorf("clear %s: %w", key, err)
 		}
-		return text(msg), respondOut{Recorded: removed, Key: key, Verdict: v}, nil
+		var msg string
+		switch {
+		case unmuted:
+			msg = fmt.Sprintf("cleared the mute on %s — it can surface again.", key)
+		case unconfirmed:
+			msg = fmt.Sprintf("cleared the confirmation on %s — it will be asked about again.", key)
+		default:
+			msg = fmt.Sprintf("%s had no verdict on it; nothing to clear.", key)
+		}
+		return text(msg), respondOut{Recorded: unmuted || unconfirmed, Key: key, Verdict: v}, nil
 	}
 	lbl := Label{Key: key, Verdict: v, By: me, Note: in.Note, TS: time.Now().UTC().Format(time.RFC3339)}
 	// Enrich with the surfaced tangle's features so the verdict is learnable. Same
@@ -711,15 +724,24 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 	// A "not_real" (false alarm) or "handled" (resolved) verdict MUTES the tangle so
 	// horizon stops re-surfacing it and escalate won't post it — the label loop that
 	// consumes verdicts is still unbuilt, but muting makes the verdict act now.
-	// "real" leaves it surfaced (a genuine open conflict the human should keep seeing).
-	muted := ""
-	if v == "not_real" || v == "handled" {
+	// "real" keeps it surfaced — it is a live conflict the human should go on seeing —
+	// but records the confirmation so the horizon stops asking. Without that, saying
+	// `real` changed nothing the human could observe, and a verdict with no payoff is
+	// one nobody records: see tanglestate.Confirmed for why that biases the log.
+	effect := ""
+	switch v {
+	case "not_real", "handled":
 		if err := tanglestate.Add(tanglestate.Muted, s.stateKey, key); err != nil {
 			return nil, respondOut{}, fmt.Errorf("mute %s: %w", key, err)
 		}
-		muted = " (muted — it won't resurface)"
+		effect = " (muted — it won't resurface)"
+	case "real":
+		if err := tanglestate.Add(tanglestate.Confirmed, s.stateKey, key); err != nil {
+			return nil, respondOut{}, fmt.Errorf("confirm %s: %w", key, err)
+		}
+		effect = " (confirmed — it stays on the horizon and stops being asked about)"
 	}
-	return text(fmt.Sprintf("recorded: %s judged %q on %s%s.", me, v, key, muted)),
+	return text(fmt.Sprintf("recorded: %s judged %q on %s%s.", me, v, key, effect)),
 		respondOut{Recorded: true, Key: key, Verdict: v}, nil
 }
 

@@ -82,7 +82,7 @@ func TestTagHorizonSuppressesMutedAndFlagsEscalated(t *testing.T) {
 	}
 	muted := map[string]bool{escalateKey(firmT("duplication", "alice", "carol")): true}
 	escalated := map[string]bool{escalateKey(firmT("collision", "alice", "bob")): true}
-	got := tagHorizon(res, muted, escalated)
+	got := tagHorizon(res, muted, nil, escalated)
 	if len(got.firm) != 1 || got.firm[0].Kind != "collision" {
 		t.Fatalf("muted duplication should be dropped from firm, got %+v", got.firm)
 	}

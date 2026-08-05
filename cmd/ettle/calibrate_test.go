@@ -27,7 +27,7 @@ func TestCalibrateOnAFreshInstallSaysSoAndSaysHowToStart(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	for _, want := range []string{"no verdicts recorded yet", "ettle_respond", "ettle mute --wrong"} {
+	for _, want := range []string{"no verdicts recorded yet", "ettle_respond", "ettle confirm", "ettle mute --wrong"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("a fresh install should mention %q:\n%s", want, out)
 		}
@@ -46,7 +46,7 @@ func TestTheStructuralLimitsPrintEvenWithNoData(t *testing.T) {
 	if !strings.Contains(out, "drop floor") || !strings.Contains(out, "leaves no trace") {
 		t.Errorf("the drop-floor limit should always print:\n%s", out)
 	}
-	if !strings.Contains(out, "lean negative") {
+	if !strings.Contains(out, "payoffs are not equal") {
 		t.Errorf("the one-sidedness warning should always print:\n%s", out)
 	}
 }

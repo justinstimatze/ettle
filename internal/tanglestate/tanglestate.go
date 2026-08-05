@@ -22,6 +22,16 @@ import (
 const (
 	Escalated = "emit"  // tangles posted to Linear (escalate's store)
 	Muted     = "muted" // tangles the human marked handled/not-real — stop surfacing
+	// Confirmed holds tangles the human judged `real`. It exists so that verdict
+	// changes something they can see. Muting pays off immediately — the nuisance
+	// stops — while confirming used to leave the tangle exactly as it was, asked
+	// about again every session. That asymmetry is a sampling bias in the only
+	// ground truth the calibration loop will ever have: `ettle calibrate` can bound
+	// the false-alarm rate and cannot estimate the hit rate, because nobody is paid
+	// to record a hit. A confirmed tangle still surfaces (it is a live conflict) but
+	// stops being asked about, which is the symmetric payoff: mute means stop showing
+	// me this, confirm means stop asking me about this.
+	Confirmed = "confirmed"
 )
 
 // Key is the canonical, wording-independent identity of a coordination tangle: its

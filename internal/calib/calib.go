@@ -11,11 +11,16 @@
 // Two properties of the log bound what any report over it can honestly claim, and
 // both are structural rather than "not enough data yet":
 //
-//  1. The log arrives ONE-SIDED. The horizon asks for a verdict when a tangle is
-//     wrong or already handled; confirming a good one changes nothing the human can
-//     see, so there is an incentive to record false alarms and none to record hits.
-//     A kind with no `real` rows can bound the false-alarm rate above its bar and
-//     cannot estimate the hit rate at all, which is half of what moving a bar needs.
+//  1. The log LEANS negative, and rows written before `ettle confirm` existed lean
+//     harder. The horizon used to invite only `not_real` and `handled`, and those
+//     were the only two a hooks-only install could record, so a `real` verdict cost
+//     a human something and bought nothing. Both halves are fixed — the ask offers
+//     all three and confirming stops ettle asking again — but the payoffs are still
+//     not equal: muting ends a nuisance, confirming ends a question. Expect fewer
+//     `real` rows than hits, and read a missing `real` arm as evidence about the
+//     surfaces rather than about the detector. A kind with no `real` rows can bound
+//     the false-alarm rate above its bar and cannot estimate the hit rate at all,
+//     which is half of what moving a bar needs.
 //
 //  2. Nothing below the drop floor is representable. A tangle under
 //     ettlemesh.DropFloor() is never surfaced, so no human ever sees it and no

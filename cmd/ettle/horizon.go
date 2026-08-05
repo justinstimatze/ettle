@@ -83,11 +83,12 @@ func runHorizon(args []string) error {
 	// `escalated` stays nil elsewhere and the block shows no share tags.
 	stateKey := roomStateKey(*room, *transportName)
 	muted, _ := tanglestate.Load(tanglestate.Muted, stateKey)
+	confirmed, _ := tanglestate.Load(tanglestate.Confirmed, stateKey)
 	var escalated map[string]bool
 	if _, isLinear := linearRoomOf(*room, *transportName); isLinear {
 		escalated, _ = tanglestate.Load(tanglestate.Escalated, stateKey)
 	}
-	res = tagHorizon(res, muted, escalated)
+	res = tagHorizon(res, muted, confirmed, escalated)
 	block := renderHorizonBlock(res, who, time.Now().UTC())
 
 	if !*cache {
@@ -112,6 +113,11 @@ type horizonResult struct {
 	participants     []string
 	escalated        map[string]bool
 	muted            int
+	// confirmed is the set of tangle keys the human already judged `real`. Unlike
+	// muted these are NOT dropped — a confirmed tangle is a live conflict and hiding
+	// it would be the opposite of what confirming means. They are marked, and the
+	// verdict invitation skips them, so answering once buys quiet on that tangle.
+	confirmed map[string]bool
 }
 
 // tagHorizon brings the injected block to parity with the MCP ettle_horizon: it
@@ -119,11 +125,27 @@ type horizonResult struct {
 // already escalated, so the block can flag what's un-shared. Pure; runHorizon loads
 // the stores. Only called for a Linear room — escalation is Linear-only, so a leat/
 // in-proc horizon leaves escalated nil and shows no share tags.
-func tagHorizon(res horizonResult, muted, escalated map[string]bool) horizonResult {
+func tagHorizon(res horizonResult, muted, confirmed, escalated map[string]bool) horizonResult {
 	res.escalated = escalated
+	res.confirmed = confirmed
 	res.firm = dropMuted(res.firm, muted, &res.muted)
 	res.soft = dropMuted(res.soft, muted, &res.muted)
 	return res
+}
+
+// unanswered reports whether any surfaced tangle still has no verdict on it. The
+// invitation prints only when one does: asking for a verdict on a horizon where
+// every tangle has already been answered is the nag that makes people stop reading
+// the block, and the block is the whole product on a hooks-only install.
+func (res horizonResult) unanswered() bool {
+	for _, ks := range [][]ettlemesh.Tangle{res.firm, res.soft} {
+		for _, k := range ks {
+			if !res.confirmed[tanglestate.Key(k.Kind, k.Parties)] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func dropMuted(ks []ettlemesh.Tangle, muted map[string]bool, count *int) []ettlemesh.Tangle {
@@ -279,20 +301,25 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	// ettle_respond leads because the MCP server is the surface this is normally driven
 	// from, and because it records the verdict as calibration ground truth on the way
 	// past; the CLI is for a session without the tools loaded.
-	b.WriteString("If one of these is wrong or already handled, tell ettle rather than living with it: `ettle_respond` with verdict `not_real` (ettle shouldn't have raised it) or `handled` (real, and dealt with) stops it resurfacing and keeps it out of any escalation. From a shell without the tools loaded, `ettle mute --wrong` / `--handled <kind> <the people in it>` does the same; `ettle mute --clear` undoes it.\n")
+	// All three verdicts, each with what it buys. The earlier wording invited only the
+	// two negative ones, which is why the verdict log leans that way — see
+	// internal/tanglestate (Confirmed) and `ettle calibrate`.
+	if res.unanswered() {
+		b.WriteString("Tell ettle what these are, rather than living with them. `ettle_respond` with verdict `real` (a genuine conflict) keeps it on the horizon and stops ettle asking again; `not_real` (ettle shouldn't have raised it) or `handled` (real, and dealt with) stops it resurfacing and keeps it out of any escalation. From a shell without the tools loaded: `ettle confirm <kind> <the people in it>` for the first, `ettle mute --wrong` / `--handled` for the others; either `--clear` undoes it.\n")
+	}
 	if res.escalated != nil {
 		b.WriteString(shareLegend(res, who))
 	}
 	if len(res.firm) > 0 {
 		b.WriteString("\n**Firm (worth a look):**\n")
 		for _, k := range res.firm {
-			b.WriteString(horizonLine(k, shareTag(res, k)))
+			b.WriteString(horizonLine(k, shareTag(res, k)+confirmTag(res, k)))
 		}
 	}
 	if len(res.soft) > 0 {
 		b.WriteString("\n**Soft (worth a question):**\n")
 		for _, k := range res.soft {
-			b.WriteString(horizonLine(k, shareTag(res, k)))
+			b.WriteString(horizonLine(k, shareTag(res, k)+confirmTag(res, k)))
 		}
 	}
 	if res.muted > 0 {
@@ -373,6 +400,16 @@ func shareLegend(res horizonResult, who string) string {
 			who + " would want them to know, offer to escalate it (the `ettle_escalate` tool, or `ettle escalate`).\n")
 	}
 	return b.String()
+}
+
+// confirmTag marks a tangle the human already judged real, so the agent can see at a
+// glance which lines are settled questions rather than open ones and doesn't re-raise
+// a verdict its human already gave.
+func confirmTag(res horizonResult, k ettlemesh.Tangle) string {
+	if res.confirmed[tanglestate.Key(k.Kind, k.Parties)] {
+		return " _(you confirmed this)_"
+	}
+	return ""
 }
 
 func horizonLine(k ettlemesh.Tangle, tag string) string {
