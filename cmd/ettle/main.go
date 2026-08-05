@@ -134,7 +134,7 @@ func main() {
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide tangles that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-tangle recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person tangles with this (stronger) model instead of --model; empty = same as --model")
 	shareInferred := fs.Bool("share-inferred", false, "let INFERRED atoms (your agent's de-novo guesses about a person) cross to the team. OFF by default: an inference is a claim the person never stated, and the pass measurably fabricates sensitive ones, so it is held back and surfaced to its subject first (docs/LEGIBILITY.md stage 0b)")
-	room := fs.String("room", "", "use a configured leat room (created by `ettle room init|join`) as the transport — resolves that room's repo, agent, and remote; overrides --transport")
+	room := fs.String("room", "", "use a configured git-repo room (`ettle room init|join`) as the transport; overrides --transport. On Linear or GitHub the project's .ettle-room answers this and neither flag is needed")
 	_ = fs.Parse(os.Args[2:])
 
 	// A project with a `.ettle-room` needs neither flag; an explicit one still wins.
@@ -1729,7 +1729,7 @@ func loadDir(dir string) ([]participant, error) {
 // running an emit tool by hand. See capture.go and docs/SURFACES.md.
 func runCapture(args []string) error {
 	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
-	room := fs.String("room", "", "publish the distilled atoms to this leat room (created by `ettle room init|join`) instead of printing the digest")
+	room := fs.String("room", "", "publish the distilled atoms to this git-repo room (`ettle room init|join`) instead of printing the digest; use --transport for a linear:// or github:// room")
 	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "your identity for the published atoms (default: the room's agent, else $USER)")
 	model := fs.String("model", "claude-haiku-4-5", "model id for distilling the session")
@@ -1774,7 +1774,7 @@ func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
-	room := fs.String("room", "", "serve the horizon over a configured leat room (see `ettle room join`) so teammates on other machines share it; empty = in-process, this process only")
+	room := fs.String("room", "", "serve the horizon over a configured git-repo room (`ettle room join`); empty = the project's .ettle-room if it has one, else in-process, this process only")
 	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	_ = fs.Parse(args)

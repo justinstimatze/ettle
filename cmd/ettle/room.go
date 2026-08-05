@@ -106,7 +106,11 @@ func runRoom(args []string) error {
   ettle room status [<room>]   who's here and what they're on (no key, no model call);
                                no argument = this project's room. --watch 30s to tail it.
 
-the bus is a private git repo — no server. day-to-day: ettle standup --room <room> --me <you> notes.md`)
+This is the NO-PLATFORM bus: a private git repo, no server, for a team on neither
+Linear nor GitHub. On either of those, "ettle init" is the path instead — a Linear
+project or a private repo's Discussions carries the atoms, and there is no repo to
+stand up. Day-to-day on any bus you run nothing: sessions publish themselves, and
+the tangles involving you surface at the start of the next one.`)
 	}
 	switch args[0] {
 	case "init":
@@ -196,7 +200,10 @@ func renderRoomStatus(name string, envs []transport.Envelope, warnings []string,
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n  room %q — %d present\n", name, len(envs))
 	if len(envs) == 0 {
-		fmt.Fprintf(&b, "    nobody has published yet — run: ettle standup --room %s --me you notes.md\n", name)
+		// Transport-agnostic on purpose: this view now serves Linear and GitHub rooms
+		// too, and it used to hand every one of them a leat-shaped command over a note
+		// file that those users have no reason to have.
+		b.WriteString("    nobody has published yet — a session publishes itself when it ends, once `ettle init` has wired the hooks\n")
 	}
 	// Stable type order, friendly framing — presence reads as "what are you doing".
 	order := []ettlemesh.AtomType{ettlemesh.Intent, ettlemesh.Commitment, ettlemesh.Dependency, ettlemesh.Assumption}

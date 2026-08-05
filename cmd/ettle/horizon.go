@@ -38,7 +38,7 @@ import (
 // atoms capture/pull already put on the bus.
 func runHorizon(args []string) error {
 	fs := flag.NewFlagSet("horizon", flag.ContinueOnError)
-	room := fs.String("room", "", "reconcile this leat room's horizon (created by `ettle room init|join`)")
+	room := fs.String("room", "", "reconcile this git-repo room's horizon (`ettle room init|join`); a linear:// or github:// room comes from --transport or the project's .ettle-room")
 	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "surface only tangles involving this participant (default: the room's agent, else the identity `ettle init` saved, else $USER)")
 	all := fs.Bool("all", false, "surface the WHOLE team's tangles instead of only yours — the unfiltered view. Needed because --me now falls back to your saved identity when unset, so passing it empty can no longer mean \"no filter\"")

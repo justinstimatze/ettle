@@ -99,7 +99,7 @@ go run ./cmd/ettle standup --me alice testdata/standup/*.md
 (No key handy? [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) is exactly what that
 prints, on the bundled fixture.)
 
-### Then set it up for your team — Linear + Claude Code
+### Then set it up for your team
 
 That demo hands ettle three note files. A real team doesn't write note files, so the
 loop below never asks anyone to. Run this once, in the repo you work in:
@@ -108,31 +108,38 @@ loop below never asks anyone to. Run this once, in the repo you work in:
 ettle init crew --me alice --install-hooks
 ```
 
-It reports which keys you have and what each missing one costs you, resolves or
-creates the Linear project that carries the atoms (`ettle-crew`), writes a
-`.ettle-room` pointer in the repo, and merges four hooks into `~/.claude/settings.json`
-— backing up the previous file and skipping anything already there. Drop
-`--install-hooks` to print the JSON and merge it yourself. Every teammate runs the
-same line with their own `--me`. What each key buys, and the ten minutes the optional
-one costs: [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md).
+The room is a Linear project (`ettle-crew`) holding one document per person — the
+atom bus. `ettle init` reports which keys you have and **what each missing one costs
+you** rather than failing on the first, resolves or creates that project, writes a
+`.ettle-room` pointer in the repo, and merges the hooks into
+`~/.claude/settings.json` — backing up the previous file and skipping anything
+already there. Drop `--install-hooks` to print the JSON and merge it yourself; add
+`--json` if an agent is driving the setup. Every teammate runs the same line with
+their own `--me`. What each key buys, and the ten minutes the optional escalation
+token costs: [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md).
+
+Linear has no internet-public project, so there is nothing to lock down; `init`
+reports which teams can read the room so you know the audience you just picked.
 
 Nothing after that is a command you run. Your sessions publish your atoms as they
-end; teammates' Linear replies come in; the tangles that involve you appear at the top
-of your next session; and **nothing is posted anywhere shared** unless you escalate
-it on purpose. Two commands stay worth knowing:
+end; teammates' Linear replies come in; the tangles that involve you appear at the
+top of your next session; and **nothing is posted anywhere shared** unless you
+escalate it on purpose. Four commands stay worth knowing:
 
 ```sh
+ettle room status            # who's on the bus and what they're on (no key, no model call)
 ettle horizon                # what the room knows right now that concerns you
+ettle horizon --all          # the same, unfiltered — the whole team's tangles
 ettle escalate               # post the firm cross-person tangles where a non-adopter can see them
 ```
 
-Neither takes a `--room`: the `.ettle-room` in the repo answers that, which is also
-why the hooks can be global and still do the right thing per project. To drive it
-from inside a session instead — offer a tangle, escalate it on a yes, mute it when it's
+None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
+the hooks can be global and still do the right thing per project. To drive it from
+inside a session instead — offer a tangle, escalate it on a yes, mute it when it's
 handled — add the MCP server: `claude mcp add ettle -- ettle mcp`.
 
 **On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
-Discussions carry the atoms, one comment per person — and inside a repo there is
+Discussions carry the atoms, one comment per person — and inside a checkout there is
 **nothing to name**:
 
 ```sh
@@ -140,18 +147,18 @@ ettle init --me alice --install-hooks
 ```
 
 The room comes from the `origin` remote, so a teammate runs the same bare command
-and lands in the same room; nobody invents a name and nobody typos into an empty
-bus of their own. (Spell it out as `ettle init github://acme/widgets` if you want
-to, or add a third segment to run several rooms in one repo.)
+and lands in the same room; nobody invents a name and nobody typos into an empty bus
+of their own. (Spell it out as `ettle init github://acme/widgets` if you want, or add
+a third segment to run several rooms in one repo.) It needs no new secret — the token
+`gh auth login` already stored is enough.
 
-It needs no new secret: the token `gh auth login` already stored is enough. It also
-**refuses a public repository outright** rather than warning — a public repo's
+It **refuses a public repository outright** rather than warning. A public repo's
 Discussions are readable by anyone on the internet, and the bus carries everyone's
-intents, commitments, and assumptions. A Linear project is workspace-scoped and a
-private repo's Discussion is collaborator-scoped, which are comparable audiences; a
-public repo is a categorically different one, so there is no override flag. (Linear
-has no internet-public project — `ettle init` reports which teams can read the room
-so you know the audience, but there is nothing there to refuse.)
+intents, commitments, and assumptions; a private repo's Discussion is
+collaborator-scoped, comparable to a Linear workspace, while a public one is a
+categorically different audience — so there is no override flag. Two things Linear
+has that GitHub doesn't yet: `ettle pull` (a non-adopter's replies, read from
+Linear's agent UI) and `ettle escalate`.
 
 Neither? `ettle room init <git-url>` uses a plain private git repo as the bus, and
 everything above works the same.

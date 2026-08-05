@@ -176,7 +176,7 @@ func TestRenderChecksMarksRequiredAndOptional(t *testing.T) {
 }
 
 func TestRenderNextStepsWithholdsCommandsThatCannotWork(t *testing.T) {
-	blocked := renderNextSteps("linear://crew", "justin", false)
+	blocked := renderNextSteps("linear://crew", "justin", false, docsLinearSetup)
 	if strings.Contains(blocked, "ettle horizon") {
 		t.Errorf("don't hand someone a command that cannot work yet:\n%s", blocked)
 	}
@@ -184,7 +184,7 @@ func TestRenderNextStepsWithholdsCommandsThatCannotWork(t *testing.T) {
 	if !strings.Contains(blocked, "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md") {
 		t.Errorf("point at a doc the reader can actually open:\n%s", blocked)
 	}
-	ok := renderNextSteps("linear://crew", "justin", true)
+	ok := renderNextSteps("linear://crew", "justin", true, docsLinearSetup)
 	for _, want := range []string{"ettle horizon --me justin", "ettle init linear://crew"} {
 		if !strings.Contains(ok, want) {
 			t.Errorf("a working setup should lead with %q:\n%s", want, ok)

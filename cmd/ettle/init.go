@@ -120,7 +120,7 @@ func runInit(args []string) error {
 	if derived {
 		label += " — derived from the origin remote, so a teammate runs the same bare `ettle init`"
 	}
-	rep := initReport{Room: spec, Label: label, Me: *me, Derived: derived, Docs: docsLinearSetup, Environment: env}
+	rep := initReport{Room: spec, Label: label, Me: *me, Derived: derived, Docs: docsFor(spec), Environment: env}
 
 	// The report is emitted on EVERY exit, including a failure partway down: the
 	// checks already gathered are the most useful thing to show whoever's setup just
@@ -155,7 +155,7 @@ func runInit(args []string) error {
 
 	rep.OK = busOK && allRequiredOK(env)
 	if !rep.OK {
-		return fmt.Errorf("setup is incomplete — see the ✗ lines above (%s has each key)", docsLinearSetup)
+		return fmt.Errorf("setup is incomplete — see the ✗ lines above (%s has each key)", docsFor(spec))
 	}
 	return nil
 }
@@ -208,9 +208,22 @@ func parseGitHubRemote(url string) (owner, repo string, ok bool) {
 	return parts[0], parts[1], true
 }
 
-// docsLinearSetup is a URL, not a repo-relative path: the person most likely to hit
-// a ✗ line installed the binary with `go install` and has no clone to look in.
-const docsLinearSetup = "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md"
+// Docs URLs, not repo-relative paths: the person most likely to hit a ✗ line
+// installed the binary with `go install` and has no clone to look in. And the
+// pointer is TARGET-AWARE — sending someone with no Linear account to a page about
+// Linear API keys turns a setup failure into a dead end.
+const (
+	docsLinearSetup = "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md"
+	docsGitHubSetup = "https://github.com/justinstimatze/ettle#on-github-instead-of-linear"
+)
+
+// docsFor is the setup page for whichever bus this room is on.
+func docsFor(spec string) string {
+	if strings.HasPrefix(spec, "github://") {
+		return docsGitHubSetup
+	}
+	return docsLinearSetup
+}
 
 // initReport is the whole outcome of a setup run, so it can render as prose for a
 // human or as JSON for an agent driving the install — the same facts either way,
@@ -252,7 +265,7 @@ func renderInitReport(rep initReport, asJSON bool) string {
 			b.WriteString(indentBlock(rep.HooksJSON, "      "))
 		}
 	}
-	b.WriteString(renderNextSteps(rep.Room, rep.Me, rep.OK))
+	b.WriteString(renderNextSteps(rep.Room, rep.Me, rep.OK, rep.Docs))
 	return b.String()
 }
 
@@ -629,12 +642,12 @@ func indentBlock(s, pad string) string {
 // renderNextSteps says what to do next, branching on what actually succeeded — the
 // same discipline as printRoomNextSteps: never hand someone a command that cannot
 // work for them yet.
-func renderNextSteps(room, me string, ok bool) string {
+func renderNextSteps(room, me string, ok bool, docs string) string {
 	var b strings.Builder
 	b.WriteString("\n  next\n")
 	if !ok {
-		fmt.Fprintf(&b, "    fix the ✗ lines first — %s\n", docsLinearSetup)
-		b.WriteString("    walks each key, including minting the OAuth app-actor token escalation needs.\n")
+		fmt.Fprintf(&b, "    fix the ✗ lines first — %s\n", docs)
+		b.WriteString("    walks what each one is for.\n")
 		return b.String()
 	}
 	fmt.Fprintf(&b, "    ettle horizon --me %s          # what the room already knows that concerns you\n", me)
