@@ -90,13 +90,16 @@ func TestRenderRoomStatus(t *testing.T) {
 	if strings.Index(out, "alice") > strings.Index(out, "bob") {
 		t.Fatalf("participants not sorted:\n%s", out)
 	}
-	// A publish is a fact about when a session ended, so the view says when. It must
-	// never claim someone is present: everyone here is offline right now.
-	if !strings.Contains(out, "alice (user-service) · 30m ago") {
-		t.Fatalf("freshness should be an age, not a presence claim:\n%s", out)
+	// Coarse on purpose — a per-minute age across a team is a working-patterns feed —
+	// and never a presence claim, because everyone here is offline right now.
+	if !strings.Contains(out, "alice (user-service) · recently") {
+		t.Fatalf("freshness should be a coarse bucket:\n%s", out)
 	}
 	if strings.Contains(out, "active") {
 		t.Errorf("nothing on a session-end bus warrants calling anyone active:\n%s", out)
+	}
+	if strings.Contains(out, "30m") || strings.Contains(out, "0h ago") {
+		t.Errorf("minute/hour resolution leaks when each person works:\n%s", out)
 	}
 	if !strings.Contains(out, "3d ago") {
 		t.Fatalf("freshness '3d ago' missing for bob:\n%s", out)

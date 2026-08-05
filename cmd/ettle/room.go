@@ -279,19 +279,25 @@ func freshnessLabel(emittedAt string, now time.Time) string {
 	if err != nil {
 		return ""
 	}
-	// Say WHEN, never "active". The bus is written by session-end hooks, so a recent
-	// envelope means someone's session ended recently — it is no evidence a person is
-	// at the keyboard now, and calling a two-hour-old publish "active" invited exactly
-	// that reading. A timestamp lets the reader decide what counts as current.
+	// Two constraints pull against each other here, and the buckets are where they
+	// settle.
+	//
+	// This must not claim presence. The bus is written by session-end hooks, so a
+	// fresh envelope means a session ENDED recently; it is no evidence anyone is at
+	// the keyboard. The old label for this bucket was "active", which read as exactly
+	// that, and two people showed as active while neither was running anything.
+	//
+	// It must also stay coarse. A per-minute age across a team is a working-patterns
+	// feed — who starts at six, who stopped at two, who was up at three — which is the
+	// surveillance property the design refuses (docs/ADOPTION.md). Resolution here is
+	// a privacy setting, so the buckets stay wide and the wording carries the fix.
 	switch d := now.Sub(t); {
-	case d < 0:
-		return "just now" // clock skew between machines; don't render a negative age
-	case d < 10*time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 0: // clock skew between machines; never render a negative age
+		return "recently"
+	case d < 2*time.Hour:
+		return "recently"
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
+		return "today"
 	case d < 48*time.Hour:
 		return "yesterday"
 	default:
