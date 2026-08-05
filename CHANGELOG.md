@@ -438,7 +438,7 @@ was also renamed `tangle` → `tangle`.
   `ETTLE_TEAM` (room channel). leat adds only itself to `go.mod` (no transitive deps). Tested
   (`TestLeatRoundTrip`: publish→collect round-trip + LWW-per-participant, hermetic over a local
   git repo). README/DEPLOY now lead the distributed story with leat (NATS demoted to the heavier
-  alternative). See [DEPLOY.md](docs/DEPLOY.md) Tier 1b.
+  alternative). See [DEPLOY.md](docs/DEPLOY.md) Tier 1c.
 
 - **Subject-gated inference (stage 0b) — inferred atoms don't cross to the team by
   default** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). 1a-1 measured the inference pass

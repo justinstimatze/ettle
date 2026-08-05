@@ -28,12 +28,15 @@ place so the two can't drift). This page is its reading guide.
 - **The boundary is the `typed atoms only` edge.** Above it (L1) is private and
   per-person. Below it is the shared, agent-only collective layer. The privacy
   invariant is just: nothing but typed atoms crosses that edge.
-- **The bus is swappable.** NATS is the default distributed rail (TLS + auth). A
-  zero-infra in-process adapter runs the whole loop on one machine for testing;
-  Slack / Matrix / A2A can drop in behind the same seam. The Linear rail plays
-  three distinct roles — atom bus, non-adopter pull, opt-in escalation-emit — and
-  the whisper-first surface model (why a tangle lands in your own session, not on a
-  ticket) is written up in [SURFACES.md](SURFACES.md).
+- **The bus is swappable, and Linear is what a team gets by default.** `ettle init`
+  puts the atoms in a Linear project, or in a private repo's GitHub Discussion; a
+  team on neither uses a private git repo, and a zero-infra in-process adapter runs
+  the whole loop on one machine for testing. NATS is the heavy alternative behind a
+  build tag, for low latency or a hard membership guarantee. Slack / Matrix / A2A
+  can drop in behind the same seam. The Linear rail plays three distinct roles —
+  atom bus, non-adopter pull, opt-in escalation-emit — and the whisper-first surface
+  model (why a tangle lands in your own session, not on a ticket) is written up in
+  [SURFACES.md](SURFACES.md).
 - **The L2 node is the directed-model layer.** Between the bus and the reconcile,
   each agent holds a per-pair model of every teammate (Alice-of-Bob, asymmetric),
   carried across rounds so it can go stale. A session emits only the deltas that

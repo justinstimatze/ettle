@@ -15,11 +15,11 @@ ettle internalizes benefit and cost onto the same consenting team. The denatural
 ### Hard requirements
 
 1. **The team is the unit of adoption, not the individual.** A team decides together to run ettle. No one is dragged in by another member's usage.
-2. **Never represent or contact a non-participant.** ettle does not model, message, invite, or act on behalf of anyone whose own agent is not a consenting participant. No state about a non-participant enters any horizon.
-3. **No data enters the shared layer except via a participant's own session emitting it.** There is no ambient harvesting of a person from the outside.
-4. **Symmetric visibility — aspired, not yet fully achieved.** If your state informs others' horizons, you receive the same kind of signal back; no member is more observed than observing. *Honest gap:* this holds at the atom-emission layer (everyone emits and receives), but **not yet at the model layer** — each agent's directed model of a teammate (L2) is currently held privately and is not readable or directly correctable by the teammate it's about. That is a one-way mirror at exactly the layer that drives behavior, and closing it (every person can read and contest the L2 others hold of them) is a required future feature, not a property to claim today.
+2. **Never enroll, represent, or contact someone who has not acted.** ettle harvests no roster, sends no invitation, and messages nobody. The single write to a shared surface is `ettle escalate` — a deliberate act by the person escalating, onto one dedicated coordination issue per room, never onto anyone's feature tickets.
+3. **State enters the shared layer only from a person's own act.** Either their session emits it, or they wrote it themselves in the room: `ettle pull` distills a teammate's own Linear reply under that teammate's identity, which is how someone takes part without installing anything. The consenting act is writing in the room, not running the binary. Someone who has never written there is never modeled, and nothing is harvested from outside the room. *Honest gap:* this widens "participant" past "adopter", and a person answering in Linear's agent UI has consented to being read in that thread — reading that as consent to being distilled into atoms on a bus is an inference the design makes on their behalf. It holds because the room is their own workspace and the reply is theirs, and it is the assumption in this document most worth attacking.
+4. **Symmetric visibility — aspired, not yet fully achieved.** If your state informs others' horizons, you receive the same kind of signal back; no member is more observed than observing. *Honest gap:* this holds at the atom-emission layer (everyone emits and receives), and it now half-holds at the model layer. `ettle mirror --me <name>` shows a person what the team's directed models (L2) believe about them and flags which of those beliefs have gone stale — the read side of the one-way mirror, at exactly the layer that drives how someone gets treated. What is still missing is the other half: no one can contest an entry. That needs the calibration loop, which is unbuilt, so "every person can read *and correct* the L2 others hold of them" remains a required future feature rather than a property to claim today.
 5. **Contextual privacy boundary.** Each person controls what crosses their boundary, per context. Distilling typed atoms rather than streaming transcripts is the cheap form; confidential computing is the substrate at scale. (See CONCEPT.md and PRIOR_ART.md §2.)
-6. **Clean exit.** Leaving removes your contributions. No hostage data, no residual model of you persisting in others' horizons after you go.
+6. **Clean exit.** Leaving removes your contributions. No hostage data, no residual model of you persisting in others' horizons after you go. *Honest gap:* there is no `ettle leave` — today this means deleting your document, comment, or file yourself, and on the git-repo bus (Tier 1c in [DEPLOY.md](DEPLOY.md)) it does not hold at all, because per-author lanes are append-only and `git log` keeps what you wrote. The same property that makes that tier's identity non-spoofable makes its exit unclean. A team that wants this requirement to be real should pick a rewritable rail.
 7. **No dark-pattern invitations.** Presence is explicit and revocable. ettle never grows by enrolling the unconsenting.
 
 ### Why "useful at N=1" is part of consent, not just product
@@ -28,11 +28,11 @@ If ettle is only valuable once the whole team is in, then early adopters have an
 
 ## How a team turns it on, without being pushed
 
-The intended shape (to be designed, not yet built):
+Each person runs `ettle init <room> --me <name>` themselves, in the repo they work in. Nobody is added by anybody else; there is no invite to accept and no roster to be on. What that buys, and what it still doesn't:
 
-- Adoption is an explicit, collective act — the team agrees, each member's agent joins on that member's own action.
+- Adoption is an explicit, collective act — the team agrees, and each member's own machine joins on that member's own command.
 - The first value each person feels is their own N=1 wedge, before any shared layer matters.
-- The shared horizon turns on for the team as a whole, with symmetric visibility from the start.
 - Anyone can leave cleanly at any time, and the system keeps working for the rest without them.
+- Symmetric visibility is the part still owed. Everyone emits and receives at the atom layer, but the L2 model each agent holds of a teammate is only half-legible to its subject — `ettle mirror` shows a person what the team's models believe about them and flags what has gone stale, and there is still no way to contest an entry. Reading it is built; correcting it is the calibration loop, which is not.
 
 The test: a person should be able to decline or leave ettle and feel no worse off socially than if it had never existed. The moment declining carries a penalty — missing context everyone else has, being the one person not modeled — the tool has recreated the coercion it was meant to avoid. Designing against that penalty is part of the work.

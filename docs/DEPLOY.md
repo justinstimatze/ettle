@@ -30,10 +30,13 @@ Two of those invariants are operational constraints, not slogans:
   shared work, not a per-message fan-out ([SCALING.md](SCALING.md)). Don't wire
   ettle's output back into an automated actor.
 
-So "deploying in your org" today means **running the batch `standup` / `drift`
-flow over a shared, secured substrate (a synced folder or a bus), on demand**,
-with humans as the deciders — not an autonomous mesh. The seams below are real and tested; the always-on product
-on top of them is not built.
+So "deploying in your org" today means **each person's own session publishing its
+own atoms and receiving its own horizon**, with humans as the deciders — not an
+autonomous mesh. Tier 1 automates that loop through the Claude Code hooks, which
+is safe precisely because it is surface-to-`--me` by construction: the hooks write
+to your session, never to a shared channel. Escalation onto an issue stays a
+deliberate act. The seams below are real and tested; the always-on product on top
+of them is not built.
 
 ## Tier 0 — one team, no infrastructure (the default)
 
@@ -50,11 +53,54 @@ session transcripts — `*.jsonl`, distilled by `capture`), run it on one machin
 share the per-person output. No bus, no service, no secrets. `--show-atoms`
 shows exactly what would cross the boundary (typed atoms, never the raw note).
 
-## Tier 1 — a shared folder (no broker)
+## Tier 1 — Linear or GitHub (`ettle init`), what a team gets by default
 
-When agents run on different machines but the team already shares a folder
-(Dropbox / Google Drive / git / Syncthing), point each at it with
-`--transport file://<path>` — multiplayer with **no server to run**. Each
+The room is a Linear project holding one document per person, or a private repo's
+GitHub Discussion holding one comment per person — the atom bus, on infrastructure
+the team already pays for and already secures. One command each, in the repo you
+work in:
+
+```sh
+# Linear — name the room; every teammate runs the same line with their own --me
+ettle init crew --me alice --install-hooks
+# GitHub — inside a checkout there is nothing to name; the origin remote is the room
+ettle init --me alice --install-hooks
+```
+
+`--install-hooks` merges the Claude Code hooks into `~/.claude/settings.json`, and
+that is what separates this tier from every one below it: **nothing after setup is
+a command anyone runs.** Sessions publish their own atoms as they end, the tangles
+that involve you arrive at the top of your next session, and a teammate's Linear
+replies are pulled in without that teammate installing anything. The hooks name no
+room — each repo's `.ettle-room` does — so one global settings file serves every
+project on the machine and stays a silent no-op in the ones that aren't ettle
+projects. Drop `--install-hooks` to print the JSON and merge it yourself; add
+`--json` if an agent is driving the setup.
+
+| Property | Behavior |
+|---|---|
+| Storage | one document (Linear) or comment (GitHub) per person, rewritten in place — latest atoms only, no history pile-up |
+| Identity | the document/comment title is authoritative on read; it rests on workspace or repo access control, **not** on per-envelope signing (reserved) |
+| Membership | the Linear project's teams, or the repo's collaborators — `ettle init` reports which teams can read the room, so you know the audience you just picked |
+| Transit | HTTPS to a host you already trust with this team's work; only boundary-distilled atoms cross, never raw notes |
+
+**When this fits:** a team already living in Linear or GitHub, which is the case
+the whole loop was built for. **Honest limits:** a GitHub room **refuses a public
+repository outright**, with no override flag — a public Discussion is a different
+audience than a private one, and the bus carries everyone's intents, commitments
+and assumptions. GitHub has neither `ettle pull` nor `ettle escalate` yet. And the
+receive path polls with a cursor rather than taking a webhook (nothing is hosted,
+by choice), so freshness is last-poll, not live. Which keys buy what, and the ten
+minutes the optional escalation token costs: [LINEAR_SETUP.md](LINEAR_SETUP.md).
+Which output lands on which surface, and why "put the tangle in the ticket" is the
+obvious design and the wrong default: [SURFACES.md](SURFACES.md).
+
+## Tier 1b — a shared folder (no broker)
+
+For a team on neither Linear nor GitHub. When agents run on different machines but
+the team already shares a folder (Dropbox / Google Drive / git / Syncthing), point
+each at it with `--transport file://<path>` — multiplayer with **no server to
+run**, and no hooks: this tier is on-demand `standup`, not the closed loop. Each
 participant's agent writes only its own file under `<path>/.ettle/`; reconcile
 reads the folder. Securing and replicating the folder is the sync tool's job, and
 only boundary-distilled atoms cross — never the raw notes.
@@ -80,7 +126,7 @@ out-of-band roster. For real identity + an audit trail with the same no-server
 model, use the leat git-repo bus below; for low-latency exchange or a hard
 membership guarantee, use the NATS bus.
 
-## Tier 1b — a private git repo (leat, no server)
+## Tier 1c — a private git repo (leat, no server)
 
 The git-native upgrade of the shared folder: point each agent at a **private git
 repo** with `--transport leat://<local-clone>`. Still **no server to run** — your
