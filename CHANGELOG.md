@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.2 — 2026-08-05
+
+- **The horizon told the agent that an adopter couldn't see their own tangle.** Every
+  un-escalated tangle was flagged `not yet shared`, glossed as "one the other person
+  can't see" — true only for someone who doesn't publish to the bus. A teammate who
+  does gets the same tangle in their own horizon at the start of their next session,
+  escalated or not, so the flag turned "they already have this" into an offer to go
+  post it at them. The tag now splits: `each side sees it` when every party is on the
+  bus (escalate only to make it one shared Linear artifact instead of several private
+  views), `not yet shared` when someone isn't (escalation is the only way they hear of
+  it). An unknown participant list reads as un-shared, so a silent teammate is never
+  reported as informed. The legend explains only the tags actually on screen.
+
 ## v0.3.1 — 2026-08-05
 
 - **`ettle room list` told people in a working room that they had none.** It read only

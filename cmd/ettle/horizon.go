@@ -275,7 +275,7 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	// Address the agent directly: this is context to act on, not a message to post.
 	fmt.Fprintf(&b, "You are %s's ettle agent. These are cross-person coordination tangles involving %s, surfaced privately for you — nothing is posted anywhere. When %s's current work touches one, raise it with them; don't dump the list unprompted. Firm = worth a look; soft = worth a question with the other person.\n", who, who, who)
 	if res.escalated != nil {
-		b.WriteString("A tangle flagged `not yet shared` is one the other person can't see; if " + who + " would want them to know, offer to escalate it (the `ettle_escalate` tool, or `ettle escalate`).\n")
+		b.WriteString(shareLegend(res, who))
 	}
 	if len(res.firm) > 0 {
 		b.WriteString("\n**Firm (worth a look):**\n")
@@ -298,18 +298,75 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	return strings.TrimSpace(b.String())
 }
 
-// shareTag flags whether a tangle has been escalated to a non-adopter — only for a
+// shareTag says where a tangle stands relative to the other people in it — only for a
 // Linear room (escalated != nil) and only for cross-person tangles (a self-tangle has
-// nobody to share with). This is what lets the agent offer to escalate exactly what's
-// still invisible to the other person.
+// nobody to share with).
+//
+// The distinction that matters is whether the other parties publish to the bus. Someone
+// who does gets this tangle in their OWN horizon at the start of their next session,
+// escalated or not; someone who doesn't is invisible to ettle and only ever sees Linear.
+// Calling both cases "not yet shared" told the agent the other person couldn't see it,
+// which is false for every adopter — and it turned "they already have this" into an
+// offer to go post it at them.
 func shareTag(res horizonResult, k ettlemesh.Tangle) string {
 	if res.escalated == nil || !ettlemesh.MultiPerson(k.Parties) {
 		return ""
 	}
 	if res.escalated[tanglestate.Key(k.Kind, k.Parties)] {
-		return " · shared with the team"
+		return tagShared
 	}
-	return " · not yet shared"
+	if onBus(res.participants, k.Parties) {
+		return tagEachSide
+	}
+	return tagNotShared
+}
+
+const (
+	tagShared    = " · shared with the team"
+	tagEachSide  = " · each side sees it"
+	tagNotShared = " · not yet shared"
+)
+
+// onBus reports whether every party to a tangle publishes to the bus. An empty
+// participant list means we don't know, and the safe answer is no — better to offer an
+// escalation nobody needed than to tell someone a silent teammate has been informed.
+func onBus(participants, parties []string) bool {
+	if len(participants) == 0 {
+		return false
+	}
+	have := make(map[string]bool, len(participants))
+	for _, p := range participants {
+		have[strings.ToLower(strings.TrimSpace(p))] = true
+	}
+	for _, p := range parties {
+		if !have[strings.ToLower(strings.TrimSpace(p))] {
+			return false
+		}
+	}
+	return true
+}
+
+// shareLegend explains the share tags — only the ones that actually appear below it,
+// because an agent told how to read a flag that isn't on screen will find somewhere to
+// apply it.
+func shareLegend(res horizonResult, who string) string {
+	seen := map[string]bool{}
+	for _, k := range res.firm {
+		seen[shareTag(res, k)] = true
+	}
+	for _, k := range res.soft {
+		seen[shareTag(res, k)] = true
+	}
+	var b strings.Builder
+	if seen[tagEachSide] {
+		b.WriteString("A tangle flagged `each side sees it` is already surfacing privately for everyone in it: it reaches them at the start of their next session, with nothing for " +
+			who + " to do. Escalating it (the `ettle_escalate` tool, or `ettle escalate`) is a separate choice — it puts the tangle on a Linear issue, making it one shared artifact instead of several private views.\n")
+	}
+	if seen[tagNotShared] {
+		b.WriteString("A tangle flagged `not yet shared` involves someone who doesn't publish to the bus, so they can't see it at all; if " +
+			who + " would want them to know, offer to escalate it (the `ettle_escalate` tool, or `ettle escalate`).\n")
+	}
+	return b.String()
 }
 
 func horizonLine(k ettlemesh.Tangle, tag string) string {

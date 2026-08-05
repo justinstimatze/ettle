@@ -120,6 +120,46 @@ func TestRenderHorizonBlockAgentFramedWithShareTags(t *testing.T) {
 	}
 }
 
+func TestShareTagSeparatesAdoptersFromNonAdopters(t *testing.T) {
+	now := time.Now().UTC()
+	collision := firmT("collision", "alice", "bob")
+
+	// Both parties publish: bob's own session surfaces this whether or not alice
+	// escalates, so telling her he can't see it is simply false.
+	both := horizonResult{
+		firm:         []ettlemesh.Tangle{collision},
+		participants: []string{"Alice", "bob"}, // case-insensitive: identities are hand-typed
+		escalated:    map[string]bool{},
+	}
+	got := renderHorizonBlock(both, "alice", now)
+	if !strings.Contains(got, tagEachSide) {
+		t.Errorf("a tangle between two people on the bus should say each side sees it:\n%s", got)
+	}
+	if strings.Contains(got, tagNotShared) {
+		t.Errorf("an adopter is not someone who can't see it:\n%s", got)
+	}
+	if !strings.Contains(got, "ettle_escalate") {
+		t.Errorf("escalation is still offered, for a different reason:\n%s", got)
+	}
+	if strings.Contains(got, "can't see it at all") {
+		t.Errorf("the non-adopter legend must not appear when no tangle carries that tag:\n%s", got)
+	}
+
+	// bob has never published — Linear is the only surface that reaches him.
+	one := both
+	one.participants = []string{"alice"}
+	if got := renderHorizonBlock(one, "alice", now); !strings.Contains(got, tagNotShared) {
+		t.Errorf("a party who is not on the bus is genuinely unshared:\n%s", got)
+	}
+
+	// Participants unknown: assume nothing rather than claim a silent teammate was told.
+	none := both
+	none.participants = nil
+	if got := renderHorizonBlock(none, "alice", now); !strings.Contains(got, tagNotShared) {
+		t.Errorf("an unknown participant list must not read as informed:\n%s", got)
+	}
+}
+
 func TestRenderHorizonBlockMutedCount(t *testing.T) {
 	got := renderHorizonBlock(horizonResult{participants: []string{"a", "b"}, muted: 2}, "alice", time.Now().UTC())
 	if !strings.Contains(got, "2 tangles muted") {
