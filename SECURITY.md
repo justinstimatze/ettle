@@ -59,10 +59,10 @@ ettle is pre-production. Two surfaces matter most:
   rule, but the patterns come from the user. The regression guard is a leak case
   (`testdata/leak/private-override.json`) whose marked phrases must not cross.
 
-- **The hard, unsolved limit is longitudinal, not per-atom.** Every guarantee
+- **The hard, unsolved limit is longitudinal.** Every guarantee
   above is *per-atom*: does this one atom, in isolation, leak a planted secret?
-  The leak eval measures exactly that. But the real privacy property is whether a
-  teammate's accumulated model of a person — the L2 boundary built up over *N*
+  The leak eval measures exactly that. The property that actually matters is
+  whether a teammate's accumulated model of a person — the L2 boundary built up over *N*
   rounds of individually-clean atoms — lets them *reconstruct* a fact no single
   atom ever stated. "Out Tuesday", then "pairing Wednesday to hand off the auth
   service", then "won't pick up the Q3 roadmap" each pass the per-atom check and

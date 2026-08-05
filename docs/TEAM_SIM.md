@@ -45,7 +45,7 @@ An earlier version had each agent tell its human "before you start, sync with Bo
 
 ### Planner prior art, fed dynamically
 
-What the agents do in the negotiation is not novel as *planning* — it's mature: dependency ordering, task allocation, interface-contract negotiation, rollout sequencing (BDI teamwork / SharedPlans / STEAM, HTN decomposition, distributed constraint optimization, market-based allocation — see PRIOR_ART.md §4). The novel part is the assembly: those planners are **fed and layered dynamically by agents working ambiently and independently**, off the live reasoning-in-progress, rather than run once over a static, hand-entered task graph. The agent supplies the planner its inputs continuously and acts on its output unprompted; the planner itself can be off-the-shelf.
+What the agents do in the negotiation is mature *planning*, none of it new: dependency ordering, task allocation, interface-contract negotiation, rollout sequencing (BDI teamwork / SharedPlans / STEAM, HTN decomposition, distributed constraint optimization, market-based allocation — see PRIOR_ART.md §4). The novel part is the assembly: those planners are **fed and layered dynamically by agents working ambiently and independently**, off the live reasoning-in-progress, rather than run once over a static, hand-entered task graph. The agent supplies the planner its inputs continuously and acts on its output unprompted; the planner itself can be off-the-shelf.
 
 ## The seeded scenario
 

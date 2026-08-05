@@ -102,7 +102,7 @@ Per seeded scenario, the loop is four cheap Haiku calls:
 
 It reuses the predecessor's pieces rather than reinventing: the Haiku call pattern (cached system prompt) is lifted verbatim from the predecessor's cached-prompt dialogue helper; the closed-decision is the production closed-decision view; the seed/judge shape mirrors its paired-scenario judge harness. The next rung up is to swap the inline seed list for richer social-simulation personas (richer personas with objectives), which already exist in the module.
 
-First run (a handful of hand-seeded scenarios, all on `claude-haiku-4-5`): 2 `helped`, 2 `overridden`, 2 `correct_silence`, **0 false interrupts, 0 missed**. The point isn't the score on a few toy rows — it's that the act-then-check loop is closed and observable end-to-end, so we can now grow the scenario set, perturb the prompts, and watch where the guard gets noisy. The one number to drive down is `false_interrupt`: a guard that interrupts wrongly is the one users switch off.
+First run (a handful of hand-seeded scenarios, all on `claude-haiku-4-5`): 2 `helped`, 2 `overridden`, 2 `correct_silence`, **0 false interrupts, 0 missed**. What that shows is a closed, observable act-then-check loop end-to-end, rather than a score worth quoting off six rows — so we can now grow the scenario set, perturb the prompts, and watch where the guard gets noisy. The one number to drive down is `false_interrupt`: a guard that interrupts wrongly is the one users switch off.
 
 Run it: run the local sim with `-v` (needs `ANTHROPIC_API_KEY` in an env file).
 

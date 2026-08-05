@@ -102,7 +102,7 @@ Two things make it the most instructive entry in this review:
 - a **privacy-bounded, typed-atom boundary** between principals — none of the
   ancestors had a contextual-integrity boundary on inter-agent sharing;
 - a **per-human calibration loop** as the thing that makes speed safe — the
-  Electric Elves failure is the argument for why this is load-bearing, not polish;
+  Electric Elves failure is the argument for why this carries the design, not the finish;
 - **reasoning-in-progress as the signal** rather than calendar/email artifacts;
 - **resolve-and-apply, not detect-and-announce.** The lineage's assistants stop
   at extracting a decision or action-item and handing it to a human (CALO-MA, and
@@ -113,7 +113,7 @@ Two things make it the most instructive entry in this review:
   only the genuine cruxes. The honest qualifier: autonomous agent action with
   write-back is *not* itself novel in 2026, and Electric Elves (EE) already did it
   (Fridays rescheduled meetings and volunteered presenters on their own) — which
-  is exactly why its post-mortem exists. The load-bearing novelty is therefore not
+  is exactly why its post-mortem exists. The novelty that carries ettle is therefore not
   the autonomy but the **partition** — what is safe to auto-bind vs. what must stay
   the human's call — applied to tangles derived from *privacy-bounded models of
   teammates* and gated by the calibration loop. That partition is the piece EE

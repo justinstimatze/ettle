@@ -1,9 +1,9 @@
 # Scaling & the anti-runaway design
 
-The thing that kills a system like this isn't compute — it's a **token-burn
-feedback loop**: agents emitting atoms onto the bus, each emission waking every
-other agent to re-reconcile (an LLM call), reconciliation prompting more
-emissions, agents burning tokens forever trying to keep up with each other. A
+What kills a system like this is a **token-burn feedback loop**: agents emitting
+atoms onto the bus, each emission waking every other agent to re-reconcile (an
+LLM call), reconciliation prompting more emissions, agents burning tokens forever
+trying to keep up with each other. Compute is never the binding constraint. A
 coordination commons has an overgrazing failure mode (every agent over-emitting)
 — see [COMMONS.md](COMMONS.md). This document is how ettle is designed so that
 can't happen.
@@ -57,8 +57,8 @@ carries atoms up and tangles down; the expensive step happens once.
 reasoning (L1). Reconciliation produces tangles *for humans to see*; it never writes
 a new atom back onto the bus. The point is to **throttle any cascade to human
 decision rate** rather than claim one is impossible: a surfaced tangle can still
-cause a human to change course → a new atom, so the loop isn't broken, it's
-clamped to the rate a person actually decides things — exactly the rate the system
+cause a human to change course → a new atom, so the loop stays intact and runs
+clamped to the rate a person actually decides things, which is the rate the system
 is supposed to run at. (It's "structurally impossible" only in the trivial sense
 that today's one-shot CLI has no emit-back path at all.)
 

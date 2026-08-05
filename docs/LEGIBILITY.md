@@ -29,7 +29,7 @@ One move underwrites all four:
 
 > **Demote the model's output from a private assertion to a legible, contestable signal — and treat the human's correction as the ground-truth label the system currently invents.**
 
-This is not "build a better detector." It is *turn the mirror around* so the thing the system believes about you is the thing you can most easily see and fix.
+The move is *turn the mirror around*, so the thing the system believes about you is the thing you can most easily see and fix. Building a better detector is a different program.
 
 ---
 
@@ -75,7 +75,7 @@ The privacy tension here is real and is engaged below (showing Bob what is belie
 
 This is the part [CONCEPT.md](CONCEPT.md) already marks "deliberately unbuilt … the part that needs the most care." The panel's contribution is to say *what it must be built out of*: not L2-vs-L1 agreement, but **human corrections as the ground-truth label.**
 
-**2a. Contestability — the correction is a first-class event.** From the Stage-1 mirror, Bob can mark an L2 atom "wrong — I never assumed that." That correction is the load-bearing object the whole program was missing, and it does four jobs at once (this is why all four lenses converge on it):
+**2a. Contestability — the correction is a first-class event.** From the Stage-1 mirror, Bob can mark an L2 atom "wrong — I never assumed that." That correction is the object the whole program was missing, and it does four jobs at once (this is why all four lenses converge on it):
 
 - it is the **monitoring event** Ostrom's principle 4 requires to be *member-generated* and member-accountable — a metric store cannot supply it;
 - it is the **calibration label** the extraction-skepticism lens shows the loop structurally lacks — a signal not produced by a model, from a person who actually observed the referent;

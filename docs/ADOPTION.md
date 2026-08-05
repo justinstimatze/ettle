@@ -4,9 +4,9 @@ ettle is adopted by a high-trust team that opts in together, from the bottom up.
 
 ## The antipattern (what ettle must not become)
 
-Meeting-assistant tools — Otter, Fireflies, Read AI and their kind — grew by network coercion. One participant brings a bot into a meeting; the bot harvests the participant list; the platform then emails or auto-invites everyone else, opts people in by proximity, and represents people who never consented. The single most-visible thing about those products is that you get added to one because a colleague used one. That is a person being modeled, contacted, and enrolled without their say-so. For a tool whose whole substance is *modeling people*, that pattern is disqualifying.
+Meeting-assistant tools — Otter, Fireflies, Read AI and their kind — grew by network coercion. One participant brings a bot into a meeting, the bot harvests the participant list, and the platform emails or auto-invites everyone else — enrolled by proximity, represented without consenting to it. The single most-visible thing about those products is that you get added to one because a colleague used one. That is a person being modeled, contacted, and enrolled without their say-so. For a tool whose whole substance is *modeling people*, that pattern is disqualifying.
 
-This is concentrated-benefits / diffuse-costs: the platform concentrates the benefit (growth, data) and externalizes the cost (everyone's attention and privacy) onto people who never chose it. A coordination tool that externalizes its costs is not coordinating — it is extracting.
+This is concentrated-benefits / diffuse-costs: the platform keeps the benefit (growth, data) and pushes the cost — everyone's attention and privacy — onto people who never chose it. A coordination tool that externalizes its costs that way is extracting.
 
 ## The principle
 

@@ -44,7 +44,7 @@ The terror is that **the bright morning and the dark morning are the same mornin
 
 So everything — the whole fork between the seed becoming Banks or becoming Watts — hangs on a single unglamorous organ: the calibration loop. The thing that scores the collective's model-of-each-person against that person's own corrections, over time, and *fails loud* when they diverge.
 
-It is the least sci-fi part of the vision and it is the only part that decides which sci-fi you're in. Speed without it doesn't converge, it confidently drifts. The N=1 wedge — does this guard's fire actually help *this* person — is the seed of that organ. The did-it-help signal scaled to the team is the organ itself. We start at N=1 not because it's humble but because **calibration is unscalable by nature, and that's the diagnostic, not the defect**: you earn the right to model someone fast by first modeling them slowly, correctably, one person at a time, and never spending the trust faster than you've earned it.
+It is the least sci-fi part of the vision and it is the only part that decides which sci-fi you're in. Speed without it doesn't converge, it confidently drifts. The N=1 wedge — does this guard's fire actually help *this* person — is the seed of that organ. The did-it-help signal scaled to the team is the organ itself. We start at N=1 because **calibration is unscalable by nature, and that is the diagnostic**: you earn the right to model someone fast by first modeling them slowly, correctably, one person at a time, and never spending the trust faster than you've earned it.
 
 Build that, hold the boundary, keep the humans the deciders — and the morning is the Culture's. Drop any one of them and the same code, run at the same speed, gives you the same beautiful frictionless morning, with no one home.
 
@@ -52,7 +52,7 @@ Build that, hold the boundary, keep the humans the deciders — and the morning 
 
 ### What's under the fiction
 
-The fiction is built from a handful of named ideas, turned up and given a morning to happen in. The load-bearing borrowings:
+The fiction is built from a handful of named ideas, turned up and given a morning to happen in. What it borrows:
 
 - **relevance as currency** — Sperber-Wilson: contextual-effect ÷ processing-effort. The rigorous emit gate.
 - **spotlight-choice** (the highest-adjacency frontier move) — coordinating by directing salience; the gift and the knife.
