@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **The injected SessionStart horizon is now agent-framed and at parity with the MCP
+  tool.** The cached block `ettle horizon-hook` injects used to read as a note to a
+  human. It now addresses its actual reader — the agent — as a standing instruction
+  ("You are alice's ettle agent … when their work touches one, raise it; don't dump
+  the list"), and carries the same knot state as `ettle_horizon`: muted knots are
+  suppressed (with an honest count), and each un-shared cross-person knot is flagged
+  `not yet shared` so the agent knows exactly which ones to offer escalating. Tags
+  show only for a Linear room (escalation is Linear-only); a leat/in-proc horizon is
+  unchanged. Keyed through `internal/knotstate`, so the injected block, `ettle
+  escalate`, and the MCP tools all agree on what's escalated and what's muted.
 - **MCP operator tools: drive escalation from inside a session, and make a knot go
   away when it's handled.** The agent (me) operates ettle through MCP tools, not by
   remembering CLI commands, so three things landed on the `ettle mcp` surface:

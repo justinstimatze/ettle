@@ -75,6 +75,58 @@ func TestRenderHorizonBlockFirmSoft(t *testing.T) {
 	}
 }
 
+func TestTagHorizonSuppressesMutedAndFlagsEscalated(t *testing.T) {
+	res := horizonResult{
+		firm: []ettlemesh.Tangle{firmT("collision", "alice", "bob"), firmT("duplication", "alice", "carol")},
+		soft: []ettlemesh.Tangle{softT("stale-assumption", "alice", "dave")},
+	}
+	muted := map[string]bool{escalateKey(firmT("duplication", "alice", "carol")): true}
+	escalated := map[string]bool{escalateKey(firmT("collision", "alice", "bob")): true}
+	got := tagHorizon(res, muted, escalated)
+	if len(got.firm) != 1 || got.firm[0].Kind != "collision" {
+		t.Fatalf("muted duplication should be dropped from firm, got %+v", got.firm)
+	}
+	if got.muted != 1 {
+		t.Errorf("muted count should be 1, got %d", got.muted)
+	}
+	if got.escalated == nil {
+		t.Error("escalated set should be non-nil for a tagged (Linear) horizon")
+	}
+}
+
+func TestRenderHorizonBlockAgentFramedWithShareTags(t *testing.T) {
+	now := time.Now().UTC()
+	collision := firmT("collision", "alice", "bob")
+	// Linear room (escalated non-nil), knot not yet escalated.
+	res := horizonResult{firm: []ettlemesh.Tangle{collision}, escalated: map[string]bool{}}
+	got := renderHorizonBlock(res, "alice", now)
+	// "· not yet shared" is the per-knot tag (the instruction line mentions the phrase
+	// in backticks, so the middot separator is what pins it to the bullet).
+	for _, want := range []string{"You are alice's ettle agent", "· not yet shared", "ettle_escalate"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("agent-framed block missing %q:\n%s", want, got)
+		}
+	}
+	// Once escalated, the same knot reads as shared and the per-knot offer tag is gone.
+	res.escalated = map[string]bool{escalateKey(collision): true}
+	got = renderHorizonBlock(res, "alice", now)
+	if !strings.Contains(got, "· shared with the team") || strings.Contains(got, "· not yet shared") {
+		t.Errorf("escalated knot should read as shared:\n%s", got)
+	}
+	// A non-Linear horizon (escalated nil) shows no share tags at all.
+	plain := renderHorizonBlock(horizonResult{firm: []ettlemesh.Tangle{collision}}, "alice", now)
+	if strings.Contains(plain, "· not yet shared") || strings.Contains(plain, "ettle_escalate") {
+		t.Errorf("non-Linear horizon must not show escalation tags:\n%s", plain)
+	}
+}
+
+func TestRenderHorizonBlockMutedCount(t *testing.T) {
+	got := renderHorizonBlock(horizonResult{participants: []string{"a", "b"}, muted: 2}, "alice", time.Now().UTC())
+	if !strings.Contains(got, "2 knots muted") {
+		t.Errorf("a clear-by-muting horizon should say so:\n%s", got)
+	}
+}
+
 func TestFoldLatestKeepsLastPerParticipant(t *testing.T) {
 	envs := []transport.Envelope{
 		{Participant: "alice", Atoms: []ettlemesh.Atom{{Content: "old"}}},

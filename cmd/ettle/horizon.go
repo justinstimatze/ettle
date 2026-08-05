@@ -18,6 +18,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
+	"github.com/justinstimatze/ettle/internal/knotstate"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -71,6 +72,14 @@ func runHorizon(args []string) error {
 	if err != nil {
 		return err
 	}
+	// For a Linear room, bring parity with the MCP horizon: suppress muted knots and
+	// flag which are already escalated. Escalation is Linear-only, so the stores key
+	// by the Linear room name (matching `ettle escalate` and the MCP server).
+	if linRoom, ok := linearRoomOf(*room, *transportName); ok {
+		muted, _ := knotstate.Load(knotstate.Muted, linRoom)
+		escalated, _ := knotstate.Load(knotstate.Escalated, linRoom)
+		res = tagHorizon(res, muted, escalated)
+	}
 	block := renderHorizonBlock(res, who, time.Now().UTC())
 
 	if !*cache {
@@ -84,11 +93,41 @@ func runHorizon(args []string) error {
 	return writeHorizonCache(target, who, block)
 }
 
-// horizonResult is the reconcile output the renderer consumes.
+// horizonResult is the reconcile output the renderer consumes. escalated is nil for
+// a non-Linear room (no escalation surface, so no tags); for a Linear room it is the
+// set of knot keys already posted to the coordination issue (possibly empty), which
+// tells the reader which knots a non-adopter can't yet see. muted counts knots the
+// human resolved (suppressed from firm/soft) so a clear-by-muting horizon stays honest.
 type horizonResult struct {
 	firm, soft, held []ettlemesh.Tangle
 	floorHeld        int
 	participants     []string
+	escalated        map[string]bool
+	muted            int
+}
+
+// tagHorizon brings the injected block to parity with the MCP ettle_horizon: it
+// suppresses muted knots (the human marked them handled) and records which knots are
+// already escalated, so the block can flag what's un-shared. Pure; runHorizon loads
+// the stores. Only called for a Linear room — escalation is Linear-only, so a leat/
+// in-proc horizon leaves escalated nil and shows no share tags.
+func tagHorizon(res horizonResult, muted, escalated map[string]bool) horizonResult {
+	res.escalated = escalated
+	res.firm = dropMuted(res.firm, muted, &res.muted)
+	res.soft = dropMuted(res.soft, muted, &res.muted)
+	return res
+}
+
+func dropMuted(ks []ettlemesh.Tangle, muted map[string]bool, count *int) []ettlemesh.Tangle {
+	var out []ettlemesh.Tangle
+	for _, k := range ks {
+		if muted[knotstate.Key(k.Kind, k.Parties)] {
+			*count++
+			continue
+		}
+		out = append(out, k)
+	}
+	return out
 }
 
 // reconcileHorizon Collects the bus, folds to the latest envelope per participant,
@@ -169,6 +208,18 @@ func foldLatest(envs []transport.Envelope) []transport.Envelope {
 	return out
 }
 
+// linearRoomOf returns the Linear room name (and true) when the horizon's transport
+// is a Linear bus, so the escalated/muted stores key the same way `ettle escalate`
+// and the MCP server do. A leat --room is not a Linear room, so it yields false.
+func linearRoomOf(_ /*room*/, transportName string) (string, bool) {
+	if r, ok := strings.CutPrefix(transportName, "linear://"); ok {
+		if r = strings.TrimSpace(r); r != "" {
+			return r, true
+		}
+	}
+	return "", false
+}
+
 func partiesIncludeMe(parties []string, me string) bool {
 	for _, p := range parties {
 		if ettlemesh.SamePerson(p, me) {
@@ -179,54 +230,80 @@ func partiesIncludeMe(parties []string, me string) bool {
 }
 
 // renderHorizonBlock formats the reconcile as a compact markdown block for context
-// injection. Whisper-first framing is explicit in the header so the agent (and the
-// human) read it as a private heads-up, never something to post.
+// injection. It is written as an instruction to its actual reader — the agent — not a
+// note to a human, because the agent is who receives it at SessionStart and decides
+// when to raise it. It carries parity with the MCP ettle_horizon: un-shared knots are
+// flagged so the agent knows what to offer escalating, muted knots are gone.
 func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	var b strings.Builder
 	who := me
 	if who == "" {
 		who = "the team"
 	}
-	fmt.Fprintf(&b, "# ettle horizon — %s (as of %s)\n\n", who, now.Format("2006-01-02 15:04 MST"))
+	fmt.Fprintf(&b, "# ettle horizon for %s — coordination knots (as of %s)\n\n", who, now.Format("2006-01-02 15:04 MST"))
 	if len(res.firm) == 0 && len(res.soft) == 0 {
-		fmt.Fprintf(&b, "Horizon clear — no cross-person coordination tangles involving you right now")
+		fmt.Fprintf(&b, "Horizon clear — no cross-person coordination tangles involving %s right now", who)
 		if n := len(res.participants); n > 0 {
 			fmt.Fprintf(&b, " (%s on the bus)", plural(n, "participant", "participants"))
 		}
-		b.WriteString(".\n")
+		b.WriteString(".")
+		if res.muted > 0 {
+			fmt.Fprintf(&b, " (%s muted as handled.)", plural(res.muted, "knot", "knots"))
+		}
+		b.WriteString("\n")
 		return strings.TrimSpace(b.String())
 	}
-	b.WriteString("Cross-person coordination the mesh sees for you — surfaced privately, nothing is posted anywhere. ")
-	b.WriteString("Firm = worth a look; soft = worth a question with the other person.\n")
+	// Address the agent directly: this is context to act on, not a message to post.
+	fmt.Fprintf(&b, "You are %s's ettle agent. These are cross-person coordination knots involving %s, surfaced privately for you — nothing is posted anywhere. When %s's current work touches one, raise it with them; don't dump the list unprompted. Firm = worth a look; soft = worth a question with the other person.\n", who, who, who)
+	if res.escalated != nil {
+		b.WriteString("A knot flagged `not yet shared` is one the other person can't see; if " + who + " would want them to know, offer to escalate it (the `ettle_escalate` tool, or `ettle escalate`).\n")
+	}
 	if len(res.firm) > 0 {
 		b.WriteString("\n**Firm (worth a look):**\n")
 		for _, k := range res.firm {
-			b.WriteString(horizonLine(k))
+			b.WriteString(horizonLine(k, shareTag(res, k)))
 		}
 	}
 	if len(res.soft) > 0 {
 		b.WriteString("\n**Soft (worth a question):**\n")
 		for _, k := range res.soft {
-			b.WriteString(horizonLine(k))
+			b.WriteString(horizonLine(k, shareTag(res, k)))
 		}
 	}
+	if res.muted > 0 {
+		fmt.Fprintf(&b, "\n_(%s muted as handled — not shown.)_\n", plural(res.muted, "knot", "knots"))
+	}
 	if n := len(res.held) + res.floorHeld; n > 0 {
-		fmt.Fprintf(&b, "\n_(%s held back as likely-not-a-conflict)_\n", plural(n, "candidate", "candidates"))
+		fmt.Fprintf(&b, "\n_(%s held back as likely-not-a-conflict.)_\n", plural(n, "candidate", "candidates"))
 	}
 	return strings.TrimSpace(b.String())
 }
 
-func horizonLine(k ettlemesh.Tangle) string {
+// shareTag flags whether a knot has been escalated to a non-adopter — only for a
+// Linear room (escalated != nil) and only for cross-person knots (a self-knot has
+// nobody to share with). This is what lets the agent offer to escalate exactly what's
+// still invisible to the other person.
+func shareTag(res horizonResult, k ettlemesh.Tangle) string {
+	if res.escalated == nil || !ettlemesh.MultiPerson(k.Parties) {
+		return ""
+	}
+	if res.escalated[knotstate.Key(k.Kind, k.Parties)] {
+		return " · shared with the team"
+	}
+	return " · not yet shared"
+}
+
+func horizonLine(k ettlemesh.Tangle, tag string) string {
 	parties := strings.Join(k.Parties, ", ")
 	about := strings.TrimSpace(k.About)
 	expl := strings.TrimSpace(k.Explanation)
 	switch {
 	case about != "" && expl != "":
-		return fmt.Sprintf("- **%s** · %s · %s — %s\n", k.Kind, parties, about, expl)
+		return fmt.Sprintf("- **%s** · %s · %s — %s%s\n", k.Kind, parties, about, expl, tag)
 	case expl != "":
-		return fmt.Sprintf("- **%s** · %s — %s\n", k.Kind, parties, expl)
+		return fmt.Sprintf("- **%s** · %s — %s%s\n", k.Kind, parties, expl, tag)
 	default:
-		return fmt.Sprintf("- **%s** · %s · %s\n", k.Kind, parties, about)
+		return fmt.Sprintf("- **%s** · %s · %s%s\n", k.Kind, parties, about, tag)
 	}
 }
 

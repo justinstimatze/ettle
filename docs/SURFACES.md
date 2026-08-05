@@ -106,8 +106,12 @@ Linear (pull), and the knots relevant to you appear in your next session
 unprompted (horizon-injection). Because reconcile is a model call, the injection
 never runs it inline — `ettle horizon-hook` injects a *cached* reconcile instantly
 at SessionStart and spawns a detached refresh for next time, so session start stays
-free and instant while the horizon stays warm. Whisper-first holds end to end: the
-knot surfaces privately in your own session, and nothing is posted anywhere.
+free and instant while the horizon stays warm. The injected block is written as an
+instruction to its actual reader — the agent — and carries the same knot state as the
+MCP `ettle_horizon`: muted knots suppressed, un-shared cross-person knots flagged so
+the agent offers to escalate exactly what a teammate can't see. Whisper-first holds
+end to end: the knot surfaces privately in your own session, and nothing is posted
+anywhere.
 
 ## Operating it from inside a session (the MCP tools)
 
