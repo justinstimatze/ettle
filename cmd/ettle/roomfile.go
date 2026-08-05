@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -160,7 +161,10 @@ func saveIdentity(spec, me string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.Marshal(map[string]string{"me": strings.TrimSpace(me)})
+	// The spec rides along because the filename is sanitized and therefore lossy
+	// ("linear://crew" and "linear__crew" collapse to the same name). Without it
+	// `ettle room list` could not name the rooms this machine belongs to.
+	data, err := json.Marshal(map[string]string{"me": strings.TrimSpace(me), "room": strings.TrimSpace(spec)})
 	if err != nil {
 		return err
 	}
@@ -186,13 +190,66 @@ func loadIdentity(spec string) string {
 	if err != nil {
 		return ""
 	}
-	var v struct {
-		Me string `json:"me"`
-	}
+	var v identityFile
 	if json.Unmarshal(data, &v) != nil {
 		return ""
 	}
+	// Backfill the spec on files written before it was recorded, so `room list` can
+	// name them. Best-effort: an unwritable config dir is not worth failing a hook over.
+	if strings.TrimSpace(v.Room) == "" {
+		v.Room = spec
+		if out, err := json.Marshal(v); err == nil {
+			_ = os.WriteFile(path, out, 0o644)
+		}
+	}
 	return strings.TrimSpace(v.Me)
+}
+
+// identityFile is the per-machine record: who you are in a room, and which room.
+type identityFile struct {
+	Me   string `json:"me"`
+	Room string `json:"room,omitempty"`
+}
+
+// knownRoom is one entry in the machine's room registry, as `ettle room list` shows it.
+type knownRoom struct {
+	Spec string
+	Me   string
+}
+
+// knownRooms lists every room this machine has an identity for, on any transport.
+// This is the answer to "which rooms am I in" — the leat room directory only knows
+// about the git-repo bus, and most people are on Linear or GitHub instead.
+//
+// Files that predate the recorded spec are skipped rather than guessed at: the
+// filename is sanitized, so reconstructing "linear://crew" from "linear___crew" would
+// be inventing a room that may not exist. loadIdentity backfills them on first use.
+func knownRooms() []knownRoom {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "ettle", "identity"))
+	if err != nil {
+		return nil
+	}
+	var out []knownRoom
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "ettle", "identity", e.Name()))
+		if err != nil {
+			continue
+		}
+		var v identityFile
+		if json.Unmarshal(data, &v) != nil || strings.TrimSpace(v.Room) == "" {
+			continue
+		}
+		out = append(out, knownRoom{Spec: strings.TrimSpace(v.Room), Me: strings.TrimSpace(v.Me)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Spec < out[j].Spec })
+	return out
 }
 
 // renderRoomFile is what `ettle init` writes — self-describing, because the next

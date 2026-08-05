@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.1 — 2026-08-05
+
+- **`ettle room list` told people in a working room that they had none.** It read only
+  the git-repo bus registry — a directory that exists because leat rooms are the only
+  ones ettle has to clone — so anyone on Linear or GitHub got "no rooms yet" while
+  standing in a room with four people publishing to it. It now leads with this
+  project's room from `.ettle-room`, then every room this machine has an identity for
+  on any bus, then the git-repo ones; the empty case points at `ettle init` rather than
+  only at the no-platform path. The identity file records its room spec so the registry
+  can name what it lists (the filename is sanitized, so it can't), and files written
+  before that are backfilled the first time a command resolves them.
+
 ## v0.3.0 — 2026-08-05
 
 The set-and-forget release: ettle stopped being a thing you run. `ettle init` sets a

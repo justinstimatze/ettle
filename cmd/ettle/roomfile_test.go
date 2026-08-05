@@ -134,3 +134,62 @@ func TestIdentityRoundTripIsPerRoom(t *testing.T) {
 		t.Errorf("empty spec should resolve via the pointer: %q", got)
 	}
 }
+
+func TestKnownRoomsSpansEveryTransport(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Chdir(t.TempDir())
+
+	if got := knownRooms(); len(got) != 0 {
+		t.Fatalf("a cold machine is in no rooms, got %+v", got)
+	}
+	for spec, me := range map[string]string{
+		"linear://publicai":            "justin",
+		"github://acme/widgets/design": "kit",
+	} {
+		if err := saveIdentity(spec, me); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := knownRooms()
+	if len(got) != 2 {
+		t.Fatalf("both rooms should be listed regardless of bus: %+v", got)
+	}
+	// Sorted, so the assertion below is stable rather than map-order dependent.
+	if got[0].Spec != "github://acme/widgets/design" || got[0].Me != "kit" {
+		t.Errorf("first entry wrong: %+v", got[0])
+	}
+	if got[1].Spec != "linear://publicai" || got[1].Me != "justin" {
+		t.Errorf("second entry wrong: %+v", got[1])
+	}
+}
+
+func TestKnownRoomsBackfillsPreSpecIdentityFiles(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	// What a v0.3.0-and-earlier file looks like: identity, no spec. The filename is
+	// sanitized and lossy, so listing it means recovering the spec from somewhere —
+	// here, the first command that resolves the room.
+	path, err := identityPath("linear://publicai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"me":"justin"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := knownRooms(); len(got) != 0 {
+		t.Errorf("an unnamed room must not be guessed at: %+v", got)
+	}
+
+	if got := loadIdentity("linear://publicai"); got != "justin" {
+		t.Fatalf("the legacy file should still read: %q", got)
+	}
+	got := knownRooms()
+	if len(got) != 1 || got[0].Spec != "linear://publicai" || got[0].Me != "justin" {
+		t.Errorf("resolving the room once should name it thereafter: %+v", got)
+	}
+}

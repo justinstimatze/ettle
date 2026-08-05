@@ -102,7 +102,7 @@ func runRoom(args []string) error {
 
   ettle room init <git-url>    start a room (creates + seeds it); the URL is the invite
   ettle room join <git-url>    join one on your machine        [--as <id>] [--name <room>]
-  ettle room list              rooms this machine has joined
+  ettle room list              every room you are in — this project's, and any bus
   ettle room status [<room>]   who's here and what they're on (no key, no model call);
                                no argument = this project's room. --watch 30s to tail it.
 
@@ -418,20 +418,90 @@ func roomJoin(args []string) error {
 	return nil
 }
 
+// roomList answers "which rooms am I in" for EVERY bus, not only the git-repo one.
+// Listing just the leat rooms is how someone standing inside a working Linear room
+// gets told they have none: the room is in `.ettle-room` and the identity registry,
+// not in the rooms directory, which only the no-platform bus ever writes to.
 func roomList() error {
-	base, err := roomsBase()
+	var b strings.Builder
+	n := 0
+
+	here := ""
+	if rf, ok := currentRoomFile(); ok {
+		n++
+		here = rf.Spec
+		me := loadIdentity(rf.Spec)
+		if me == "" {
+			me = "(not set — pass --me once)"
+		}
+		fmt.Fprintf(&b, "  this project\n    %-24s  you=%s\n      %s\n", rf.Spec, me, rf.Path)
+	}
+
+	// The project's own room is already above; repeating it under "elsewhere" would
+	// read as two rooms.
+	var elsewhere []knownRoom
+	for _, r := range knownRooms() {
+		if r.Spec != here {
+			elsewhere = append(elsewhere, r)
+		}
+	}
+	if len(elsewhere) > 0 {
+		fmt.Fprint(&b, gap(b.Len()), "  rooms on this machine\n")
+		for _, r := range elsewhere {
+			n++
+			fmt.Fprintf(&b, "    %-24s  you=%s\n", r.Spec, r.Me)
+		}
+	}
+
+	leat, err := leatRooms()
 	if err != nil {
 		return err
+	}
+	if len(leat) > 0 {
+		fmt.Fprint(&b, gap(b.Len()), "  git-repo rooms\n")
+		for _, rc := range leat {
+			n++
+			remote := rc.Remote
+			if remote == "" {
+				remote = "(local-only)"
+			}
+			fmt.Fprintf(&b, "    %-18s  you=%-12s  remote=%s\n      %s\n", rc.Name, rc.Agent, remote, rc.RepoDir)
+		}
+	}
+
+	if n == 0 {
+		fmt.Println("no rooms yet — `ettle init` sets one up on Linear or GitHub for the project\n" +
+			"you are standing in; `ettle room init <git-url>` starts the no-platform one.")
+		return nil
+	}
+	fmt.Print(b.String())
+	return nil
+}
+
+// gap separates a heading from what came before it, and prints nothing when it
+// is the first thing on the page.
+func gap(written int) string {
+	if written == 0 {
+		return ""
+	}
+	return "\n"
+}
+
+// leatRooms reads the git-repo bus registry — the only rooms that live in a directory,
+// because they are the only ones ettle has to clone.
+func leatRooms() ([]roomConfig, error) {
+	base, err := roomsBase()
+	if err != nil {
+		return nil, err
 	}
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("no rooms yet — start one with `ettle room init|join <git-url>`")
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	n := 0
+	var out []roomConfig
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -440,17 +510,9 @@ func roomList() error {
 		if err != nil {
 			continue
 		}
-		remote := rc.Remote
-		if remote == "" {
-			remote = "(local-only)"
-		}
-		fmt.Printf("  %-18s  you=%-12s  remote=%s\n      %s\n", rc.Name, rc.Agent, remote, rc.RepoDir)
-		n++
+		out = append(out, rc)
 	}
-	if n == 0 {
-		fmt.Println("no rooms yet — start one with `ettle room init|join <git-url>`")
-	}
-	return nil
+	return out, nil
 }
 
 // --- helpers ---------------------------------------------------------------
