@@ -163,7 +163,7 @@ anywhere.
 The hooks are the passive, set-and-forget layer — they run without anyone driving
 them. The *active* layer is the agent operating ettle mid-session through MCP tools
 (`ettle mcp --transport linear://<room>`), because an agent uses tools far more
-reliably than it remembers to shell out to a CLI. Three affordances make the agent an
+reliably than it remembers to shell out to a CLI. These affordances make the agent an
 effective operator rather than a forgetful one:
 
 - **`ettle_horizon`** tags each surfaced tangle `escalated: true/false` and suppresses
@@ -174,7 +174,19 @@ effective operator rather than a forgetful one:
   agent offers it to the human, and on yes escalates that tangle inline, no CLI recall.
 - **`ettle_respond`** with `not_real`/`handled` **mutes** the tangle so it stops
   re-surfacing. That's what lets the agent make a tangle go away when the human says
-  it's settled, instead of nagging about it every session.
+  it's settled, instead of nagging about it every session. `clear` is the undo, and
+  it writes no label — "I muted that by mistake" says nothing about whether the
+  detector was right, and the calibration log only wants verdicts that do.
+- **`ettle_mirror`** and **`ettle_drift`** put both sides of the L2 layer in the
+  session. The CLI reaches L2 by distilling two directories of notes; from inside a
+  session there are no directories, and the bus is already past distillation — so the
+  two rounds are the atoms the bus held when the session first read it against what it
+  holds now, and neither tool makes a model call. `ettle_room_status` is the presence
+  view on the same read.
+
+`ettle init` is the one thing that stays in the shell, because it creates the room
+the server connects to. Everything else an agent needs is a tool, which is the point:
+a surface the agent has to remember to shell out to is a surface it will skip.
 
 The shared `internal/tanglestate` package is why these compose with the CLI: it keys a
 tangle the same way and holds the per-room escalated/muted sets, so an escalation or a

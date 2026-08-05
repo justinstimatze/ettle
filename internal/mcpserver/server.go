@@ -53,7 +53,17 @@ const defaultSamples = 5
 // by the same transport seam the CLI uses, so an MCP server started with --room
 // shares a horizon with teammates on other machines; the default in-process bus
 // keeps the single-process behavior for local runs and tests.
-type horizon struct{ bus transport.Transport }
+type horizon struct {
+	bus transport.Transport
+
+	// base is the team's atoms as of this session's FIRST bus read — the previous
+	// round the L2 layer needs (see reflect.go). Captured lazily, because reading
+	// the bus at startup would put a Linear round-trip in front of session start,
+	// and never rewritten.
+	baseMu  sync.Mutex
+	base    map[string][]ettlemesh.Atom
+	baseSet bool
+}
 
 // newHorizon backs the horizon with the zero-infra in-process bus (one process,
 // no sharing) — the default for a local `ettle mcp` and for tests.
@@ -92,6 +102,7 @@ func (h *horizon) snapshot(ctx context.Context) ([]transport.Envelope, error) {
 		at[k] = len(out)
 		out = append(out, e)
 	}
+	h.rememberBaseline(out)
 	return out, nil
 }
 
@@ -587,7 +598,7 @@ func (f *fileLabelSink) record(l Label) error {
 type respondIn struct {
 	Me      string `json:"me" jsonschema:"the person responding — answer only your OWN tangles"`
 	Tangle  string `json:"tangle" jsonschema:"the tangle's key field from ettle_horizon"`
-	Verdict string `json:"verdict" jsonschema:"one of: real | not_real | handled"`
+	Verdict string `json:"verdict" jsonschema:"one of: real | not_real | handled | clear (clear un-mutes a tangle muted earlier)"`
 	Note    string `json:"note,omitempty" jsonschema:"optional free-text context"`
 }
 
@@ -611,9 +622,23 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 	}
 	v := strings.ToLower(strings.TrimSpace(in.Verdict))
 	switch v {
-	case "real", "not_real", "handled":
+	case "real", "not_real", "handled", "clear":
 	default:
-		return nil, respondOut{}, fmt.Errorf("verdict must be one of real | not_real | handled, got %q", in.Verdict)
+		return nil, respondOut{}, fmt.Errorf("verdict must be one of real | not_real | handled | clear, got %q", in.Verdict)
+	}
+	// "clear" is the undo, not a verdict about the tangle — it un-mutes something
+	// muted earlier and writes no label, because "I muted this by mistake" is not
+	// ground truth about whether the detector was right.
+	if v == "clear" {
+		removed, err := tanglestate.Remove(tanglestate.Muted, s.stateKey, key)
+		if err != nil {
+			return nil, respondOut{}, fmt.Errorf("clear %s: %w", key, err)
+		}
+		msg := fmt.Sprintf("cleared the mute on %s — it can surface again.", key)
+		if !removed {
+			msg = fmt.Sprintf("%s was not muted; nothing to clear.", key)
+		}
+		return text(msg), respondOut{Recorded: removed, Key: key, Verdict: v}, nil
 	}
 	lbl := Label{Key: key, Verdict: v, By: me, Note: in.Note, TS: time.Now().UTC().Format(time.RFC3339)}
 	// Enrich with the surfaced tangle's features so the verdict is learnable. Same
@@ -743,8 +768,23 @@ func newMCPServer(s *server, version string) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_respond",
-		Description: "Record YOUR human's verdict on a cross-person tangle from ettle_horizon — real, not_real, or handled. Pass the tangle's `key`. `not_real` (false alarm) and `handled` (resolved) MUTE the tangle so it stops re-surfacing and won't be escalated; `real` keeps it on the horizon. It captures the verdict as the calibration ground-truth; it does not bind or decide the work itself.",
+		Description: "Record YOUR human's verdict on a cross-person tangle from ettle_horizon — real, not_real, handled, or clear. Pass the tangle's `key`. `not_real` (false alarm) and `handled` (resolved) MUTE the tangle so it stops re-surfacing and won't be escalated; `real` keeps it on the horizon; `clear` un-mutes one muted earlier and records no label. It captures the verdict as the calibration ground-truth; it does not bind or decide the work itself.",
 	}, s.respond)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "ettle_mirror",
+		Description: "Show YOUR human what the team's directed models (L2) currently believe ABOUT them, and which of those beliefs their later work has already made stale — the layer that drives how someone gets treated, made readable to that person. No API key and no model call. Attribution is withheld by default (the belief, not who holds it); pass `by_observer` to attribute, which surfaces a teammate's private model of your human.",
+	}, s.mirror)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "ettle_drift",
+		Description: "The emit side of the same layer: which changes since this session first read the bus would leave a teammate's model stale, and therefore who each one is routed to — rather than broadcast to everyone. Returns the routing savings. No API key and no model call. Pass `me` to see only what involves your own human.",
+	}, s.drift)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "ettle_room_status",
+		Description: "Who is on the room's bus and what each person is working on, depending on, committed to, and assuming — read straight off the bus with no tangle detection, no API key and no model call, so it is cheap to call often. Freshness is coarse on purpose (recently / today / yesterday / Nd ago): a per-minute age across a team is a working-patterns feed.",
+	}, s.roomStatus)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_escalate",

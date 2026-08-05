@@ -158,8 +158,12 @@ for a session with no MCP server loaded, and writes the same log.
 
 None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
 the hooks can be global and still do the right thing per project. To drive it from
-inside a session instead — offer a tangle, escalate it on a yes, mute it when it's
-handled — add the MCP server: `claude mcp add ettle -- ettle mcp`.
+inside a session instead, add the MCP server: `claude mcp add ettle -- ettle mcp`.
+That is the surface ettle is built for, and it carries the whole engine — emit,
+reconcile, respond, escalate, the presence view, and both sides of the L2 layer
+(`ettle_mirror`, what the team believes about you; `ettle_drift`, who your changes
+are routed to). Only setup stays in the shell, because `ettle init` is what creates
+the room the server connects to.
 
 **On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
 Discussions carry the atoms, one comment per person — and inside a checkout there is

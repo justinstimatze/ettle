@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- **The MCP surface now carries the whole engine.** ettle is agent-first — the CLI is
+  for completeness — but three things were reachable only from a shell, and an agent
+  that has to remember to shell out is an agent that won't. `ettle_mirror` shows a
+  person what the team's directed models believe about them and which of those beliefs
+  their later work has already made stale; `ettle_drift` is the emit side, which
+  changes route to whom instead of being broadcast; `ettle_room_status` is presence off
+  the bus. `ettle_respond` gains a `clear` verdict — the undo for a mute — which writes
+  no label, because "I muted that by mistake" is not a claim about whether the detector
+  was right and the calibration log should only hold claims that are.
+- **L2 from a session needs no notes and no key.** The CLI reaches the directed-model
+  layer by distilling two directories of notes, which a session has neither of. But the
+  bus is already past distillation, and the mesh core only ever wanted
+  `map[person][]Atom` per round — so the two rounds are the atoms the bus held when the
+  session first read it against what it holds now, and `ettle_mirror`/`ettle_drift`
+  make no model call at all (`internal/mcpserver/reflect.go`). The baseline is captured
+  lazily on the first bus read, not at startup (a Linear round-trip in front of session
+  start is exactly what the horizon cache exists to avoid), and never rewritten — a
+  baseline that chased the current state would report every mirror clean.
+- **`ettle init` stays the one shell-only command**, because it creates the room the
+  server connects to. Noted in README and `docs/SURFACES.md` rather than left implicit.
+
 ## v0.3.5 — 2026-08-05
 
 - **`ettle mute` now records the verdict, and refuses to guess it.** The MCP path

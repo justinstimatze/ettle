@@ -74,3 +74,4 @@ situated-action
 typed-atom
 user-service
 zero-infra
+git-repo
