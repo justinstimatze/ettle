@@ -51,13 +51,17 @@ pollutes my tickets" sound true when it isn't.
 
 3. **Escalation-emit — surfacing a knot onto an issue.** The *only* role that
    writes onto Linear, and therefore the only one the pollution worry is about.
-   It is an **opt-in escalation**, not a default: the move you make to reach a
-   teammate who isn't running ettle. Two guards keep it from being noise — it
-   posts to **one dedicated coordination issue per room, never onto feature
-   tickets**, and the calibration gate means only knots above a confidence bar
-   emit at all (calibration-before-speed). **Unbuilt.** Needs the OAuth
-   app-actor token; the emit mechanics (`agentSessionCreateOnIssue` +
-   `agentActivityCreate`) are proven from a live probe but not yet in the code.
+   It is an **opt-in escalation**, not a default: `ettle escalate --room <room>`
+   is the deliberate move you make to reach a teammate who isn't running ettle.
+   Two guards keep it from being noise — it posts to **one dedicated coordination
+   issue per room ("ettle coordination" in `ettle-<room>`), never onto feature
+   tickets**, and it emits only **firm cross-person knots** (firm *is* the
+   calibration gate — a knot below the recurrence bar never posts). Idempotent: a
+   knot already posted is skipped. **Built** (`ettle escalate`,
+   `internal/transport/linearescalate.go`): it authenticates as the OAuth
+   **app actor** (`LINEAR_AGENT_TOKEN`, Bearer — the member key can *read* agent
+   activities but not post them), does `agentSessionCreateOnIssue` +
+   `agentActivityCreate`, and the reply flow closes back via `ettle pull`.
 
 **The payoff of the split:** if both people install ettle, role 3 is never
 needed. Role 1 (bus) + the whisper (in-session horizon) is the entire loop, all
@@ -109,8 +113,8 @@ knot surfaces privately in your own session, and nothing is posted anywhere.
 
 - **Default install never posts to an issue.** Whisper + bus only.
 - **Escalation-emit is opt-in and lands on a dedicated coordination issue**, gated
-  by calibration — still deferred (needs the OAuth app-actor token), and only ever
-  the bridge to a teammate who won't install ettle.
+  to firm cross-person knots — built (`ettle escalate`), and only ever the bridge to
+  a teammate who won't install ettle. The default install still never posts.
 - **No auto-resolution, ever** — a named invariant, not a roadmap item.
 - **Consent-first holds:** the non-adopter participates from outside via Linear
   replies and opts in once they've felt the value; adoption is never pushed

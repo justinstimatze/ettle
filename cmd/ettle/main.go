@@ -112,6 +112,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "escalate":
+			if err := runEscalate(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -126,6 +132,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  ettle mcp                          # serve the coordination engine over MCP (stdio): ettle_emit / ettle_horizon / ettle_self_check")
 		fmt.Fprintln(os.Stderr, "  ettle pull --room <room>           # ingest teammates' Linear agent-UI replies into the room (needs LINEAR_API_KEY)")
 		fmt.Fprintln(os.Stderr, "  ettle horizon --room <room> --me <you>  # reconcile the room's atoms into the tangles relevant to you (no note files)")
+		fmt.Fprintln(os.Stderr, "  ettle escalate --room <room>       # post the room's firm cross-person knots to its coordination issue (needs LINEAR_AGENT_TOKEN)")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)
 	}

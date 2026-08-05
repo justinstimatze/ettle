@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`ettle escalate` — surface a coordination knot to a teammate who won't install
+  ettle, on Linear.** The emit half of the Linear agent path and the one command
+  that writes *onto* Linear. It reconciles the room's atoms, takes the **firm
+  cross-person** knots (firm is the calibration gate — a knot below the recurrence
+  bar never posts), and surfaces each **new** one as a native agent elicitation on
+  the room's **single coordination issue** ("ettle coordination" in `ettle-<room>`),
+  **never a feature ticket**. The teammate replies inline and `ettle pull` brings it
+  back — the loop closes. Authenticates as the OAuth **app actor**
+  (`LINEAR_AGENT_TOKEN`, Bearer; the member key can read agent activities but not
+  post them — a new `bearer` auth mode on the Linear backend). Idempotent per room:
+  a knot already posted is skipped. **Opt-in and deliberate** — the default install
+  never posts; escalation is the move you make on purpose to reach a non-adopter
+  (whisper-first — see [docs/SURFACES.md](docs/SURFACES.md)). Verified live: alice's
+  Redis plan vs bob's stateless assumption reconciled to a firm collision and posted
+  as an elicitation on the coordination issue; re-run was a no-op.
 - **Horizon injection: the knots relevant to you appear in your session at start,
   unprompted.** `ettle horizon --room <room> --me <you>` reconciles the atoms
   capture/pull already put on the bus into the coordination tangles involving you —

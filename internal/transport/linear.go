@@ -188,6 +188,12 @@ type linearDocStore struct {
 	endpoint  string
 	ua        string
 	projectID string
+	// bearer selects the auth scheme: false (default) sends the key raw, as a Linear
+	// MEMBER key wants (documents, agent-activity reads); true sends "Bearer <key>",
+	// as an OAuth APP-ACTOR token wants (agent-activity writes — the escalation-emit
+	// path posts as the app). The member key can read agent activities but cannot post
+	// them, so the two auth modes are genuinely different tokens, not a style choice.
+	bearer bool
 }
 
 // do executes one GraphQL request, decoding data into out (which may be nil).
@@ -201,7 +207,11 @@ func (s *linearDocStore) do(ctx context.Context, query string, vars map[string]a
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.apiKey)
+	if s.bearer {
+		req.Header.Set("Authorization", "Bearer "+s.apiKey)
+	} else {
+		req.Header.Set("Authorization", s.apiKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", s.ua) // identify ourselves — a guest on their platform
 	resp, err := s.http.Do(req)
