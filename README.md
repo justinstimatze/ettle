@@ -8,14 +8,13 @@ ettle puts the checkpoints back without adding a place to go. Each person's agen
 
 The other answer to this is a shared workspace: move the team into one multiplayer room and coordinate there. (GitHub Next's Ace is the clearest version — [One Developer, Two Dozen Agents, Zero Alignment](https://maggieappleton.com/zero-alignment) is worth your time either way.) That works if your team will move. Mine won't: we already have the shared room, and we route around it. So ettle assumes the opposite — nobody changes tools, nothing lands anywhere shared unless you decide to put it there, and it's useful at N=1 before a second person ever joins.
 
-> ⚠️ **Extremely early — a design-stage proof-of-concept, shared well before it's proven.** The
-> coordination engine runs, but its accuracy is **not validated**: `ettle eval` is an inspectable smoke
-> test on a tiny synthetic corpus, not a precision/recall measurement, and the demos are hand-seeded. The
-> headline N=1 *safety* wedge — a prior-decision guard — and the calibration loop that is supposed to make
-> any of this *safe* are **specced, not built**; the working N=1 demo below (a stale-self-assumption pass)
-> is a narrower slice that runs today, **not** that wedge (see [Status](#status)). Plenty here is probably wrong. Treat it as a thesis with
-> a runnable skeleton, not a product. Read the `docs/` caveats before trusting anything; breakage and
-> rethinks expected, feedback very welcome.
+> ⚠️ **Very early — a design-stage proof-of-concept, published well before it's proven.** The engine
+> runs; its accuracy is unmeasured. `ettle eval` is an inspectable smoke test over a tiny synthetic
+> corpus, and the demos are hand-seeded. Two pieces the design leans on are **specced and unbuilt**: the
+> N=1 safety wedge (a prior-decision guard), and the calibration loop that would make any of this safe to
+> trust. The N=1 demo below runs a stale-self-assumption pass, which is a narrower thing than that wedge
+> (see [Status](#status)). Expect breakage, rethinks, and some of this to be wrong. Read the `docs/`
+> caveats before trusting anything. Feedback very welcome.
 
 Distill and reconcile are the two ends — L1 and L3. Between them sits the *directed-model layer* — L2, what your agent believes each teammate is assuming, held per-pair and carried across rounds so it can go **stale**. Its structural half now runs (`ettle drift`): each session emits only the deltas that would leave a teammate's model of it stale — the staleness is *computed*, not guessed — so a change reaches exactly the teammates it affects, before it becomes a surprise. (What's still open there is the *semantic* enrichment — your agent inferring what a teammate is assuming beyond what they stated — and the calibration loop; see [Status](#status).) The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
 
@@ -53,19 +52,31 @@ flowchart TB
 
 The name is a Scots / Northern-English verb: **to intend, to aim at, to plan or prepare ahead.** The system's job is to ettle on the team's behalf — to act on intent ahead of time, rather than record shared state after the fact. A forest is the picture I keep coming back to: separate trees above ground, roots wired together below, and the tree that meets a threat first is how the others learn it exists.
 
-The aim is not "frictionless." It is **friction in the right spots**: remove it from coordination and status-sync (the bullshit-meeting toil → zero), and keep it exactly where a genuine values choice belongs to a person — surfaced as a clean, pre-staged either/or, never auto-decided by the mesh. The felt result: empowered and free of bullshit meetings, while still getting the benefit of having had a great meeting, because the mesh held it on everyone's behalf.
+**Friction belongs in specific places.** Coordination and status-sync should cost nothing — that's the meeting toil, and the target for it is zero. A genuine values choice should cost a person's attention, so it arrives as a pre-staged either/or and the mesh never decides it. Nobody sits in the meeting; the call still belongs to whoever's call it was.
 
-**What this repo is:** a runnable proof-of-concept (`cmd/ettle` — see [Quickstart](#quickstart)) *and* the design reasoning behind the larger system it's the first wedge into (the `docs/`). The CLI is what runs today; the essays are the thinking, marked clearly where they extrapolate ([HORIZON.md](docs/HORIZON.md) is explicitly the speculative end-state). If you want the tool, start with the Quickstart and [the example run](docs/EXAMPLE_RUN.md); if you want the ideas, start with [ARCHITECTURE](docs/ARCHITECTURE.md) and [CONCEPT](docs/CONCEPT.md).
+**What this repo is:** a runnable proof-of-concept (`cmd/ettle` — see [Quickstart](#quickstart)) and the design reasoning behind the larger system it's the first wedge into (`docs/`). The CLI is what runs today; the essays are the thinking, marked where they extrapolate ([HORIZON.md](docs/HORIZON.md) is explicitly the speculative end-state). For the tool, start with the Quickstart and [the example run](docs/EXAMPLE_RUN.md). For the ideas, start with [ARCHITECTURE](docs/ARCHITECTURE.md) and [CONCEPT](docs/CONCEPT.md).
 
 ## Status
 
-What runs today is the coordination **engine**: it distills typed atoms from each person's working notes or live session, reconciles them across the team, and surfaces only the tangles (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux. Accuracy is **not validated** — but it's *inspectable*: `ettle eval testdata/eval/*.json` is a small, readable **smoke test** (run the detector against a committed synthetic corpus, see where it hits and misses). It is a sanity check, **not** a precision/recall measurement — the corpus is tiny and has only a handful of labels, and the `--ab` voting comparison ships a McNemar test that on this corpus never reaches the sample size to claim anything (the machinery is there, waiting for a corpus big enough to feed it). A second, orthogonal harness measures the **privacy boundary** rather than detection accuracy: `ettle eval --leak testdata/leak/*.json` plants private facts that must not cross (a comp number, a credential, a medical reason, a private opinion), distills each note, and reports the **leak rate** — plus a must-cross check so a zero leak rate earned by emitting nothing is flagged as over-redaction, not success. Same honest caveat: synthetic corpus, deliberately liberal matcher (it over-counts a leak before it under-counts one).
+What runs today is the coordination **engine**: it distills typed atoms from each person's notes or live session, reconciles them across the team, and surfaces only the tangles (collisions, duplicated work, stale assumptions, decision-rights gaps), routing each FIRM-vs-SOFT and sending contested ones to a crux.
 
-The **directed-model layer (L2)** now runs in its structural form: `ettle drift <prev-dir> <curr-dir>` builds each agent's per-pair model of every teammate, carries it across two rounds, and emits only the deltas that would leave a teammate's model stale — the surprise-gated emit rule and the L2-vs-L1 staleness diff, computed deterministically (no extra model call). It is unit-tested without an API key and demonstrated on [`testdata/drift/`](testdata/drift). Two honest limits bound it: it routes by an exact `(type, subject)` slot key, so when the **stochastic distiller rewords** the subject of a still-held belief the diff reads it as drop+new rather than a reword (savings hold per-*person*, not per-*belief*; the surfaced "stale" line is hedged, not asserted, because of this); and the **semantic** enrichment — an agent inferring what a teammate is assuming *beyond* their stated atoms — is unbuilt. Both are what would make L2 more than a wording-sensitive structural projection; closing the first needs wording-independent slot identity (tracked). The *read* side of that layer now runs too: `ettle mirror --me <name> <prev-dir> <curr-dir>` shows a person what the team's directed models currently believe *about them*, flagging the beliefs that have gone **stale** — the same layer that drives how someone is treated, made legible to the person it's about (attribution coarsened by default, `--by-observer` to attribute; no model call beyond the distill).
+Accuracy is unmeasured, and inspectable. `ettle eval testdata/eval/*.json` runs the detector over a committed synthetic corpus and shows where it hits and misses — a sanity check rather than a precision/recall number, because that corpus is tiny and carries a handful of labels. The `--ab` voting comparison ships a McNemar test that on this corpus never reaches the sample size to claim anything; the machinery is there waiting for a corpus big enough to feed it.
 
-**The Linear + Claude Code loop is the path most people are on, and it now closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a `.ettle-room` pointer in the repo, and (with `--install-hooks`) merges the four Claude Code hooks into your global settings. After that, four things happen on their own. **Capture** distills each of your sessions locally and publishes *your* atoms to the room (`SessionEnd`/`Stop`). **Pull** ingests replies a teammate posts in Linear's native agent UI, distilled locally under their identity, so someone who never installs ettle still has a voice in reconcile. **Horizon injection** puts the tangles that involve *you* into your next session at `SessionStart` — instantly, from a cache, with a background refresh, because reconcile is a model call and session start must stay free. And **escalation** (`ettle escalate`, or the `ettle_escalate` MCP tool) posts a firm cross-person tangle onto the room's one dedicated coordination issue — opt-in, never onto your feature tickets, and only ever the bridge to a teammate who isn't running ettle. Because the hooks name no room and read the project pointer, one global config serves every repo on the machine and stays a silent no-op in the ones that aren't ettle projects. Setup is [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md); the reasoning about *which* surface gets which output — and why "put the tangle in the ticket" is the obvious design and the wrong default — is [docs/SURFACES.md](docs/SURFACES.md). Two honest limits: the receive path **polls** with a cursor rather than taking a webhook (nothing is hosted, by choice), and escalation needs an OAuth app-actor token that takes about ten minutes to mint.
+A second harness measures the **privacy boundary** instead of detection. `ettle eval --leak testdata/leak/*.json` plants private facts that must not cross — a comp number, a credential, a medical reason, a private opinion — distills each note, and reports the **leak rate**. A must-cross check runs beside it, so a zero leak rate earned by emitting nothing reads as over-redaction rather than success. Same caveats: synthetic corpus, and a deliberately liberal matcher that over-counts a leak before it under-counts one.
 
-The opening paragraphs above describe the **design**; what's **deliberately unbuilt** is the part that needs the most care — the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector (the fast people-modeling half) runs; the correction half does not yet, so any safety claim that leans on calibration is, for now, borrowing against unbuilt code — see [CONCEPT.md](docs/CONCEPT.md). Concept demos exist as local simulations on cheap models (agents standing in for the humans) to show the payoff shape; those are illustrations, not the product.
+The **directed-model layer (L2)** runs in its structural form. `ettle drift <prev-dir> <curr-dir>` builds each agent's per-pair model of every teammate, carries it across two rounds, and emits only the deltas that would leave a teammate's model stale — the surprise-gated emit rule and the L2-vs-L1 staleness diff, computed deterministically, with no extra model call. It's unit-tested without an API key and demonstrated on [`testdata/drift/`](testdata/drift).
+
+Two limits bound it. It routes by an exact `(type, subject)` slot key, so when the **stochastic distiller rewords** the subject of a still-held belief, the diff reads a drop plus a new belief — savings hold per-*person*, not per-*belief*, and the surfaced "stale" line is hedged for that reason rather than asserted. And the **semantic** enrichment — an agent inferring what a teammate assumes *beyond* their stated atoms — is unbuilt. Together those keep L2 a wording-sensitive structural projection; closing the first needs wording-independent slot identity (tracked).
+
+The read side runs too. `ettle mirror --me <name> <prev-dir> <curr-dir>` shows a person what the team's directed models currently believe *about them*, flagging the beliefs that have gone **stale** — the layer that drives how someone gets treated, made legible to the person it's about. Attribution is coarsened by default (`--by-observer` to attribute), and there's no model call beyond the distill.
+
+**The Linear + Claude Code loop closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a `.ettle-room` pointer in the repo, and (with `--install-hooks`) merges the four Claude Code hooks into your global settings.
+
+After that, four things happen on their own. **Capture** distills each of your sessions locally and publishes *your* atoms to the room (`SessionEnd`/`Stop`). **Pull** ingests replies a teammate posts in Linear's native agent UI, distilled locally under their identity, so someone who never installs ettle still has a voice in reconcile. **Horizon injection** puts the tangles that involve *you* into your next session at `SessionStart` — instantly, from a cache, with a background refresh, because reconcile is a model call and session start has to stay free. **Escalation** (`ettle escalate`, or the `ettle_escalate` MCP tool) posts a firm cross-person tangle onto the room's one dedicated coordination issue: opt-in, never onto your feature tickets, and only ever a bridge to a teammate who isn't running ettle.
+
+The hooks name no room and read the project pointer, so one global config serves every repo on the machine and stays a silent no-op in the ones that aren't ettle projects. Setup is [docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md); why "put the tangle in the ticket" is the obvious design and the wrong default is [docs/SURFACES.md](docs/SURFACES.md). Two limits: the receive path **polls** with a cursor rather than taking a webhook (nothing is hosted, by choice), and escalation needs an OAuth app-actor token that takes about ten minutes to mint.
+
+What's **deliberately unbuilt** is the part that needs the most care: the longitudinal calibration loop that keeps each model correctable, and the continuous live-emit path (gated on the anti-runaway requirements in [SCALING.md](docs/SCALING.md)). The detector — the fast people-modeling half — runs. The correction half doesn't, so any safety claim leaning on calibration is borrowing against unbuilt code; see [CONCEPT.md](docs/CONCEPT.md). The concept demos are local simulations on cheap models with agents standing in for the humans, there to show the payoff shape. They're illustrations.
 
 ## Quickstart
 
@@ -152,13 +163,13 @@ of their own. (Spell it out as `ettle init github://acme/widgets` if you want, o
 a third segment to run several rooms in one repo.) It needs no new secret — the token
 `gh auth login` already stored is enough.
 
-It **refuses a public repository outright** rather than warning. A public repo's
+It **refuses a public repository outright**, with no override flag. A public repo's
 Discussions are readable by anyone on the internet, and the bus carries everyone's
-intents, commitments, and assumptions; a private repo's Discussion is
-collaborator-scoped, comparable to a Linear workspace, while a public one is a
-categorically different audience — so there is no override flag. Two things Linear
-has that GitHub doesn't yet: `ettle pull` (a non-adopter's replies, read from
-Linear's agent UI) and `ettle escalate`.
+intents, commitments, and assumptions. A private repo's Discussion is
+collaborator-scoped, roughly a Linear workspace; a public one is a different
+audience entirely, and that's not a warning-and-continue situation. Two things
+Linear has that GitHub doesn't yet: `ettle pull` (a non-adopter's replies, read
+from Linear's agent UI) and `ettle escalate`.
 
 Neither? `ettle room init <git-url>` uses a plain private git repo as the bus, and
 everything above works the same.
@@ -215,20 +226,21 @@ claude mcp add ettle -- ettle mcp --room standup-room
 go run ./cmd/ettle standup --me alice --transport file:///path/to/shared testdata/standup/*.md
 ```
 
-Each note file is one participant (an optional `name:` / `role:` header, then
-their working notes). A note can also add a `private:` header listing
+Each note file is one participant: an optional `name:` / `role:` header, then
+their working notes. A note can also carry a `private:` header listing
 comma-separated phrases that must never cross the boundary
-(`private: relocating to Lisbon, comp adjustment`) — they are stripped from that
+(`private: relocating to Lisbon, comp adjustment`); those are stripped from that
 person's atoms by both a prompt suppress-list and a deterministic redaction (see
-[SECURITY.md](SECURITY.md)). `--me` shows only what's relevant to that person;
-drop it for the full team view. Cost is ~2N+3 model calls for N participants (cheap on
-Haiku); `--samples K` re-runs the reconcile passes K times and keeps only tangles
-that recur across a majority (the detector is stochastic — voting turns that into
-a confidence signal, at +2 calls per extra sample). It's **useful at N=1**: a
-single person's notes still get a self-assumption pass (an earlier assumption
-their own later work has quietly made false). It runs with **no infrastructure**
-— the transport defaults to in-process and contested tangles fall back to an inline
-either/or.
+[SECURITY.md](SECURITY.md)). `--me` filters to one person, and dropping it gives
+the full team view.
+
+Cost is ~2N+3 model calls for N participants, cheap on Haiku. `--samples K`
+re-runs the reconcile passes K times and keeps only tangles that recur across a
+majority — the detector is stochastic, and voting turns that into a confidence
+signal at +2 calls per extra sample. At N=1 a single person's notes still get a
+self-assumption pass, catching an earlier assumption their own later work has
+quietly made false. There's **no infrastructure to stand up**: the transport
+defaults to in-process, and contested tangles fall back to an inline either/or.
 
 **See [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) for exactly what it prints** on
 the bundled fixture — no key needed to read it.
@@ -285,17 +297,18 @@ before the meeting:
         ↳ as ivo frames it / as the other parties frame it
 ```
 
-Three things to notice: the **collision is caught before the standup** — across
-four sessions nobody had read, which is the point (reach and timing, not that a
-human couldn't eventually have spotted it); the simple conflicts are **FYI'd** while the
-genuine values choice (the freeze timeline) is **routed to a crux** and
-pre-staged as an either/or — friction in the right spot, not everywhere; and
-it's **useful at N=1** too — `ettle standup testdata/solo/dana.md` catches one
-person's own stale assumption. (The detector is stochastic, so wording and the
-exact tangle set shift run-to-run; a tangle resting only on an inference is surfaced
-as a *question* — "worth a question" — rather than asserted as fact.) Add
-`--show-atoms` to any run to see exactly what crosses the boundary (typed atoms,
-never the raw session).
+The **collision is caught before the standup**, across four sessions nobody had
+read. A human could have spotted it eventually; the claim is about reach and
+timing. The two simple conflicts are **FYI'd**, and the one genuine values choice
+— the freeze timeline — is **routed to a crux** and pre-staged as an either/or,
+which is what friction in the right spot looks like in practice. The same run at
+N=1 works: `ettle standup testdata/solo/dana.md` catches one person's own stale
+assumption.
+
+The detector is stochastic, so wording and the exact tangle set shift run to run,
+and a tangle resting only on an inference surfaces as a *question* rather than a
+fact. Add `--show-atoms` to any run to see exactly what crosses the boundary —
+typed atoms, never the raw session.
 
 Going distributed is opt-in behind the same seam — and the light path needs **no server at all**, just a private git repo. The git URL is the invite:
 
@@ -323,7 +336,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 ## Docs
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **start here:** a diagram of the whole flow and the three things that make it unintuitive.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **start here:** a diagram of the whole flow, and what makes it unintuitive.
 - [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) — real output on the bundled fixture (no key needed to read).
 - [docs/CONCEPT.md](docs/CONCEPT.md) — **the spine:** the premise, the three-layer model, surprise as metaperception error, the critical path, and the non-negotiable design invariants.
 - [docs/N1_WEDGE.md](docs/N1_WEDGE.md) — the first buildable behavior (the prior-decision guard) and its did-it-help signal.
@@ -341,7 +354,7 @@ go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 
 ## Relationship to sibling projects
 
-- **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** (their stated intent + the work they committed) into the same digest a note would be, so the public tool runs end-to-end on real reasoning-in-progress, not just hand-written notes (`ettle standup session.jsonl`). A richer per-person model (deeper L1 telemetry) can feed this layer from outside this repo; ettle is the multiplayer extension on top — the directed and collective layers, plus the actionable layer, that a single-user layer never had.
+- **the single-user layer (L1)** — ettle ships its own minimal L1: [`internal/capture`](internal/capture) distills a person's **live Claude Code session transcript** — their stated intent plus the work they committed — into the same digest a note would produce, so the tool runs end-to-end on real reasoning-in-progress (`ettle standup session.jsonl`). A richer per-person model can feed this layer from outside the repo. What ettle adds on top is the multiplayer half: the directed and collective layers, and the actionable one.
 - **the atom bus** — behind a transport seam, so it swaps freely. Default is zero-infra in-process (local runs/tests). For a distributed team the light path is **[leat](https://github.com/justinstimatze/leat)** — a private git repo used as an append-only, per-author-lane message bus (durable, cross-machine, identity-hardened, `git log` = the audit trail; a stdlib-only Go package owned by [mcp-dispatch](https://github.com/justinstimatze/mcp-dispatch), the canonical impl of a shared git-transport wire contract, which ettle consumes). A [NATS](https://nats.io) bus (TLS + auth, pub/sub, replay) is the heavier alternative behind `-tags nats`; other rails (Slack, Matrix, A2A) can drop in later.
 - **the human-legible side** — there is no shared human channel: each person's own agent surfaces the relevant tangle back to them, in-session, when helpful. You only ever see what your own agent judged relevant to you.
 - **a calibration-metric store** — typed agent memory with a longitudinal metric; the natural home for scoring how well each agent's model of each teammate stays calibrated over time.
