@@ -103,7 +103,8 @@ func runRoom(args []string) error {
   ettle room init <git-url>    start a room (creates + seeds it); the URL is the invite
   ettle room join <git-url>    join one on your machine        [--as <id>] [--name <room>]
   ettle room list              rooms this machine has joined
-  ettle room status <room>     who's here and what they're on (no key, no model call)
+  ettle room status [<room>]   who's here and what they're on (no key, no model call);
+                               no argument = this project's room. --watch 30s to tail it.
 
 the bus is a private git repo — no server. day-to-day: ettle standup --room <room> --me <you> notes.md`)
 	}
@@ -126,11 +127,44 @@ the bus is a private git repo — no server. day-to-day: ettle standup --room <r
 // no tangle detection and no model call. This is the L0 co-presence layer: useful
 // before any reconciliation, just "what is my crew's agents doing right now."
 func roomStatus(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: ettle room status <name>")
+	fs := flag.NewFlagSet("room status", flag.ContinueOnError)
+	watch := fs.Duration("watch", 0, "re-read every interval instead of printing once (e.g. --watch 30s) — the poor-man's tail; Ctrl-C to stop")
+	name, rest := liftURL(args)
+	if err := fs.Parse(rest); err != nil {
+		return err
 	}
-	name := args[0]
-	bus, err := roomBus(name)
+	if name == "" {
+		name = fs.Arg(0)
+	}
+	// Any transport, not just a leat room: with no argument this reads the project's
+	// own `.ettle-room`, so `ettle room status` inside a checkout just works.
+	room, transportName := splitRoomSpec(name)
+	room, transportName = applyRoomFile(room, transportName)
+	if room == "" && transportName == "" {
+		return fmt.Errorf("no room: run `ettle init` in this project, or name one — `ettle room status <name|linear://room|github://owner/repo>`")
+	}
+	label := transportName
+	if label == "" {
+		label = room
+	}
+
+	if *watch <= 0 {
+		return printRoomStatus(room, transportName, label)
+	}
+	for {
+		if err := printRoomStatus(room, transportName, label); err != nil {
+			// A transient read failure shouldn't end the tail — say so and keep going.
+			fmt.Fprintln(os.Stderr, "ettle:", err)
+		}
+		time.Sleep(*watch)
+	}
+}
+
+// printRoomStatus reads the bus once and renders the presence view. Opening and
+// closing the bus per tick keeps --watch honest about the room's current state
+// rather than reusing a connection that may have gone stale.
+func printRoomStatus(room, transportName, label string) error {
+	bus, err := selectBus(runConfig{room: room, transport: transportName})
 	if err != nil {
 		return err
 	}
@@ -144,6 +178,7 @@ func roomStatus(args []string) error {
 	if w, ok := bus.(interface{ Warnings() []string }); ok {
 		warnings = w.Warnings()
 	}
+	name := label
 	// NOTE: the leat bus reads via Collect, which drops identity spoofs SILENTLY
 	// (only Receive records warnings), so today this is effectively always empty —
 	// the spoof is still dropped (security holds), just not surfaced here. The

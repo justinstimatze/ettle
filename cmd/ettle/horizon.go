@@ -40,7 +40,8 @@ func runHorizon(args []string) error {
 	fs := flag.NewFlagSet("horizon", flag.ContinueOnError)
 	room := fs.String("room", "", "reconcile this leat room's horizon (created by `ettle room init|join`)")
 	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
-	me := fs.String("me", "", "surface only tangles involving this participant (default: the room's agent, else $USER); empty-after-fallback = whole team")
+	me := fs.String("me", "", "surface only tangles involving this participant (default: the room's agent, else the identity `ettle init` saved, else $USER)")
+	all := fs.Bool("all", false, "surface the WHOLE team's tangles instead of only yours — the unfiltered view. Needed because --me now falls back to your saved identity when unset, so passing it empty can no longer mean \"no filter\"")
 	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
 	samples := fs.Int("samples", 5, "independent reconcile samples to vote across; recurrence ranks tangles firm vs soft (1 disables voting)")
 	cache := fs.Bool("cache", false, "write the rendered horizon to the local cache instead of printing it (used by the hook's background refresh)")
@@ -57,6 +58,9 @@ func runHorizon(args []string) error {
 		return fmt.Errorf("no ANTHROPIC_API_KEY (set it in the environment or a .env file) — the reconcile runs locally")
 	}
 	who := captureIdentity(*me, *room, *transportName)
+	if *all {
+		who = "" // the reconcile's me-filter is skipped on an empty identity
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

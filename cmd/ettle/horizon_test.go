@@ -178,3 +178,16 @@ func TestDueForHorizonDebounces(t *testing.T) {
 		t.Fatal("a different identity should refresh independently")
 	}
 }
+
+func TestRenderHorizonBlockTeamView(t *testing.T) {
+	// --all resolves the identity to "" so the reconcile's me-filter is skipped;
+	// the block must then read as the team's view, not as a person's.
+	res := horizonResult{
+		firm:         []ettlemesh.Tangle{firmT("collision", "alice", "bob")},
+		participants: []string{"alice", "bob"},
+	}
+	got := renderHorizonBlock(res, "", time.Now().UTC())
+	if !strings.Contains(got, "for the team") {
+		t.Errorf("an empty identity should render as the team view:\n%s", got)
+	}
+}
