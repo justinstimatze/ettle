@@ -10,7 +10,7 @@ install.
 | `ANTHROPIC_API_KEY` | yes | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
 | `LINEAR_API_KEY` | yes | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |
 | `LINEAR_TEAM_ID` | first run only | Creating the room's project. Ignored once the project exists, so only the first person in a room needs it. |
-| `LINEAR_AGENT_TOKEN` | no | Escalation only — posting a knot onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. |
+| `LINEAR_AGENT_TOKEN` | no | Escalation only — posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. |
 
 Put them wherever your shell reads env vars, or in a `.env` beside the binary
 (`.env.example` lists all four). They are read once per command; nothing is stored.
@@ -46,7 +46,7 @@ curl -s https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" \
 This is the one that takes ten minutes, and it is worth knowing exactly what it is
 for before you spend them: **escalation only.** Without it everything else works —
 the bus, the horizon in your session, capture, pull. What you lose is `ettle escalate`
-and the `ettle_escalate` MCP tool, which post a knot onto the room's one coordination
+and the `ettle_escalate` MCP tool, which post a tangle onto the room's one coordination
 issue for teammates who never installed ettle. If everyone on the team runs ettle,
 you never need this token.
 
@@ -106,7 +106,7 @@ Worth knowing before you point this at a real workspace:
   participant** (`ettle/<name>`). This is the bus. It carries typed atoms only —
   never your raw notes.
 - **One issue per room**, titled `ettle coordination`, and only if you escalate.
-  Knots are posted there as agent activities. **Never onto your feature tickets** —
+  Tangles are posted there as agent activities. **Never onto your feature tickets** —
   that separation is a design commitment, not a default (`docs/SURFACES.md`).
 - **Nothing else.** No webhooks, no server, no background daemon. The receive path
   polls with a cursor; there is nothing hosted anywhere.

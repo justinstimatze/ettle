@@ -2,13 +2,32 @@
 
 ## Unreleased
 
-- **Muting was silently broken on every bus except Linear.** The per-room knot stores
+- **"knot" was back, 234 times — the word this project deliberately erased.**
+  `cbedf79` removed *knot* from the tree entirely in favour of **tangle**, alias and
+  changelog history included, on the reasoning that ettle has no users and the
+  cheapest moment to hold one vocabulary is before anyone reads two. Everything built
+  in this batch put it back: an `internal/knotstate` package, `PostKnot`,
+  `renderKnotBody`, the block injected into every session, the README, SURFACES.md.
+  Nothing caught it, because a renamed concept compiles perfectly under either name —
+  the only thing that breaks is the reader, silently, by wondering whether a knot and
+  a tangle are two different things. Renamed throughout (`internal/tanglestate`,
+  `escalatableTangles`, `renderTangleBody`, `postTangles`, `tanglePoster`,
+  `transport.PostTangle`), and the injected block reads "coordination tangles" again.
+- **`make ci` now runs a prose vocabulary gate**, because the above should not have
+  needed a human to notice it. `calque vocab-check` fails on a load-bearing compound
+  absent from `.calque/vocab-allowlist.txt`; the list is seeded from the tree as it
+  now reads, so the next dead word arriving is a build failure rather than a
+  conversation three weeks later. The target skips itself when calque is not
+  installed, so it never blocks a contributor without it. `.calque/README.md` says
+  what to do with a warning — add the slug only after reading it.
+
+- **Muting was silently broken on every bus except Linear.** The per-room tangle stores
   keyed off the *Linear room*, so on a `github://` or leat room the key fell through
   to a shared `"default"` bucket — every non-Linear room on the machine muting each
-  other's knots — and the injected SessionStart horizon skipped mute-suppression
+  other's tangles — and the injected SessionStart horizon skipped mute-suppression
   entirely because it was gated behind "is this Linear?". Since muting is the only
-  thing that stops a wrong knot re-surfacing every session, that made the
-  wrong-knot failure unfixable on exactly the bus a GitHub team uses. The stores now
+  thing that stops a wrong tangle re-surfacing every session, that made the
+  wrong-tangle failure unfixable on exactly the bus a GitHub team uses. The stores now
   key by the transport **spec**, so every room gets its own bucket and muting applies
   everywhere; escalation stays Linear-only, so `escalated` is still nil elsewhere and
   a non-Linear horizon shows no share tags. `mcpserver.Serve` takes the two keys
@@ -112,47 +131,47 @@
   tool.** The cached block `ettle horizon-hook` injects used to read as a note to a
   human. It now addresses its actual reader — the agent — as a standing instruction
   ("You are alice's ettle agent … when their work touches one, raise it; don't dump
-  the list"), and carries the same knot state as `ettle_horizon`: muted knots are
-  suppressed (with an honest count), and each un-shared cross-person knot is flagged
+  the list"), and carries the same tangle state as `ettle_horizon`: muted tangles are
+  suppressed (with an honest count), and each un-shared cross-person tangle is flagged
   `not yet shared` so the agent knows exactly which ones to offer escalating. Tags
   show only for a Linear room (escalation is Linear-only); a leat/in-proc horizon is
-  unchanged. Keyed through `internal/knotstate`, so the injected block, `ettle
+  unchanged. Keyed through `internal/tanglestate`, so the injected block, `ettle
   escalate`, and the MCP tools all agree on what's escalated and what's muted.
-- **MCP operator tools: drive escalation from inside a session, and make a knot go
+- **MCP operator tools: drive escalation from inside a session, and make a tangle go
   away when it's handled.** The agent (me) operates ettle through MCP tools, not by
   remembering CLI commands, so three things landed on the `ettle mcp` surface:
-  - **`ettle_escalate`** posts one knot (by the `key` from `ettle_horizon`) as a
+  - **`ettle_escalate`** posts one tangle (by the `key` from `ettle_horizon`) as a
     Linear elicitation on the room's coordination issue — so when I notice a
-    collision a teammate can't see, I offer it and, on yes, escalate that one knot
+    collision a teammate can't see, I offer it and, on yes, escalate that one tangle
     inline. Enabled only for a Linear room with `LINEAR_AGENT_TOKEN` set.
-  - **`ettle_horizon` tags each knot `escalated`** and **suppresses muted knots**
+  - **`ettle_horizon` tags each tangle `escalated`** and **suppresses muted tangles**
     (with an honest `muted` count), so I offer to escalate only what a non-adopter
     can't already see and stop re-raising what's resolved.
   - **`ettle_respond` now acts:** a `not_real` or `handled` verdict **mutes** the
-    knot so it stops re-surfacing and won't be escalated (the calibration loop that
+    tangle so it stops re-surfacing and won't be escalated (the calibration loop that
     consumes verdicts is still unbuilt — muting makes the verdict do something now).
-  A new shared `internal/knotstate` package keys a knot the same way everywhere and
-  holds the per-room escalated/muted sets, so a knot escalated by `ettle escalate`
+  A new shared `internal/tanglestate` package keys a tangle the same way everywhere and
+  holds the per-room escalated/muted sets, so a tangle escalated by `ettle escalate`
   (CLI) is recognized as escalated by `ettle_horizon` (MCP), and a mute from either
   side is honored by both. Verified: the tool is gated on the app token, the write
   path is the same live-proven `LinearAgentWriter`, and the handler/mute/suppress
   logic is unit-tested.
-- **`ettle escalate` — surface a coordination knot to a teammate who won't install
+- **`ettle escalate` — surface a coordination tangle to a teammate who won't install
   ettle, on Linear.** The emit half of the Linear agent path and the one command
   that writes *onto* Linear. It reconciles the room's atoms, takes the **firm
-  cross-person** knots (firm is the calibration gate — a knot below the recurrence
+  cross-person** tangles (firm is the calibration gate — a tangle below the recurrence
   bar never posts), and surfaces each **new** one as a native agent elicitation on
   the room's **single coordination issue** ("ettle coordination" in `ettle-<room>`),
   **never a feature ticket**. The teammate replies inline and `ettle pull` brings it
   back — the loop closes. Authenticates as the OAuth **app actor**
   (`LINEAR_AGENT_TOKEN`, Bearer; the member key can read agent activities but not
   post them — a new `bearer` auth mode on the Linear backend). Idempotent per room:
-  a knot already posted is skipped. **Opt-in and deliberate** — the default install
+  a tangle already posted is skipped. **Opt-in and deliberate** — the default install
   never posts; escalation is the move you make on purpose to reach a non-adopter
   (whisper-first — see [docs/SURFACES.md](docs/SURFACES.md)). Verified live: alice's
   Redis plan vs bob's stateless assumption reconciled to a firm collision and posted
   as an elicitation on the coordination issue; re-run was a no-op.
-- **Horizon injection: the knots relevant to you appear in your session at start,
+- **Horizon injection: the tangles relevant to you appear in your session at start,
   unprompted.** `ettle horizon --room <room> --me <you>` reconciles the atoms
   capture/pull already put on the bus into the coordination tangles involving you —
   no note files, just the live bus. `ettle horizon-hook` wires that to a Claude Code
@@ -187,7 +206,7 @@
   `linear://` standup's `Collect` (non-fatal, and cursor-bounded so a quiet pull is
   one cheap query returning nothing new), so nobody has to remember it; the
   standalone command is for explicit runs. Deliberately deferred: the *emit* half
-  (surfacing ettle's own knots as Linear elicitations, which needs the OAuth
+  (surfacing ettle's own tangles as Linear elicitations, which needs the OAuth
   app-actor token) and a hosted webhook relay — the receive path is member-key
   polling, no always-on server.
 - **`ettle pull-hook` + an example Claude Code hook config** so pull runs
@@ -261,7 +280,7 @@ before this tag gets that build, so this is the version to point a new coworker 
 The distributed release: ettle stopped being a single-host demo. A team can now
 join a room with one command over a private git repo, see who's present, and —
 new in this release — take part without an API key of their own. The core object
-was also renamed `knot` → `tangle`.
+was also renamed `tangle` → `tangle`.
 
 - **Client-side distillation — a teammate no longer needs an API key to take part.**
   `ettle_emit` now accepts already-typed `atoms` as an alternative to raw `notes`

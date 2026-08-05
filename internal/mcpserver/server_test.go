@@ -16,8 +16,8 @@ import (
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
-// TestMain isolates the per-room knotstate stores (escalated/muted) to a throwaway
-// config dir, so a test that mutes a knot via ettle_respond never writes the
+// TestMain isolates the per-room tanglestate stores (escalated/muted) to a throwaway
+// config dir, so a test that mutes a tangle via ettle_respond never writes the
 // developer's real ~/.config nor contaminates another test's horizon.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "ettle-mcp-test")
@@ -90,7 +90,7 @@ func (f *fakeEscalator) EnsureCoordinationIssue(_ context.Context, _, _ string) 
 func (f *fakeEscalator) OpenSession(_ context.Context, _ string) (string, error) {
 	return "sess-1", nil
 }
-func (f *fakeEscalator) PostKnot(_ context.Context, _, body string) (string, error) {
+func (f *fakeEscalator) PostTangle(_ context.Context, _, body string) (string, error) {
 	f.posted = append(f.posted, body)
 	return "act-1", nil
 }
@@ -110,7 +110,7 @@ func collisionServer(t *testing.T) *server {
 	return s
 }
 
-func TestEscalatePostsSurfacedKnotAndTagsItAfter(t *testing.T) {
+func TestEscalatePostsSurfacedTangleAndTagsItAfter(t *testing.T) {
 	s := collisionServer(t)
 	esc := &fakeEscalator{}
 	s.esc = esc
@@ -122,7 +122,7 @@ func TestEscalatePostsSurfacedKnotAndTagsItAfter(t *testing.T) {
 	}
 	key := ho.Firm[0].Key
 	if ho.Firm[0].Escalated {
-		t.Fatal("knot should not be tagged escalated before escalating")
+		t.Fatal("tangle should not be tagged escalated before escalating")
 	}
 
 	_, out, err := s.escalate(ctx, nil, escalateIn{Tangle: key})
@@ -133,10 +133,10 @@ func TestEscalatePostsSurfacedKnotAndTagsItAfter(t *testing.T) {
 		t.Fatalf("escalate didn't post: out=%+v ensured=%v posted=%d", out, esc.ensured, len(esc.posted))
 	}
 
-	// A subsequent horizon tags the same knot escalated, so the agent won't re-offer it.
+	// A subsequent horizon tags the same tangle escalated, so the agent won't re-offer it.
 	_, ho2, _ := s.horizon(ctx, nil, horizonIn{})
 	if len(ho2.Firm) != 1 || !ho2.Firm[0].Escalated {
-		t.Fatalf("knot should be tagged escalated after posting: %+v", ho2.Firm)
+		t.Fatalf("tangle should be tagged escalated after posting: %+v", ho2.Firm)
 	}
 }
 
@@ -167,10 +167,10 @@ func TestRespondHandledMutesAndHorizonSuppresses(t *testing.T) {
 	if _, _, err := s.respond(ctx, nil, respondIn{Me: "alice", Tangle: key, Verdict: "handled"}); err != nil {
 		t.Fatalf("respond: %v", err)
 	}
-	// After a handled verdict the knot is muted: gone from the horizon, counted honestly.
+	// After a handled verdict the tangle is muted: gone from the horizon, counted honestly.
 	_, ho2, _ := s.horizon(ctx, nil, horizonIn{})
 	if len(ho2.Firm) != 0 {
-		t.Fatalf("a handled knot should be suppressed, still see %+v", ho2.Firm)
+		t.Fatalf("a handled tangle should be suppressed, still see %+v", ho2.Firm)
 	}
 	if ho2.Muted != 1 {
 		t.Errorf("muted count should be 1, got %d", ho2.Muted)

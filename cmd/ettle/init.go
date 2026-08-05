@@ -40,7 +40,7 @@ type hookSpec struct {
 // doesn't run.
 func ettleHooks(linear bool) []hookSpec {
 	hooks := []hookSpec{
-		{"SessionStart", "", "ettle horizon-hook", "inject the knots relevant to you when a session opens"},
+		{"SessionStart", "", "ettle horizon-hook", "inject the tangles relevant to you when a session opens"},
 		{"SessionEnd", "", "ettle capture-hook", "distill this session and publish your atoms"},
 		{"Stop", "", "ettle capture-hook", "same, mid-session (debounced, so not every turn)"},
 	}
@@ -335,7 +335,7 @@ func envChecks() []check {
 		{ok: present("LINEAR_TEAM_ID"), required: false, name: "LINEAR_TEAM_ID",
 			what: "only needed the first time, to create the room's project; ignored once it exists"},
 		{ok: present("LINEAR_AGENT_TOKEN"), required: false, name: "LINEAR_AGENT_TOKEN",
-			what: "escalation only — posting a knot to the coordination issue for teammates who don't run ettle (OAuth app-actor token)"},
+			what: "escalation only — posting a tangle to the coordination issue for teammates who don't run ettle (OAuth app-actor token)"},
 	}
 }
 
@@ -641,7 +641,7 @@ func renderNextSteps(room, me string, ok bool) string {
 	b.WriteString("    claude mcp add ettle -- ettle mcp   # operate it from inside a session\n")
 	fmt.Fprintf(&b, "    tell a teammate:  ettle init %s\n", room)
 	b.WriteString("\n    With the hooks in, nothing else is a command you run: your sessions publish\n")
-	b.WriteString("    your atoms, teammates' Linear replies come in, and the knots that involve you\n")
+	b.WriteString("    your atoms, teammates' Linear replies come in, and the tangles that involve you\n")
 	b.WriteString("    surface at the start of your next session. Nothing is posted anywhere shared\n")
 	b.WriteString("    unless you escalate it on purpose.\n")
 	return b.String()

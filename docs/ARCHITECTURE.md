@@ -32,7 +32,7 @@ place so the two can't drift). This page is its reading guide.
   zero-infra in-process adapter runs the whole loop on one machine for testing;
   Slack / Matrix / A2A can drop in behind the same seam. The Linear rail plays
   three distinct roles — atom bus, non-adopter pull, opt-in escalation-emit — and
-  the whisper-first surface model (why a knot lands in your own session, not on a
+  the whisper-first surface model (why a tangle lands in your own session, not on a
   ticket) is written up in [SURFACES.md](SURFACES.md).
 - **The L2 node is the directed-model layer.** Between the bus and the reconcile,
   each agent holds a per-pair model of every teammate (Alice-of-Bob, asymmetric),

@@ -2,7 +2,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 GOFMT_DIRS := cmd internal
 
-.PHONY: build build-nats vet test install fmt fmt-check ci hooks
+.PHONY: build build-nats vet test install fmt fmt-check vocab ci hooks
 
 build:                       ## default build (in-process transport, no extra deps)
 	go build $(LDFLAGS) ./...
@@ -25,7 +25,14 @@ fmt-check:                   ## fail if anything needs gofmt (exactly what CI en
 	@out="$$(gofmt -l $(GOFMT_DIRS))"; \
 	if [ -n "$$out" ]; then echo "gofmt needed (run: make fmt):"; echo "$$out"; exit 1; fi
 
-ci: fmt-check                ## the FULL gate CI runs — run before pushing (CI runs this same target)
+vocab:                       ## prose vocabulary gate — catches a dead word creeping back (see .calque/)
+	@if command -v calque >/dev/null 2>&1; then \
+		calque vocab-check; \
+	else \
+		echo "calque not installed — skipping the prose vocabulary gate (github.com/justinstimatze/calque)"; \
+	fi
+
+ci: fmt-check vocab          ## the FULL gate CI runs — run before pushing (CI runs this same target)
 	go build ./...
 	go vet ./...
 	go test ./...

@@ -20,7 +20,7 @@ func TestEscalateKeyIsWordingIndependent(t *testing.T) {
 	}
 }
 
-func TestEscalatableKnotsFirmCrossPersonNew(t *testing.T) {
+func TestEscalatableTanglesFirmCrossPersonNew(t *testing.T) {
 	already := map[string]bool{escalateKey(firmT("collision", "alice", "bob")): true}
 	res := horizonResult{
 		firm: []ettlemesh.Tangle{
@@ -31,19 +31,19 @@ func TestEscalatableKnotsFirmCrossPersonNew(t *testing.T) {
 		soft: []ettlemesh.Tangle{firmT("collision", "dave", "eve")}, // soft is never escalated
 	}
 	muted := map[string]bool{escalateKey(firmT("duplication", "alice", "carol")): true} // muted → also skipped
-	got := escalatableKnots(res, already, muted)
+	got := escalatableTangles(res, already, muted)
 	if len(got) != 0 {
-		t.Fatalf("the only remaining firm cross-person knot is muted, so nothing should escalate, got %d", len(got))
+		t.Fatalf("the only remaining firm cross-person tangle is muted, so nothing should escalate, got %d", len(got))
 	}
-	// Without the mute, that knot escalates.
-	got = escalatableKnots(res, already, map[string]bool{})
+	// Without the mute, that tangle escalates.
+	got = escalatableTangles(res, already, map[string]bool{})
 	if len(got) != 1 || escalateKey(got[0]) != "duplication|alice+carol" {
-		t.Fatalf("want the one new cross-person firm knot, got %d", len(got))
+		t.Fatalf("want the one new cross-person firm tangle, got %d", len(got))
 	}
 }
 
-func TestRenderKnotBody(t *testing.T) {
-	body := renderKnotBody(firmT("collision", "alice", "bob"))
+func TestRenderTangleBody(t *testing.T) {
+	body := renderTangleBody(firmT("collision", "alice", "bob"))
 	for _, want := range []string{"collision", "alice, bob", "Reply here"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body missing %q:\n%s", want, body)
@@ -56,7 +56,7 @@ type fakePoster struct {
 	ensureRoom, ensureTeam string
 	opened                 []string
 	postedBodies           []string
-	failAt                 int // 1-based PostKnot call to fail; 0 = never
+	failAt                 int // 1-based PostTangle call to fail; 0 = never
 	n                      int
 }
 
@@ -68,7 +68,7 @@ func (f *fakePoster) OpenSession(_ context.Context, issueID string) (string, err
 	f.opened = append(f.opened, issueID)
 	return "sess-1", nil
 }
-func (f *fakePoster) PostKnot(_ context.Context, _ /*sid*/, body string) (string, error) {
+func (f *fakePoster) PostTangle(_ context.Context, _ /*sid*/, body string) (string, error) {
 	f.n++
 	if f.failAt > 0 && f.n == f.failAt {
 		return "", fmt.Errorf("boom")
@@ -77,10 +77,10 @@ func (f *fakePoster) PostKnot(_ context.Context, _ /*sid*/, body string) (string
 	return fmt.Sprintf("act-%d", f.n), nil
 }
 
-func TestPostKnotsEnsuresIssueOpensSessionPostsEach(t *testing.T) {
+func TestPostTanglesEnsuresIssueOpensSessionPostsEach(t *testing.T) {
 	f := &fakePoster{}
-	knots := []ettlemesh.Tangle{firmT("collision", "alice", "bob"), firmT("duplication", "alice", "carol")}
-	issueID, created, keys, err := postKnots(context.Background(), f, "myroom", "team-1", knots)
+	tangles := []ettlemesh.Tangle{firmT("collision", "alice", "bob"), firmT("duplication", "alice", "carol")}
+	issueID, created, keys, err := postTangles(context.Background(), f, "myroom", "team-1", tangles)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,15 +98,15 @@ func TestPostKnotsEnsuresIssueOpensSessionPostsEach(t *testing.T) {
 	}
 }
 
-func TestPostKnotsRecordsProgressOnPartialFailure(t *testing.T) {
+func TestPostTanglesRecordsProgressOnPartialFailure(t *testing.T) {
 	f := &fakePoster{failAt: 2}
-	knots := []ettlemesh.Tangle{firmT("collision", "alice", "bob"), firmT("duplication", "alice", "carol"), firmT("collision", "eve", "frank")}
-	_, _, keys, err := postKnots(context.Background(), f, "r", "team", knots)
+	tangles := []ettlemesh.Tangle{firmT("collision", "alice", "bob"), firmT("duplication", "alice", "carol"), firmT("collision", "eve", "frank")}
+	_, _, keys, err := postTangles(context.Background(), f, "r", "team", tangles)
 	if err == nil {
 		t.Fatal("expected the second post to fail")
 	}
 	if len(keys) != 1 {
-		t.Fatalf("only the first knot posted before the failure, want 1 key, got %d", len(keys))
+		t.Fatalf("only the first tangle posted before the failure, want 1 key, got %d", len(keys))
 	}
 	if keys[0] != "collision|alice+bob" {
 		t.Errorf("wrong first key %q", keys[0])

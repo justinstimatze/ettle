@@ -4,7 +4,7 @@ The point is that ettle is not a thing to remember. You install it, configure it
 once, and it works in every session without a command to run. Three hooks do that,
 and all are non-blocking — they never stall the agent:
 
-- **`ettle horizon-hook`** injects the coordination knots relevant to *you* into
+- **`ettle horizon-hook`** injects the coordination tangles relevant to *you* into
   the session at start — the SURFACE half. You see them unprompted; nothing is
   posted anywhere.
 - **`ettle capture-hook`** distills *this* session's own reasoning and publishes

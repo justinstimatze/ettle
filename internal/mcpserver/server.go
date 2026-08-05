@@ -30,7 +30,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
-	"github.com/justinstimatze/ettle/internal/knotstate"
+	"github.com/justinstimatze/ettle/internal/tanglestate"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
@@ -102,25 +102,25 @@ type server struct {
 	h      *horizon
 	labels labelSink // where ettle_respond writes verdicts; nil disables the tool
 
-	// stateKey names the room for the per-room knot stores (muted/escalated). It is
+	// stateKey names the room for the per-room tangle stores (muted/escalated). It is
 	// the full transport SPEC, not the Linear room, because muting has to work on
 	// every bus: keying it off the Linear room made a mute on a github:// or leat
 	// room land in a shared "default" bucket, so every non-Linear room on the machine
-	// muted each other's knots.
+	// muted each other's tangles.
 	stateKey string
 	// room is the Linear room this server escalates into (""=none/non-Linear).
 	room string
 	// team is the Linear team id, needed only to create the coordination issue the
 	// first time an escalation lands.
 	team string
-	// esc posts a knot as a Linear agent elicitation; nil disables ettle_escalate
+	// esc posts a tangle as a Linear agent elicitation; nil disables ettle_escalate
 	// (no app token, or not a Linear room). *transport.LinearAgentWriter satisfies it.
 	esc escalator
 
 	// lastSurfaced remembers the features of the tangles shown by the most recent
 	// horizon() call, keyed by tangleKey, so a later ettle_respond can join a verdict
 	// to the tangle's recurrence/tier (label enrichment). lastView remembers the full
-	// surfaced tangle so ettle_escalate can render a knot by key. Last horizon wins;
+	// surfaced tangle so ettle_escalate can render a tangle by key. Last horizon wins;
 	// guarded by mu because the tools can be called concurrently.
 	mu           sync.Mutex
 	lastSurfaced map[string]tangleFeat
@@ -132,7 +132,7 @@ type server struct {
 type escalator interface {
 	EnsureCoordinationIssue(ctx context.Context, room, teamID string) (issueID string, created bool, err error)
 	OpenSession(ctx context.Context, issueID string) (sessionID string, err error)
-	PostKnot(ctx context.Context, sessionID, body string) (activityID string, err error)
+	PostTangle(ctx context.Context, sessionID, body string) (activityID string, err error)
 }
 
 // tangleFeat is the calibration-relevant slice of a surfaced tangle: its kind, the
@@ -209,7 +209,7 @@ type tangleView struct {
 	// independent) so a human can answer it via ettle_respond — the label-capture
 	// channel (stage 0c-2). Same key across horizon calls = the same tangle recurring.
 	Key string `json:"key"`
-	// Escalated is true when this knot has already been posted to the room's Linear
+	// Escalated is true when this tangle has already been posted to the room's Linear
 	// coordination issue (ettle_escalate / `ettle escalate`), so the agent offers to
 	// escalate only what a non-adopter can't already see.
 	Escalated bool `json:"escalated,omitempty"`
@@ -226,9 +226,9 @@ func toTangleView(k ettlemesh.Tangle) tangleView {
 }
 
 // tangleKey is the wording-independent identity of a coordination problem, shared
-// with the CLI (escalate) via knotstate so a knot is the same knot on both surfaces.
+// with the CLI (escalate) via tanglestate so a tangle is the same tangle on both surfaces.
 func tangleKey(kind string, parties []string) string {
-	return knotstate.Key(kind, parties)
+	return tanglestate.Key(kind, parties)
 }
 
 func partiesInclude(parties []string, me string) bool {
@@ -348,7 +348,7 @@ type horizonOut struct {
 	FloorHeld int `json:"floor_held,omitempty"`
 	// Muted: how many tangles were suppressed because the human marked them
 	// handled/not-real via ettle_respond — kept as a count so a horizon that is clear
-	// only because knots were muted stays honest.
+	// only because tangles were muted stays honest.
 	Muted int `json:"muted,omitempty"`
 }
 
@@ -387,17 +387,17 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if err != nil {
 		return nil, horizonOut{}, err
 	}
-	// Per-room knot state, shared with the CLI: muted knots the human has resolved are
-	// suppressed (not re-surfaced); escalated knots are tagged so the agent offers to
+	// Per-room tangle state, shared with the CLI: muted tangles the human has resolved are
+	// suppressed (not re-surfaced); escalated tangles are tagged so the agent offers to
 	// escalate only what a non-adopter can't already see. A store read error is
 	// non-fatal — degrade to "nothing muted / nothing escalated" rather than fail the
 	// horizon.
-	muted, _ := knotstate.Load(knotstate.Muted, s.stateKey)
-	escalated, _ := knotstate.Load(knotstate.Escalated, s.stateKey)
+	muted, _ := tanglestate.Load(tanglestate.Muted, s.stateKey)
+	escalated, _ := tanglestate.Load(tanglestate.Escalated, s.stateKey)
 
 	// Remember exactly what we surface (firm AND soft are both shown, so both are
 	// labelable) so a later ettle_respond can join its verdict to the tangle's
-	// recurrence, and ettle_escalate can render a knot by key. The coupling-suppressed
+	// recurrence, and ettle_escalate can render a tangle by key. The coupling-suppressed
 	// and floor-dropped tangles are not surfaced, so they are correctly absent here.
 	feats := map[string]tangleFeat{}
 	views := map[string]tangleView{}
@@ -602,13 +602,13 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 	if err := s.labels.record(lbl); err != nil {
 		return nil, respondOut{}, fmt.Errorf("record label: %w", err)
 	}
-	// A "not_real" (false alarm) or "handled" (resolved) verdict MUTES the knot so
+	// A "not_real" (false alarm) or "handled" (resolved) verdict MUTES the tangle so
 	// horizon stops re-surfacing it and escalate won't post it — the label loop that
 	// consumes verdicts is still unbuilt, but muting makes the verdict act now.
 	// "real" leaves it surfaced (a genuine open conflict the human should keep seeing).
 	muted := ""
 	if v == "not_real" || v == "handled" {
-		if err := knotstate.Add(knotstate.Muted, s.stateKey, key); err != nil {
+		if err := tanglestate.Add(tanglestate.Muted, s.stateKey, key); err != nil {
 			return nil, respondOut{}, fmt.Errorf("mute %s: %w", key, err)
 		}
 		muted = " (muted — it won't resurface)"
@@ -617,10 +617,10 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 		respondOut{Recorded: true, Key: key, Verdict: v}, nil
 }
 
-// --- ettle_escalate (surface a knot to a non-adopter on Linear) ---
+// --- ettle_escalate (surface a tangle to a non-adopter on Linear) ---
 
 type escalateIn struct {
-	Tangle string `json:"tangle" jsonschema:"the tangle key (from ettle_horizon) to escalate — post this ONE coordination knot to the room's Linear coordination issue for a teammate who doesn't run ettle"`
+	Tangle string `json:"tangle" jsonschema:"the tangle key (from ettle_horizon) to escalate — post this ONE coordination tangle to the room's Linear coordination issue for a teammate who doesn't run ettle"`
 }
 
 type escalateOut struct {
@@ -629,10 +629,10 @@ type escalateOut struct {
 	IssueCreated bool   `json:"issue_created,omitempty"`
 }
 
-// escalate posts one surfaced knot as a native Linear agent elicitation on the
+// escalate posts one surfaced tangle as a native Linear agent elicitation on the
 // room's single coordination issue, so a teammate who never installed ettle sees it
-// and can reply. Deliberate and per-knot: the agent offers, the human says yes, this
-// runs. It renders the knot the LAST ettle_horizon surfaced (call horizon first).
+// and can reply. Deliberate and per-tangle: the agent offers, the human says yes, this
+// runs. It renders the tangle the LAST ettle_horizon surfaced (call horizon first).
 func (s *server) escalate(ctx context.Context, _ *mcp.CallToolRequest, in escalateIn) (*mcp.CallToolResult, escalateOut, error) {
 	if s.esc == nil {
 		return nil, escalateOut{}, fmt.Errorf("escalation is not configured on this server (needs LINEAR_AGENT_TOKEN and a Linear room)")
@@ -653,10 +653,10 @@ func (s *server) escalate(ctx context.Context, _ *mcp.CallToolRequest, in escala
 	if err != nil {
 		return nil, escalateOut{}, fmt.Errorf("open agent session: %w", err)
 	}
-	if _, err := s.esc.PostKnot(ctx, sid, escalateBody(view)); err != nil {
-		return nil, escalateOut{}, fmt.Errorf("post knot: %w", err)
+	if _, err := s.esc.PostTangle(ctx, sid, escalateBody(view)); err != nil {
+		return nil, escalateOut{}, fmt.Errorf("post tangle: %w", err)
 	}
-	if err := knotstate.Add(knotstate.Escalated, s.stateKey, key); err != nil {
+	if err := tanglestate.Add(tanglestate.Escalated, s.stateKey, key); err != nil {
 		return nil, escalateOut{}, fmt.Errorf("record escalated: %w", err)
 	}
 	return text(fmt.Sprintf("escalated %s to room %q's coordination issue.", key, s.room)),
@@ -717,12 +717,12 @@ func newMCPServer(s *server, version string) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_respond",
-		Description: "Record YOUR human's verdict on a cross-person tangle from ettle_horizon — real, not_real, or handled. Pass the tangle's `key`. `not_real` (false alarm) and `handled` (resolved) MUTE the knot so it stops re-surfacing and won't be escalated; `real` keeps it on the horizon. It captures the verdict as the calibration ground-truth; it does not bind or decide the work itself.",
+		Description: "Record YOUR human's verdict on a cross-person tangle from ettle_horizon — real, not_real, or handled. Pass the tangle's `key`. `not_real` (false alarm) and `handled` (resolved) MUTE the tangle so it stops re-surfacing and won't be escalated; `real` keeps it on the horizon. It captures the verdict as the calibration ground-truth; it does not bind or decide the work itself.",
 	}, s.respond)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "ettle_escalate",
-		Description: "Surface ONE coordination knot to a teammate who doesn't run ettle, by posting it as a native elicitation on the room's Linear coordination issue (never a feature ticket). Pass the tangle `key` from ettle_horizon — prefer knots shown escalated:false. Deliberate: offer it to your human first, then call this on yes. The teammate's reply comes back via `ettle pull`.",
+		Description: "Surface ONE coordination tangle to a teammate who doesn't run ettle, by posting it as a native elicitation on the room's Linear coordination issue (never a feature ticket). Pass the tangle `key` from ettle_horizon — prefer tangles shown escalated:false. Deliberate: offer it to your human first, then call this on yes. The teammate's reply comes back via `ettle pull`.",
 	}, s.escalate)
 
 	return srv

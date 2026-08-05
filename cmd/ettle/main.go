@@ -114,7 +114,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  ettle mcp                          # serve the coordination engine over MCP (stdio): ettle_emit / ettle_horizon / ettle_self_check")
 		fmt.Fprintln(os.Stderr, "  ettle pull --room <room>           # ingest teammates' Linear agent-UI replies into the room (needs LINEAR_API_KEY)")
 		fmt.Fprintln(os.Stderr, "  ettle horizon --room <room> --me <you>  # reconcile the room's atoms into the tangles relevant to you (no note files)")
-		fmt.Fprintln(os.Stderr, "  ettle escalate --room <room>       # post the room's firm cross-person knots to its coordination issue (needs LINEAR_AGENT_TOKEN)")
+		fmt.Fprintln(os.Stderr, "  ettle escalate --room <room>       # post the room's firm cross-person tangles to its coordination issue (needs LINEAR_AGENT_TOKEN)")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)
 	}
@@ -1796,7 +1796,7 @@ func runMCP(args []string) error {
 		return err
 	}
 
-	// Two different keys. The knot stores (muted/escalated) key by the transport SPEC,
+	// Two different keys. The tangle stores (muted/escalated) key by the transport SPEC,
 	// because muting has to work on every bus. Escalation posts onto Linear, so it
 	// only applies when the bus IS Linear and takes the bare room name.
 	stateKey := roomStateKey(*room, *transportName)

@@ -2,7 +2,7 @@
 
 This is the reading guide for *how a person actually touches ettle*: what they
 install, what they configure once, and which of ettle's outputs land in which
-place. It exists because "put the knot in Linear" is the obvious design and the
+place. It exists because "put the tangle in Linear" is the obvious design and the
 wrong default, and the reasons are easy to lose.
 
 The governing requirement, stated the way a user states it: **install one thing,
@@ -12,7 +12,7 @@ measured against that.
 
 ## Whisper-first: the default surface is the person's own session
 
-A detected coordination knot surfaces **privately, to the person it's relevant
+A detected coordination tangle surfaces **privately, to the person it's relevant
 to, inside their own Claude Code session** — the horizon they already hold. It
 does not post anywhere shared by default. Alice sees "heads up, this contradicts
 Bob's stateless note" in her session; *she* decides whether it's worth raising
@@ -49,15 +49,15 @@ pollutes my tickets" sound true when it isn't.
    **Built** (member key only — reading agent activities needs no OAuth app
    token). See `hooks/README.md`.
 
-3. **Escalation-emit — surfacing a knot onto an issue.** The *only* role that
+3. **Escalation-emit — surfacing a tangle onto an issue.** The *only* role that
    writes onto Linear, and therefore the only one the pollution worry is about.
    It is an **opt-in escalation**, not a default: `ettle escalate --room <room>`
    is the deliberate move you make to reach a teammate who isn't running ettle.
    Two guards keep it from being noise — it posts to **one dedicated coordination
    issue per room ("ettle coordination" in `ettle-<room>`), never onto feature
-   tickets**, and it emits only **firm cross-person knots** (firm *is* the
-   calibration gate — a knot below the recurrence bar never posts). Idempotent: a
-   knot already posted is skipped. **Built** (`ettle escalate`,
+   tickets**, and it emits only **firm cross-person tangles** (firm *is* the
+   calibration gate — a tangle below the recurrence bar never posts). Idempotent: a
+   tangle already posted is skipped. **Built** (`ettle escalate`,
    `internal/transport/linearescalate.go`): it authenticates as the OAuth
    **app actor** (`LINEAR_AGENT_TOKEN`, Bearer — the member key can *read* agent
    activities but not post them), does `agentSessionCreateOnIssue` +
@@ -123,7 +123,7 @@ Three hooks close the instruction-free loop:
 
 | Hook | Job | Status |
 |------|-----|--------|
-| **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant knots the instant a session opens | **built** (`ettle horizon-hook` injects a cached reconcile; `ettle pull-hook` pulls) |
+| **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant tangles the instant a session opens | **built** (`ettle horizon-hook` injects a cached reconcile; `ettle pull-hook` pulls) |
 | **PostToolUse(`mcp__linear`)** | pull, so touching Linear catches you up | **built** (`ettle pull-hook`, `hooks/settings.example.json`) |
 | **SessionEnd / Stop** | distill *this* session's transcript into the person's own atoms and publish them to the bus | **built** (`ettle capture-hook` → `ettle capture --room`) |
 
@@ -147,15 +147,15 @@ an empty session never wipes your existing atoms off the bus.
 
 With capture, pull, and horizon-injection all wired, the loop closes with no
 command to run: your sessions put you on the bus (capture), teammates come in over
-Linear (pull), and the knots relevant to you appear in your next session
+Linear (pull), and the tangles relevant to you appear in your next session
 unprompted (horizon-injection). Because reconcile is a model call, the injection
 never runs it inline — `ettle horizon-hook` injects a *cached* reconcile instantly
 at SessionStart and spawns a detached refresh for next time, so session start stays
 free and instant while the horizon stays warm. The injected block is written as an
-instruction to its actual reader — the agent — and carries the same knot state as the
-MCP `ettle_horizon`: muted knots suppressed, un-shared cross-person knots flagged so
+instruction to its actual reader — the agent — and carries the same tangle state as the
+MCP `ettle_horizon`: muted tangles suppressed, un-shared cross-person tangles flagged so
 the agent offers to escalate exactly what a teammate can't see. Whisper-first holds
-end to end: the knot surfaces privately in your own session, and nothing is posted
+end to end: the tangle surfaces privately in your own session, and nothing is posted
 anywhere.
 
 ## Operating it from inside a session (the MCP tools)
@@ -166,25 +166,25 @@ them. The *active* layer is the agent operating ettle mid-session through MCP to
 reliably than it remembers to shell out to a CLI. Three affordances make the agent an
 effective operator rather than a forgetful one:
 
-- **`ettle_horizon`** tags each surfaced knot `escalated: true/false` and suppresses
+- **`ettle_horizon`** tags each surfaced tangle `escalated: true/false` and suppresses
   the ones the human has muted (with an honest `muted` count) — so the agent offers
   to escalate only what a teammate can't already see, and stops re-raising what's
   resolved.
-- **`ettle_escalate`** posts one knot (by `key`) to the coordination issue — the
-  agent offers it to the human, and on yes escalates that knot inline, no CLI recall.
-- **`ettle_respond`** with `not_real`/`handled` **mutes** the knot so it stops
-  re-surfacing. That's what lets the agent make a knot go away when the human says
+- **`ettle_escalate`** posts one tangle (by `key`) to the coordination issue — the
+  agent offers it to the human, and on yes escalates that tangle inline, no CLI recall.
+- **`ettle_respond`** with `not_real`/`handled` **mutes** the tangle so it stops
+  re-surfacing. That's what lets the agent make a tangle go away when the human says
   it's settled, instead of nagging about it every session.
 
-The shared `internal/knotstate` package is why these compose with the CLI: it keys a
-knot the same way and holds the per-room escalated/muted sets, so an escalation or a
+The shared `internal/tanglestate` package is why these compose with the CLI: it keys a
+tangle the same way and holds the per-room escalated/muted sets, so an escalation or a
 mute from either surface is honored by both.
 
 ## What this commits us to (and what it defers)
 
 - **Default install never posts to an issue.** Whisper + bus only.
 - **Escalation-emit is opt-in and lands on a dedicated coordination issue**, gated
-  to firm cross-person knots — built (`ettle escalate`), and only ever the bridge to
+  to firm cross-person tangles — built (`ettle escalate`), and only ever the bridge to
   a teammate who won't install ettle. The default install still never posts.
 - **No auto-resolution, ever** — a named invariant, not a roadmap item.
 - **Consent-first holds:** the non-adopter participates from outside via Linear

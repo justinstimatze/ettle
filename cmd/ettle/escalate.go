@@ -12,38 +12,38 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
-	"github.com/justinstimatze/ettle/internal/knotstate"
+	"github.com/justinstimatze/ettle/internal/tanglestate"
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
 // `ettle escalate` is the EMIT half of the Linear agent path and the one path that
 // writes ONTO Linear — the opt-in escalation to reach a teammate who won't install
-// ettle. It reconciles the room's atoms, takes the FIRM cross-person knots (firm IS
-// the calibration gate; a knot below the recurrence bar never posts), and surfaces
+// ettle. It reconciles the room's atoms, takes the FIRM cross-person tangles (firm IS
+// the calibration gate; a tangle below the recurrence bar never posts), and surfaces
 // each NEW one as a native agent elicitation on the room's single coordination issue
-// — never a feature ticket. Idempotent: a knot already posted is skipped. Whisper-
+// — never a feature ticket. Idempotent: a tangle already posted is skipped. Whisper-
 // first means this is deliberate, not automatic; the default install never posts
 // (see docs/SURFACES.md). Reply flow closes via `ettle pull`.
 
-// knotPoster is the slice of LinearAgentWriter escalate needs, factored so the
+// tanglePoster is the slice of LinearAgentWriter escalate needs, factored so the
 // posting orchestration is tested with a fake and no network / app token.
-type knotPoster interface {
+type tanglePoster interface {
 	EnsureCoordinationIssue(ctx context.Context, room, teamID string) (issueID string, created bool, err error)
 	OpenSession(ctx context.Context, issueID string) (sessionID string, err error)
-	PostKnot(ctx context.Context, sessionID, body string) (activityID string, err error)
+	PostTangle(ctx context.Context, sessionID, body string) (activityID string, err error)
 }
 
-// escalateKey is the wording-independent identity of a coordination knot, shared
-// with the MCP server so a knot escalated here is recognized there (and vice versa).
+// escalateKey is the wording-independent identity of a coordination tangle, shared
+// with the MCP server so a tangle escalated here is recognized there (and vice versa).
 func escalateKey(k ettlemesh.Tangle) string {
-	return knotstate.Key(k.Kind, k.Parties)
+	return tanglestate.Key(k.Kind, k.Parties)
 }
 
-// escalatableKnots picks what to post: FIRM (the calibration gate) and cross-person
+// escalatableTangles picks what to post: FIRM (the calibration gate) and cross-person
 // (an escalation is inherently between people — a self-tangle is your own drift, not
 // something to raise with a teammate) and neither already emitted NOR muted (the
 // human marked it handled). Pure, so it's the unit-tested core of the decision.
-func escalatableKnots(res horizonResult, already, muted map[string]bool) []ettlemesh.Tangle {
+func escalatableTangles(res horizonResult, already, muted map[string]bool) []ettlemesh.Tangle {
 	var out []ettlemesh.Tangle
 	for _, k := range res.firm {
 		if !ettlemesh.MultiPerson(k.Parties) {
@@ -58,10 +58,10 @@ func escalatableKnots(res horizonResult, already, muted map[string]bool) []ettle
 	return out
 }
 
-// renderKnotBody is the elicitation text a teammate sees: what the knot is, who it's
+// renderTangleBody is the elicitation text a teammate sees: what the tangle is, who it's
 // between, and how to respond. Framed as a question to confirm — humans stay the
 // deciders; the mesh never asserts a cross-person conflict as fact.
-func renderKnotBody(k ettlemesh.Tangle) string {
+func renderTangleBody(k ettlemesh.Tangle) string {
 	parties := strings.Join(k.Parties, ", ")
 	var b strings.Builder
 	about := strings.TrimSpace(k.About)
@@ -78,11 +78,11 @@ func renderKnotBody(k ettlemesh.Tangle) string {
 	return strings.TrimSpace(b.String())
 }
 
-// postKnots runs the write orchestration against a knotPoster: ensure the one
-// coordination issue, open a session, post each knot. Returns the keys actually
+// postTangles runs the write orchestration against a tanglePoster: ensure the one
+// coordination issue, open a session, post each tangle. Returns the keys actually
 // posted (in order) so the caller records only those as emitted — a mid-run failure
 // still persists the progress, so a retry doesn't repost.
-func postKnots(ctx context.Context, w knotPoster, room, teamID string, knots []ettlemesh.Tangle) (issueID string, created bool, postedKeys []string, err error) {
+func postTangles(ctx context.Context, w tanglePoster, room, teamID string, tangles []ettlemesh.Tangle) (issueID string, created bool, postedKeys []string, err error) {
 	issueID, created, err = w.EnsureCoordinationIssue(ctx, room, teamID)
 	if err != nil {
 		return "", false, nil, err
@@ -91,8 +91,8 @@ func postKnots(ctx context.Context, w knotPoster, room, teamID string, knots []e
 	if err != nil {
 		return issueID, created, nil, err
 	}
-	for _, k := range knots {
-		if _, perr := w.PostKnot(ctx, sid, renderKnotBody(k)); perr != nil {
+	for _, k := range tangles {
+		if _, perr := w.PostTangle(ctx, sid, renderTangleBody(k)); perr != nil {
 			return issueID, created, postedKeys, fmt.Errorf("post %q: %w", escalateKey(k), perr)
 		}
 		postedKeys = append(postedKeys, escalateKey(k))
@@ -100,31 +100,31 @@ func postKnots(ctx context.Context, w knotPoster, room, teamID string, knots []e
 	return issueID, created, postedKeys, nil
 }
 
-// loadEmitted / saveEmitted are the per-room escalated-knot store (idempotency),
-// backed by the shared knotstate package so the MCP server reads the same set. The
+// loadEmitted / saveEmitted are the per-room escalated-tangle store (idempotency),
+// backed by the shared tanglestate package so the MCP server reads the same set. The
 // store keys by the transport SPEC, not the bare room, so every bus gets its own
 // bucket — hence the linear:// prefix here.
 func loadEmitted(room string) (map[string]bool, error) {
-	return knotstate.Load(knotstate.Escalated, "linear://"+room)
+	return tanglestate.Load(tanglestate.Escalated, "linear://"+room)
 }
 
 func saveEmitted(room string, set map[string]bool) error {
-	return knotstate.Save(knotstate.Escalated, "linear://"+room, set)
+	return tanglestate.Save(tanglestate.Escalated, "linear://"+room, set)
 }
 
 // runEscalate is `ettle escalate --room <room>`.
 func runEscalate(args []string) error {
 	fs := flag.NewFlagSet("escalate", flag.ContinueOnError)
-	room := fs.String("room", "", "the Linear room whose firm knots to escalate (maps to project ettle-<room>)")
+	room := fs.String("room", "", "the Linear room whose firm tangles to escalate (maps to project ettle-<room>)")
 	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
-	samples := fs.Int("samples", 5, "reconcile samples to vote across; only firm knots (majority recurrence) are escalated")
+	samples := fs.Int("samples", 5, "reconcile samples to vote across; only firm tangles (majority recurrence) are escalated")
 	team := fs.String("team", strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID")), "Linear team id, to create the coordination issue the first time (default LINEAR_TEAM_ID)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	*room = linearRoomFor(*room)
 	if *room == "" {
-		return fmt.Errorf("no Linear room: run `ettle init <room>` in this project, or pass --room   (escalate posts the room's firm cross-person knots to its one coordination issue, for teammates who don't run ettle)")
+		return fmt.Errorf("no Linear room: run `ettle init <room>` in this project, or pass --room   (escalate posts the room's firm cross-person tangles to its one coordination issue, for teammates who don't run ettle)")
 	}
 	key := apiKey()
 	if key == "" {
@@ -150,7 +150,7 @@ func runEscalate(args []string) error {
 	}
 	defer bus.Close()
 
-	res, err := reconcileHorizon(ctx, det, bus, "", *samples) // whole-team firm knots
+	res, err := reconcileHorizon(ctx, det, bus, "", *samples) // whole-team firm tangles
 	if err != nil {
 		return err
 	}
@@ -158,18 +158,18 @@ func runEscalate(args []string) error {
 	if err != nil {
 		return err
 	}
-	muted, err := knotstate.Load(knotstate.Muted, "linear://"+*room)
+	muted, err := tanglestate.Load(tanglestate.Muted, "linear://"+*room)
 	if err != nil {
 		return err
 	}
-	knots := escalatableKnots(res, already, muted)
-	if len(knots) == 0 {
-		fmt.Println("ettle: no new firm cross-person knots to escalate.")
+	tangles := escalatableTangles(res, already, muted)
+	if len(tangles) == 0 {
+		fmt.Println("ettle: no new firm cross-person tangles to escalate.")
 		return nil
 	}
 
 	writer := transport.NewLinearAgentWriter(appTok, buildVersion())
-	_, created, postedKeys, postErr := postKnots(ctx, writer, *room, *team, knots)
+	_, created, postedKeys, postErr := postTangles(ctx, writer, *room, *team, tangles)
 
 	// Record what actually posted before returning any error, so a partial run
 	// doesn't repost on retry.
@@ -185,7 +185,7 @@ func runEscalate(args []string) error {
 			note = " (created the coordination issue)"
 		}
 		fmt.Printf("ettle: escalated %s to room %q's coordination issue%s.\n",
-			plural(len(postedKeys), "knot", "knots"), *room, note)
+			plural(len(postedKeys), "tangle", "tangles"), *room, note)
 	}
 	return postErr
 }

@@ -1,11 +1,11 @@
-// Package knotstate holds the small per-room facts about coordination knots that
-// must be shared between the CLI and the MCP server: which knots have been
+// Package tanglestate holds the small per-room facts about coordination tangles that
+// must be shared between the CLI and the MCP server: which tangles have been
 // escalated to Linear, and which the human has muted (marked handled/not-real).
-// Both surfaces key a knot the SAME way — so a knot escalated by `ettle escalate`
-// is recognized as escalated by the MCP `ettle_horizon`, and a knot muted via
+// Both surfaces key a tangle the SAME way — so a tangle escalated by `ettle escalate`
+// is recognized as escalated by the MCP `ettle_horizon`, and a tangle muted via
 // `ettle_respond` is skipped by both horizon and escalate. Stored as a JSON string
 // array per room under <config>/ettle/<store>/<room>.json.
-package knotstate
+package tanglestate
 
 import (
 	"encoding/json"
@@ -20,14 +20,14 @@ import (
 
 // Store names (the on-disk subdir per kind of fact).
 const (
-	Escalated = "emit"  // knots posted to Linear (escalate's store)
-	Muted     = "muted" // knots the human marked handled/not-real — stop surfacing
+	Escalated = "emit"  // tangles posted to Linear (escalate's store)
+	Muted     = "muted" // tangles the human marked handled/not-real — stop surfacing
 )
 
-// Key is the canonical, wording-independent identity of a coordination knot: its
+// Key is the canonical, wording-independent identity of a coordination tangle: its
 // kind plus its distinct parties (lowercased, trimmed, sorted), joined "kind|a+b".
-// This is the ONE key function; every store and every tag goes through it so a knot
-// is the same knot across the CLI and the MCP server regardless of wording drift.
+// This is the ONE key function; every store and every tag goes through it so a tangle
+// is the same tangle across the CLI and the MCP server regardless of wording drift.
 func Key(kind string, parties []string) string {
 	ps := make([]string, 0, len(parties))
 	seen := map[string]bool{}
@@ -66,7 +66,7 @@ func Load(store, room string) (map[string]bool, error) {
 	}
 	var keys []string
 	if err := json.Unmarshal(data, &keys); err != nil {
-		return nil, fmt.Errorf("knotstate %s: corrupt: %w", p, err)
+		return nil, fmt.Errorf("tanglestate %s: corrupt: %w", p, err)
 	}
 	set := make(map[string]bool, len(keys))
 	for _, k := range keys {

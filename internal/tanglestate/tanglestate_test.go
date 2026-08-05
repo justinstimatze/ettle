@@ -1,4 +1,4 @@
-package knotstate
+package tanglestate
 
 import "testing"
 
@@ -6,7 +6,7 @@ func TestKeyIsWordingIndependent(t *testing.T) {
 	a := Key("collision", []string{"Bob", "Alice"})
 	b := Key("collision", []string{" alice ", "bob", "Alice"}) // reorder, case, dupes, spaces
 	if a != b {
-		t.Errorf("same knot should key the same: %q vs %q", a, b)
+		t.Errorf("same tangle should key the same: %q vs %q", a, b)
 	}
 	if a != "collision|alice+bob" {
 		t.Errorf("unexpected key %q", a)

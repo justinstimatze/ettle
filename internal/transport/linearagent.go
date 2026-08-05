@@ -13,7 +13,7 @@ package transport
 // Auth: this reads with a plain member API key (LINEAR_API_KEY) — the same
 // credential the doc bus uses. No OAuth app-actor token is needed to READ agent
 // activities (proven live against IWS-33, 2026-08-04). The EMIT half (surfacing
-// ettle's knots as elicitations) is a separate, app-token path and is not here.
+// ettle's tangles as elicitations) is a separate, app-token path and is not here.
 //
 // Incremental: callers keep a cursor (the createdAt of the newest activity they
 // have seen) and pass it as `since`; the query filters createdAt > since server
