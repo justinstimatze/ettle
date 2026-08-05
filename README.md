@@ -82,7 +82,7 @@ What's **deliberately unbuilt** is the part that needs the most care: the longit
 
 Requires **Go ≥ 1.25** and one Anthropic API key for the room. A teammate driving
 ettle from their own agent (Claude Code, Cursor) distills locally and needs no key
-at all — see the `ettle_distill` note at the end of this block.
+at all.
 
 Install the binary — it self-describes its version (`ettle version`):
 
@@ -144,26 +144,25 @@ ettle mute --wrong <kind> <people>    # ettle shouldn't have raised this — sto
 ettle escalate               # post the firm cross-person tangles where a non-adopter can see them
 ```
 
-`ettle mute --wrong duplication ivo mara` reads straight off the horizon line, and
-`--handled` is the other case: the tangle was real and you've dealt with it. Both
-stop it surfacing on every bus and keep it out of any escalation; `ettle mute
---clear` undoes it. Reach for one the first time something wrong shows up — a tool
-that interrupts you and can't be told it was wrong is a tool you turn off.
+`ettle mute --wrong duplication ivo mara` reads straight off the horizon line;
+`--handled` is the other case, where the tangle was real and you've dealt with it.
+Both stop it surfacing on every bus and keep it out of any escalation, and `ettle
+mute --clear` undoes it. Reach for one the first time something wrong shows up — a
+tool that interrupts you and can't be told it was wrong is a tool you turn off.
+Saying *which* is not ceremony: the two are opposite claims about whether the
+detector was right, and they are the only ground truth the calibration loop will
+ever have, so ettle refuses to guess between them.
 
-Saying *which* is not ceremony. `not_real` and `handled` are opposite signals about
-whether the detector was right, and they are the only ground truth the calibration
-loop will ever have, so ettle refuses to guess between them. From inside a session
-this is `ettle_respond`, which is where it normally happens; the shell form exists
-for a session with no MCP server loaded, and writes the same log.
-
-None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
-the hooks can be global and still do the right thing per project. To drive it from
-inside a session instead, add the MCP server: `claude mcp add ettle -- ettle mcp`.
-That is the surface ettle is built for, and it carries the whole engine — emit,
-reconcile, respond, escalate, the presence view, and both sides of the L2 layer
-(`ettle_mirror`, what the team believes about you; `ettle_drift`, who your changes
-are routed to). Only setup stays in the shell, because `ettle init` is what creates
-the room the server connects to.
+None takes a `--room` — the `.ettle-room` in the repo answers that, which is also
+why the hooks can be global and still do the right thing per project. To drive it
+from inside a session instead, add the MCP server: `claude mcp add ettle -- ettle
+mcp`. That is the surface ettle is built for, and where a verdict normally gets
+entered (`ettle_respond`, same log as the shell form). It carries emit, reconcile,
+respond, escalate, the presence view, and both sides of the L2 layer —
+`ettle_mirror` for what the team believes about you, `ettle_drift` for who your
+changes are routed to. Two things stay in the shell: `ettle init`, which creates
+the room the server connects to, and the crux resolver, so a contested tangle
+arrives over MCP as a question rather than a pre-staged either/or.
 
 **On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
 Discussions carry the atoms, one comment per person — and inside a checkout there is
@@ -220,21 +219,14 @@ go run ./cmd/ettle mirror --me ivo testdata/drift/r1 testdata/drift/r2
 # stabilize the stochastic detector by majority-voting across samples
 go run ./cmd/ettle standup --samples 3 --me alice testdata/standup/*.md
 
-# serve the engine over MCP so any agent (Claude Code, Cursor) drives it directly:
-# each person's own agent calls ettle_emit with that person's notes, ettle_horizon
-# reconciles the team's atoms into tangles — no hand-assembled note files
-claude mcp add ettle -- ettle mcp          # installed binary (what a teammate uses)
-claude mcp add ettle -- go run ./cmd/ettle mcp   # from a clone
-# add --room <name> so the horizon is the TEAM's, not just this process's:
-claude mcp add ettle -- ettle mcp --room standup-room
+# serve the engine over MCP — name the bus, or omit it for this process only
+claude mcp add ettle -- ettle mcp --transport linear://crew
+claude mcp add ettle -- go run ./cmd/ettle mcp       # from a clone
 
-# ...and if you already live in Claude Code, you don't need an API key to take
-# part: ask for the `ettle_distill` prompt and YOUR agent distills your notes
-# locally, then calls ettle_emit with `atoms` instead of `notes`. The raw notes
-# never leave your machine and the server makes no model call for your emit.
-# Only whoever runs reconcile (ettle_horizon) needs a key — one per room, not
-# one per person. `ettle mcp` starts WITHOUT a key and serves that half; the
-# key-needing tools say so, and say what to run instead.
+# no key needed to take part: ask for the `ettle_distill` prompt, YOUR agent
+# distills locally, then calls ettle_emit with `atoms` instead of `notes` — the
+# raw notes never leave your machine. Only whoever runs reconcile (ettle_horizon)
+# needs a key, one per room. `ettle mcp` starts without one and serves the rest.
 
 # multiplayer with NO broker: point at a folder the team already shares
 # (Dropbox/Drive/git/Syncthing). Each agent writes only its own file under
@@ -254,12 +246,9 @@ Cost is ~2N+3 model calls for N participants, cheap on Haiku. `--samples K`
 re-runs the reconcile passes K times and keeps only tangles that recur across a
 majority — the detector is stochastic, and voting turns that into a confidence
 signal at +2 calls per extra sample. At N=1 the pass still runs over one person's
-own notes and catches assumptions their later work has quietly falsified.
-There's **no infrastructure to stand up**: the transport
-defaults to in-process, and contested tangles fall back to an inline either/or.
-
-**See [docs/EXAMPLE_RUN.md](docs/EXAMPLE_RUN.md) for exactly what it prints** on
-the bundled fixture — no key needed to read it.
+own notes and catches assumptions their later work has quietly falsified. There's
+**no infrastructure to stand up**: the transport defaults to in-process, and
+contested tangles fall back to an inline either/or.
 
 ### Demo
 
@@ -317,14 +306,9 @@ The **collision is caught before the standup**, across four sessions nobody had
 read. A human could have spotted it eventually; the claim is about reach and
 timing. The two simple conflicts are **FYI'd**, and the one genuine values choice
 — the freeze timeline — is **routed to a crux** and pre-staged as an either/or,
-which is what friction in the right spot looks like in practice. The same run at
-N=1 works: `ettle standup testdata/solo/dana.md` catches one person's own stale
-assumption.
-
-The detector is stochastic, so wording and the exact tangle set shift run to run,
-and a tangle resting only on an inference surfaces as a *question* rather than a
-fact. Add `--show-atoms` to any run to see exactly what crosses the boundary —
-typed atoms, never the raw session.
+which is what friction in the right spot looks like in practice. Wording and the
+exact tangle set shift run to run, and a tangle resting only on an inference
+surfaces as a *question* rather than a fact.
 
 For a team on neither Linear nor GitHub, the bus is a plain private git repo — no
 server, no key beyond repo access, the same seam, so everything above works
@@ -348,7 +332,9 @@ ettle room status standup-room
 # heavier alternative — atoms over a NATS bus (TLS + auth); needs the build tag
 go run -tags nats ./cmd/ettle standup --transport nats --me alice notes.md
 
-# route contested tangles to a real gemot deliberation (TLS + bearer token)
+# a contested tangle resolves INLINE by default — an either/or, no service, no key.
+# Point at a gemot you're already running to deliberate it instead (its own bearer
+# token in ETTLE_GEMOT_TOKEN, not an Anthropic key). Optional, and rarely the answer:
 go run ./cmd/ettle standup --gemot https://gemot.example/mcp ...
 ```
 
