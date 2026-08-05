@@ -132,17 +132,60 @@ func TestRenderChecksMarksRequiredAndOptional(t *testing.T) {
 }
 
 func TestRenderNextStepsWithholdsCommandsThatCannotWork(t *testing.T) {
-	blocked := renderNextSteps("crew", "justin", false, []check{{ok: false, required: true, name: "LINEAR_API_KEY"}})
+	blocked := renderNextSteps("linear://crew", "justin", false)
 	if strings.Contains(blocked, "ettle horizon") {
 		t.Errorf("don't hand someone a command that cannot work yet:\n%s", blocked)
 	}
-	if !strings.Contains(blocked, "LINEAR_SETUP.md") {
-		t.Errorf("point at the doc that fixes it:\n%s", blocked)
+	// A URL, not a repo path: whoever hits this installed the binary and has no clone.
+	if !strings.Contains(blocked, "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md") {
+		t.Errorf("point at a doc the reader can actually open:\n%s", blocked)
 	}
-	ok := renderNextSteps("crew", "justin", true, []check{{ok: true, required: true, name: "LINEAR_API_KEY"}})
-	for _, want := range []string{"ettle horizon --me justin", "ettle init crew"} {
+	ok := renderNextSteps("linear://crew", "justin", true)
+	for _, want := range []string{"ettle horizon --me justin", "ettle init linear://crew"} {
 		if !strings.Contains(ok, want) {
 			t.Errorf("a working setup should lead with %q:\n%s", want, ok)
+		}
+	}
+}
+
+func TestInitReportJSONCarriesTheSameFactsAsProse(t *testing.T) {
+	rep := initReport{
+		Room: "linear://crew", Label: `Linear room "crew"`, Me: "justin", OK: false,
+		RoomFile: "/tmp/x/.ettle-room", Docs: docsLinearSetup,
+		Environment: []check{{ok: true, required: true, name: "ANTHROPIC_API_KEY", what: "distill"}},
+		Bus:         []check{{ok: false, required: true, name: "ettle-crew", what: "no key"}},
+	}
+	var got struct {
+		Room, Me, Docs, RoomFile string
+		OK                       bool
+		Environment, Bus         []struct {
+			Name     string
+			OK       bool
+			Required bool
+			What     string
+		}
+	}
+	if err := json.Unmarshal([]byte(renderInitReport(rep, true)), &got); err != nil {
+		t.Fatalf("--json must emit valid JSON for an agent to branch on: %v", err)
+	}
+	if got.Room != "linear://crew" || got.Me != "justin" || got.OK {
+		t.Errorf("headline facts lost: %+v", got)
+	}
+	if len(got.Environment) != 1 || got.Environment[0].Name != "ANTHROPIC_API_KEY" || !got.Environment[0].OK {
+		t.Errorf("check fields must survive marshaling: %+v", got.Environment)
+	}
+	if len(got.Bus) != 1 || got.Bus[0].OK || got.Bus[0].What != "no key" {
+		t.Errorf("the WHY of a failure is the useful part: %+v", got.Bus)
+	}
+	if got.Docs == "" {
+		t.Error("an agent needs somewhere to send the human")
+	}
+
+	// Prose mode reports the same run, in the human rendering.
+	prose := renderInitReport(rep, false)
+	for _, want := range []string{`Linear room "crew"`, "✓ ANTHROPIC_API_KEY", "✗ ettle-crew"} {
+		if !strings.Contains(prose, want) {
+			t.Errorf("prose rendering missing %q:\n%s", want, prose)
 		}
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/justinstimatze/ettle/internal/transport"
 )
 
 // `ettle init` is the one-command setup for a team already on Linear and Claude Code.
@@ -50,12 +52,25 @@ type check struct {
 	what     string
 }
 
+// MarshalJSON exports a check for --json. Written here rather than by exporting the
+// fields so the terse literals above stay readable; the two renderings therefore
+// carry exactly the same facts, which is the point of having a machine mode at all.
+func (c check) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Name     string `json:"name"`
+		OK       bool   `json:"ok"`
+		Required bool   `json:"required"`
+		What     string `json:"what"`
+	}{c.name, c.ok, c.required, c.what})
+}
+
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	me := fs.String("me", defaultAgent(), "your identity in the room — how your atoms are attributed to you")
 	dir := fs.String("dir", "", "project directory for .ettle-room (default: the git root above the cwd, else the cwd)")
 	install := fs.Bool("install-hooks", false, "merge the ettle hooks into ~/.claude/settings.json (a .bak is written first); default prints the JSON to merge yourself")
 	settings := fs.String("settings", "", "which settings file --install-hooks writes (default: ~/.claude/settings.json, which serves every project)")
+	asJSON := fs.Bool("json", false, "emit the report as JSON instead of prose — for an agent driving the setup, so it can branch on what's missing rather than parse English")
 	room, rest := liftURL(args)
 	if err := fs.Parse(rest); err != nil {
 		return err
@@ -63,30 +78,33 @@ func runInit(args []string) error {
 	if room == "" {
 		room = fs.Arg(0)
 	}
-	room = strings.TrimSpace(strings.TrimPrefix(room, "linear://"))
-	if room == "" {
+	if strings.TrimSpace(room) == "" {
 		return fmt.Errorf(`usage: ettle init <room> [--me <you>] [--install-hooks]
+       ettle init github://<owner>/<repo>[/<room>] [--me <you>] [--install-hooks]
 
-  Sets up a Linear-backed room for this project: verifies the keys, resolves (or
-  creates) the Linear project that carries the atoms, writes .ettle-room here, and
-  wires the Claude Code hooks. The room is any short name — teammates pass the same
-  one. Not on Linear? ` + "`ettle room init <git-url>`" + ` is the git-repo bus instead.`)
+  Sets up a room for this project: verifies the keys, resolves (or creates) the
+  thing that carries the atoms, writes .ettle-room here, and wires the Claude Code
+  hooks. A bare name is a Linear room (its project is ettle-<room>); a github://
+  spec uses a PRIVATE repo's Discussions instead. Teammates pass the same spec.
+  Neither? ` + "`ettle room init <git-url>`" + ` is the plain git-repo bus.`)
 	}
 
-	var out strings.Builder
-	fmt.Fprintf(&out, "\n  ettle init — Linear room %q\n", room)
+	spec, label, env, verify := initTarget(room)
+	rep := initReport{Room: spec, Label: label, Me: *me, Docs: docsLinearSetup, Environment: env}
 
-	env := envChecks()
-	fmt.Fprint(&out, renderChecks("environment", env))
+	// The report is emitted on EVERY exit, including a failure partway down: the
+	// checks already gathered are the most useful thing to show whoever's setup just
+	// broke, and swallowing them to print one error line would hide exactly the
+	// diagnosis they need.
+	defer func() { fmt.Print(renderInitReport(rep, *asJSON)) }()
 
-	busOK, busLine := verifyLinearRoom(room)
-	fmt.Fprint(&out, renderChecks("bus", []check{{ok: busOK, required: true, name: "ettle-" + room, what: busLine}}))
+	busOK, busName, busLine := verify()
+	rep.Bus = []check{{ok: busOK, required: true, name: busName, what: busLine}}
 
 	target, err := projectDir(*dir)
 	if err != nil {
 		return err
 	}
-	spec := "linear://" + room
 	path := filepath.Join(target, roomFileName)
 	if err := os.WriteFile(path, []byte(renderRoomFile(spec)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
@@ -94,24 +112,135 @@ func runInit(args []string) error {
 	if err := saveIdentity(spec, *me); err != nil {
 		return fmt.Errorf("save identity: %w", err)
 	}
-	fmt.Fprint(&out, renderChecks("project", []check{{
+	rep.RoomFile = path
+	rep.Project = []check{{
 		ok: true, required: true, name: path,
 		what: fmt.Sprintf("room = %s — every ettle command in this tree reads it, so none need --room. Safe to commit; you are %q on this machine only, so a teammate's atoms are never published as yours", spec, *me),
-	}}))
+	}}
 
 	hookLine, hookBody, hookErr := setupHooks(*install, *settings)
-	fmt.Fprint(&out, renderChecks("hooks", []check{{ok: hookErr == nil && *install, required: false, name: "Claude Code", what: hookLine}}))
-	if hookBody != "" {
-		fmt.Fprint(&out, indentBlock(hookBody, "      "))
-	}
+	rep.HooksInstalled = hookErr == nil && *install
+	rep.HooksJSON = hookBody
+	rep.Hooks = []check{{ok: rep.HooksInstalled, required: false, name: "Claude Code", what: hookLine}}
 
-	fmt.Fprint(&out, renderNextSteps(room, *me, busOK, env))
-	fmt.Print(out.String())
-
-	if !busOK || !allRequiredOK(env) {
-		return fmt.Errorf("setup is incomplete — see the ✗ lines above (docs/LINEAR_SETUP.md has each key)")
+	rep.OK = busOK && allRequiredOK(env)
+	if !rep.OK {
+		return fmt.Errorf("setup is incomplete — see the ✗ lines above (%s has each key)", docsLinearSetup)
 	}
 	return nil
+}
+
+// docsLinearSetup is a URL, not a repo-relative path: the person most likely to hit
+// a ✗ line installed the binary with `go install` and has no clone to look in.
+const docsLinearSetup = "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md"
+
+// initReport is the whole outcome of a setup run, so it can render as prose for a
+// human or as JSON for an agent driving the install — the same facts either way,
+// rather than a machine mode that quietly reports less.
+type initReport struct {
+	Room           string  `json:"room"`
+	Label          string  `json:"label"`
+	Me             string  `json:"me"`
+	OK             bool    `json:"ok"`
+	RoomFile       string  `json:"room_file,omitempty"`
+	HooksInstalled bool    `json:"hooks_installed"`
+	HooksJSON      string  `json:"hooks_json,omitempty"`
+	Docs           string  `json:"docs"`
+	Environment    []check `json:"environment"`
+	Bus            []check `json:"bus"`
+	Project        []check `json:"project,omitempty"`
+	Hooks          []check `json:"hooks,omitempty"`
+}
+
+func renderInitReport(rep initReport, asJSON bool) string {
+	if asJSON {
+		data, err := json.MarshalIndent(rep, "", "  ")
+		if err != nil {
+			return ""
+		}
+		return string(data) + "\n"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n  ettle init — %s\n", rep.Label)
+	b.WriteString(renderChecks("environment", rep.Environment))
+	b.WriteString(renderChecks("bus", rep.Bus))
+	if len(rep.Project) > 0 {
+		b.WriteString(renderChecks("project", rep.Project))
+	}
+	if len(rep.Hooks) > 0 {
+		b.WriteString(renderChecks("hooks", rep.Hooks))
+		if rep.HooksJSON != "" {
+			b.WriteString(indentBlock(rep.HooksJSON, "      "))
+		}
+	}
+	b.WriteString(renderNextSteps(rep.Room, rep.Me, rep.OK))
+	return b.String()
+}
+
+// initTarget picks which bus the room argument names and returns everything that
+// differs between them: the spec to record, the headline, the environment checks,
+// and the live verification. Everything after this point — the project pointer, the
+// identity, the hooks, the next steps — is identical for both, which is the point of
+// splitting here rather than forking runInit.
+func initTarget(room string) (spec, label string, env []check, verify func() (bool, string, string)) {
+	if ghSpec, ok := strings.CutPrefix(room, "github://"); ok {
+		owner, repo, name, err := transport.ParseGitHubSpec(ghSpec)
+		if err != nil {
+			bad := err.Error()
+			return room, "GitHub room " + room, githubEnvChecks(),
+				func() (bool, string, string) { return false, room, bad }
+		}
+		spec = fmt.Sprintf("github://%s/%s/%s", owner, repo, name)
+		return spec, fmt.Sprintf("GitHub room %q in %s/%s", name, owner, repo), githubEnvChecks(),
+			func() (bool, string, string) { return verifyGitHubRoom(spec, owner, repo, name) }
+	}
+	name := strings.TrimSpace(strings.TrimPrefix(room, "linear://"))
+	return "linear://" + name, fmt.Sprintf("Linear room %q", name), envChecks(),
+		func() (bool, string, string) {
+			ok, line := verifyLinearRoom(name)
+			return ok, "ettle-" + name, line
+		}
+}
+
+// githubEnvChecks is the GitHub path's environment: two required, and no optional
+// escalation token — escalation posts Linear agent activities and has no GitHub
+// equivalent yet, so the honest report is that the feature isn't there rather than
+// that a key is missing.
+func githubEnvChecks() []check {
+	tok := githubToken()
+	how := "not found — set GITHUB_TOKEN, or sign in once with `gh auth login`"
+	if tok != "" {
+		how = "a token with `repo` scope, for the repository Discussion that carries the atoms"
+		if strings.TrimSpace(os.Getenv("GITHUB_TOKEN")) == "" && strings.TrimSpace(os.Getenv("GH_TOKEN")) == "" {
+			how += " — using the one `gh auth` already holds, so there is no new secret to manage"
+		}
+	}
+	return []check{
+		{ok: apiKey() != "", required: true, name: "ANTHROPIC_API_KEY",
+			what: "distill + reconcile, both run on this machine — raw notes never leave it"},
+		{ok: tok != "", required: true, name: "GitHub token", what: how},
+	}
+}
+
+// verifyGitHubRoom builds the real transport, which is also where the private-repo
+// refusal and the Discussions-enabled check live, then reads the room back.
+func verifyGitHubRoom(spec, owner, repo, room string) (bool, string, string) {
+	name := fmt.Sprintf("%s/%s → discussion \"ettle/%s\"", owner, repo, room)
+	if githubToken() == "" {
+		return false, name, "not checked — no GitHub token, so nothing to authenticate with"
+	}
+	bus, err := githubBusFor(strings.TrimPrefix(spec, "github://"))
+	if err != nil {
+		return false, name, err.Error()
+	}
+	defer bus.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	envs, err := bus.Collect(ctx)
+	if err != nil {
+		return false, name, "reachable, but reading it failed: " + err.Error()
+	}
+	return true, name, "private repo, Discussions on, " + presentLine(envs)
 }
 
 // envChecks reports which of the four env vars are present and what each one buys.
@@ -158,15 +287,51 @@ func verifyLinearRoom(room string) (bool, string) {
 	if err != nil {
 		return false, "reachable, but reading it failed: " + err.Error()
 	}
+	audience := ""
+	if lb, ok := bus.(*transport.LinearBus); ok {
+		if teams, aErr := lb.Audience(ctx); aErr == nil {
+			audience = linearAudienceNote(teams)
+		}
+	}
+	return true, "project reachable, " + presentLine(envs) + audience
+}
+
+// presentLine says who is already on the bus — the one fact that tells a new joiner
+// whether they typed the same room name their teammates did.
+func presentLine(envs []transport.Envelope) string {
 	if len(envs) == 0 {
-		return true, "project reachable, nobody publishing yet — you'll be first"
+		return "nobody publishing yet — you'll be first"
 	}
 	who := make([]string, 0, len(envs))
 	for _, e := range envs {
 		who = append(who, e.Participant)
 	}
 	sort.Strings(who)
-	return true, fmt.Sprintf("project reachable, %d already publishing: %s", len(who), strings.Join(who, ", "))
+	return fmt.Sprintf("%d already publishing: %s", len(who), strings.Join(who, ", "))
+}
+
+// linearAudienceNote names who can read the room. Linear has no internet-public
+// project — the nearest thing is the owning team's visibility, where "public" means
+// the whole WORKSPACE, not the world — so unlike the GitHub path there is nothing to
+// refuse here. What there is, is a reader who should know the audience they just
+// picked, because "public" reads alarming and "restricted" reads safe when the
+// difference is which colleagues can see it.
+func linearAudienceNote(teams []transport.TeamScope) string {
+	if len(teams) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, t := range teams {
+		scope := "everyone in the workspace"
+		switch t.Visibility {
+		case "private":
+			scope = "that team's members only"
+		case "restricted":
+			scope = "that team's members, discoverable by others"
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s → %s)", t.Name, t.Visibility, scope))
+	}
+	return ". Readable by: " + strings.Join(parts, ", ") + " — Linear has no internet-public project, so this is the audience, not a leak"
 }
 
 // projectDir picks where `.ettle-room` goes: the explicit --dir, else the git root
@@ -385,16 +550,16 @@ func indentBlock(s, pad string) string {
 // renderNextSteps says what to do next, branching on what actually succeeded — the
 // same discipline as printRoomNextSteps: never hand someone a command that cannot
 // work for them yet.
-func renderNextSteps(room, me string, busOK bool, env []check) string {
+func renderNextSteps(room, me string, ok bool) string {
 	var b strings.Builder
 	b.WriteString("\n  next\n")
-	if !allRequiredOK(env) || !busOK {
-		b.WriteString("    fix the ✗ lines first — docs/LINEAR_SETUP.md walks each key, including\n")
-		b.WriteString("    minting the OAuth app-actor token escalation needs.\n")
+	if !ok {
+		fmt.Fprintf(&b, "    fix the ✗ lines first — %s\n", docsLinearSetup)
+		b.WriteString("    walks each key, including minting the OAuth app-actor token escalation needs.\n")
 		return b.String()
 	}
 	fmt.Fprintf(&b, "    ettle horizon --me %s          # what the room already knows that concerns you\n", me)
-	fmt.Fprintf(&b, "    claude mcp add ettle -- ettle mcp --transport linear://%s   # operate it from inside a session\n", room)
+	b.WriteString("    claude mcp add ettle -- ettle mcp   # operate it from inside a session\n")
 	fmt.Fprintf(&b, "    tell a teammate:  ettle init %s\n", room)
 	b.WriteString("\n    With the hooks in, nothing else is a command you run: your sessions publish\n")
 	b.WriteString("    your atoms, teammates' Linear replies come in, and the knots that involve you\n")

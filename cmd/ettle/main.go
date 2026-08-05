@@ -19,6 +19,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,6 +41,19 @@ import (
 	"github.com/justinstimatze/ettle/internal/transport"
 )
 
+// exitOn is the single exit path for every subcommand. `--help` is the reason it
+// exists as a function: Go's flag package prints the usage itself and returns
+// flag.ErrHelp, so the old per-case handling turned every `ettle <cmd> --help` into
+// exit 1 with a spurious "ettle: flag: help requested" line — which an agent
+// discovering the tool reads as a broken command rather than as documentation.
+func exitOn(err error) {
+	if err == nil || errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "ettle:", err)
+	os.Exit(1)
+}
+
 func main() {
 	if len(os.Args) >= 2 {
 		switch os.Args[1] {
@@ -47,82 +61,43 @@ func main() {
 			fmt.Println("ettle", buildVersion())
 			return
 		case "init":
-			if err := runInit(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runInit(os.Args[2:]))
 			return
 		case "capture":
-			if err := runCapture(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runCapture(os.Args[2:]))
 			return
 		case "eval":
-			if err := runEval(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runEval(os.Args[2:]))
 			return
 		case "drift":
-			if err := runDrift(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runDrift(os.Args[2:]))
 			return
 		case "mirror":
-			if err := runMirror(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runMirror(os.Args[2:]))
 			return
 		case "mcp":
-			if err := runMCP(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runMCP(os.Args[2:]))
 			return
 		case "room":
-			if err := runRoom(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runRoom(os.Args[2:]))
 			return
 		case "pull":
-			if err := runPull(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runPull(os.Args[2:]))
 			return
 		case "pull-hook":
-			if err := runPullHook(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runPullHook(os.Args[2:]))
 			return
 		case "capture-hook":
-			if err := runCaptureHook(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runCaptureHook(os.Args[2:]))
 			return
 		case "horizon":
-			if err := runHorizon(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runHorizon(os.Args[2:]))
 			return
 		case "horizon-hook":
-			if err := runHorizonHook(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runHorizonHook(os.Args[2:]))
 			return
 		case "escalate":
-			if err := runEscalate(os.Args[2:]); err != nil {
-				fmt.Fprintln(os.Stderr, "ettle:", err)
-				os.Exit(1)
-			}
+			exitOn(runEscalate(os.Args[2:]))
 			return
 		}
 	}
@@ -147,7 +122,7 @@ func main() {
 	me := fs.String("me", "", "surface tangles relevant to this participant (their agent's view); empty = full team view")
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested tangles (e.g. https://gemot.example/mcp); empty = inline either/or")
-	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | linear://<room> (a Linear project as the bus; needs LINEAR_API_KEY) | nats (needs -tags nats)")
+	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | linear://<room> (a Linear project as the bus; needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats (needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	samples := fs.Int("samples", 5, "run the reconcile passes N times; recurrence frequency ranks tangles firm (assert) vs soft (ask) — tangles recurring at or above a per-kind bar are asserted, flickery ones become questions (not dropped). N=1 disables voting and falls back to confidence. Costs N× the reconcile calls.")
@@ -1751,7 +1726,7 @@ func loadDir(dir string) ([]participant, error) {
 func runCapture(args []string) error {
 	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
 	room := fs.String("room", "", "publish the distilled atoms to this leat room (created by `ettle room init|join`) instead of printing the digest")
-	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
+	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "your identity for the published atoms (default: the room's agent, else $USER)")
 	model := fs.String("model", "claude-haiku-4-5", "model id for distilling the session")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
@@ -1796,7 +1771,7 @@ func runMCP(args []string) error {
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
 	room := fs.String("room", "", "serve the horizon over a configured leat room (see `ettle room join`) so teammates on other machines share it; empty = in-process, this process only")
-	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
+	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	_ = fs.Parse(args)
 

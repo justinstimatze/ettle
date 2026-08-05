@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+- **Setup is drivable by an agent, found by walking the path as one.** Three things
+  broke for a coding agent told "install and set up ettle," none of which show up
+  when a human does it:
+  - **`ettle <cmd> --help` exited 1** with a spurious `ettle: flag: help requested`
+    line, because Go's flag package prints the usage itself and returns
+    `flag.ErrHelp`. An agent discovering the tool reads that as a broken command
+    rather than as documentation. One `exitOn` helper now handles every subcommand's
+    exit, so `--help` is exit 0 with just the usage.
+  - **The report pointed at `docs/LINEAR_SETUP.md`**, a repo-relative path that does
+    not exist for the person most likely to need it — whoever ran `go install` and has
+    no clone. It is a URL now.
+  - **`ettle init --json`** emits the whole report as structured data, so an agent can
+    branch on which key is missing instead of parsing English. Same facts as the prose
+    rendering, not a reduced machine mode.
+
+- **A GitHub bus: `github://<owner>/<repo>[/<room>]`, a private repo's Discussions.**
+  The Linear docs-as-bus shape for a team that lives in GitHub instead — the room is a
+  Discussion titled `ettle/<room>`, each participant owns one comment carrying their
+  envelope, replace-current so N people cost N comments. It needs **no new secret**:
+  the credential `gh auth login` already stored is enough, which is the whole reason
+  it exists beside the leat bus, which needs a separate repo created, cloned, and
+  seeded first. `ettle init github://acme/widgets/crew` sets it up with the same
+  report as the Linear path.
+  - **It refuses a PUBLIC repository, and there is no override flag.** A public repo's
+    Discussions are readable by anyone on the internet, and the bus carries every
+    participant's intents, commitments, and assumptions. A Linear project is
+    workspace-scoped and a private repo's Discussion is collaborator-scoped —
+    comparable audiences; a public repo is a categorically different one. The check
+    runs at construction, so a repo flipped public later fails the next publish loudly
+    rather than leaking quietly. The residual risk it cannot close — a private repo
+    made public afterwards, taking its history along — is named in the package doc
+    rather than papered over.
+  - Identity rides a `<!-- ettle:<name> -->` marker, not the comment author: `ettle
+    pull` publishes a non-adopter's atoms under *their* identity using the puller's
+    token, so the author can never be the check. Same limit LinearBus documents for
+    its title identity, and a mismatched in-content claim is overridden and warned.
+  - Comments without the marker are left strictly alone, so a teammate replying in the
+    thread is never parsed as atoms.
+  - **Roles 2 and 3 have no GitHub equivalent yet.** `pull` and `escalate` ride
+    Linear's agent activities; GitHub has no counterpart, so a GitHub team gets the
+    bus and the in-session whisper, and reaching a non-adopter is unbuilt.
+- **`ettle init` reports the room's audience on Linear.** Linear has no
+  internet-public project — `Team.visibility` has `public`/`restricted`/`private`,
+  where "public" means the whole *workspace*, not the world — so unlike the GitHub
+  path there is nothing to refuse. What there is, is a reader who should know which
+  colleagues can see what they are about to publish, so init now names the owning
+  teams and their visibility in plain words (`LinearBus.Audience`).
+- **The init report survives a failure partway through.** It was buffered and printed
+  at the end, so a run that died on, say, an unwritable `--dir` threw away every check
+  it had already gathered — exactly the diagnosis the person needed. It now flushes on
+  every exit path.
+
 - **`ettle init <room>` — the Linear + Claude Code setup, in one command.** Everything
   was built and the assembly was six manual steps, only one of which (the OAuth
   app-actor token) was documented anywhere but an error string. `ettle init` now

@@ -63,6 +63,28 @@ pollutes my tickets" sound true when it isn't.
    activities but not post them), does `agentSessionCreateOnIssue` +
    `agentActivityCreate`, and the reply flow closes back via `ettle pull`.
 
+### The same three roles on GitHub
+
+A team on GitHub rather than Linear gets role 1 in the same shape: the room is a
+repository **Discussion** titled `ettle/<room>`, each participant owns one comment
+carrying their envelope, and identity rides a `<!-- ettle:<name> -->` marker
+(`internal/transport/github.go`, `github://<owner>/<repo>[/<room>]`). It needs no
+new secret — the credential `gh auth login` already stored is enough — and that is
+the whole reason it exists next to the git-repo bus, which needs a separate repo
+created, cloned, and seeded first. **Built.**
+
+Two differences from Linear, both deliberate. **Private repositories only, enforced
+at construction and with no override flag.** A public repo's Discussions are readable
+by anyone on the internet; a Linear project is workspace-scoped and a private repo's
+Discussion is collaborator-scoped, which are comparable audiences, so this is a
+difference in kind rather than degree, and the contextual-privacy boundary is a
+design invariant rather than a default. The residual risk a check cannot close: a
+repo that is private today can be made public tomorrow and the history goes with it,
+so the guard runs on every construction and fails the next publish loudly. **And
+roles 2 and 3 have no GitHub equivalent yet** — pull and escalate ride Linear's agent
+activities, which is a surface GitHub has no counterpart for. A GitHub team gets the
+bus and the whisper; reaching a non-adopter through a comment thread is unbuilt.
+
 **The payoff of the split:** if both people install ettle, role 3 is never
 needed. Role 1 (bus) + the whisper (in-session horizon) is the entire loop, all
 through project documents, and the default install touches no issue. Emit-onto-an

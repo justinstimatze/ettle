@@ -39,7 +39,7 @@ import (
 func runHorizon(args []string) error {
 	fs := flag.NewFlagSet("horizon", flag.ContinueOnError)
 	room := fs.String("room", "", "reconcile this leat room's horizon (created by `ettle room init|join`)")
-	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
+	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "surface only tangles involving this participant (default: the room's agent, else $USER); empty-after-fallback = whole team")
 	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
 	samples := fs.Int("samples", 5, "independent reconcile samples to vote across; recurrence ranks tangles firm vs soft (1 disables voting)")

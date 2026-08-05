@@ -169,6 +169,29 @@ func (b *LinearBus) Collect(ctx context.Context) ([]Envelope, error) {
 
 func (b *LinearBus) Close() error { return b.store.close() }
 
+// TeamScope is one team that owns the room's project, with Linear's visibility for
+// it. Linear's "public" means visible to the whole WORKSPACE, not the internet —
+// there is no internet-public Linear project — so this is a disclosure of audience,
+// not a leak check. (The GitHub adapter's isPrivate refusal is the opposite case:
+// there, public really does mean the world.)
+type TeamScope struct{ Name, Key, Visibility string }
+
+// audienceReporter is optional: an in-memory store used by tests does not implement
+// it, and Audience then reports nothing rather than forcing every fake to grow a method.
+type audienceReporter interface {
+	audience(ctx context.Context) ([]TeamScope, error)
+}
+
+// Audience returns the teams that own the room's project, so a caller can tell the
+// user who can read what they are about to publish.
+func (b *LinearBus) Audience(ctx context.Context) ([]TeamScope, error) {
+	ar, ok := b.store.(audienceReporter)
+	if !ok {
+		return nil, nil
+	}
+	return ar.audience(ctx)
+}
+
 // Warnings returns a copy of the non-fatal issues from the last Collect
 // (unparseable documents, identity mismatches), matching DirBus/LeatBus so the
 // driver can surface them the same way.
@@ -247,6 +270,22 @@ func (s *linearDocStore) do(ctx context.Context, query string, vars map[string]a
 		}
 	}
 	return nil
+}
+
+// audience reads the visibility of the teams owning the room's project.
+func (s *linearDocStore) audience(ctx context.Context) ([]TeamScope, error) {
+	var q struct {
+		Project struct {
+			Teams struct {
+				Nodes []TeamScope `json:"nodes"`
+			} `json:"teams"`
+		} `json:"project"`
+	}
+	const query = `query($p:String!){ project(id:$p){ teams(first:10){ nodes{ name key visibility } } } }`
+	if err := s.do(ctx, query, map[string]any{"p": s.projectID}, &q); err != nil {
+		return nil, err
+	}
+	return q.Project.Teams.Nodes, nil
 }
 
 // resolveProject finds the project named "ettle-<room>", creating it under teamID

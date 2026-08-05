@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -25,7 +26,44 @@ func dirBusFor(name string) (transport.Transport, bool, error) {
 		b, err := linearBusFor(room)
 		return b, true, err
 	}
+	if spec, ok := strings.CutPrefix(name, "github://"); ok {
+		b, err := githubBusFor(spec)
+		return b, true, err
+	}
 	return nil, false, nil
+}
+
+// githubBusFor builds a GitHub-backed transport from github://<owner>/<repo>[/<room>]
+// plus a token: GITHUB_TOKEN or GH_TOKEN if set, else whatever `gh auth token`
+// holds — which on a developer machine is usually already there, and is the point
+// of this transport over standing up a separate git-repo bus. The room maps to a
+// repository Discussion titled "ettle/<room>". PRIVATE repos only; the transport
+// refuses a public one (transport/github.go explains why).
+func githubBusFor(spec string) (transport.Transport, error) {
+	owner, repo, room, err := transport.ParseGitHubSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	tok := githubToken()
+	if tok == "" {
+		return nil, fmt.Errorf("github transport needs a token: set GITHUB_TOKEN, or sign in once with `gh auth login` (the `repo` scope is required)")
+	}
+	return transport.NewGitHubBus(tok, owner, repo, room, buildVersion())
+}
+
+// githubToken prefers an explicit env var and falls back to the gh CLI's stored
+// credential, so a machine that already ran `gh auth login` needs no new secret.
+func githubToken() string {
+	for _, k := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	out, err := exec.Command("gh", "auth", "token").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // linearBusFor builds a Linear-backed transport from linear://<room> plus the

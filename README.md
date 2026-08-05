@@ -131,8 +131,30 @@ why the hooks can be global and still do the right thing per project. To drive i
 from inside a session instead — offer a knot, escalate it on a yes, mute it when it's
 handled — add the MCP server: `claude mcp add ettle -- ettle mcp`.
 
-Not on Linear? `ettle room init <git-url>` uses a private git repo as the bus instead,
-and everything above works the same. Everything below is the rest of the surface.
+**On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
+Discussions carry the atoms, one comment per person:
+
+```sh
+ettle init github://acme/widgets/crew --me alice --install-hooks
+```
+
+It needs no new secret: the token `gh auth login` already stored is enough. It also
+**refuses a public repository outright** rather than warning — a public repo's
+Discussions are readable by anyone on the internet, and the bus carries everyone's
+intents, commitments, and assumptions. A Linear project is workspace-scoped and a
+private repo's Discussion is collaborator-scoped, which are comparable audiences; a
+public repo is a categorically different one, so there is no override flag. (Linear
+has no internet-public project — `ettle init` reports which teams can read the room
+so you know the audience, but there is nothing there to refuse.)
+
+Neither? `ettle room init <git-url>` uses a plain private git repo as the bus, and
+everything above works the same.
+
+**Having your agent do the setup?** `ettle init --json` emits the whole report as
+structured data — which keys are present, whether the bus is reachable and why not,
+where the room file went, whether the hooks are in — so an agent branches on what's
+missing instead of parsing prose, and `--help` on any subcommand exits 0 with its
+usage. Everything below is the rest of the surface.
 
 ```sh
 # or run it on real LIVE sessions — Claude Code transcripts, not notes —
