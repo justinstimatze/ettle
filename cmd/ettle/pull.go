@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -176,6 +179,81 @@ func maybePullBeforeCollect(ctx context.Context, det distiller, bus transport.Tr
 		fmt.Fprintf(os.Stderr, "ettle: pulled %s from %s before reconciling.\n",
 			plural(n, "reply", "replies"), plural(who, "teammate", "teammates"))
 	}
+}
+
+// runPullHook is `ettle pull-hook --room <room>` — the trigger a Claude Code
+// SessionStart / Linear-tool-use hook fires so pull runs recurringly without
+// anyone remembering it. It drains the hook payload, debounces (so a burst of
+// Linear tool calls collapses to one pull), then spawns `ettle pull` DETACHED and
+// returns immediately — the hook must never block the agent waiting on a distill.
+func runPullHook(args []string) error {
+	fs := flag.NewFlagSet("pull-hook", flag.ContinueOnError)
+	room := fs.String("room", "", "the Linear room to pull teammate replies into")
+	debounce := fs.Duration("debounce", 30*time.Second, "skip if a pull already ran within this window")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *room == "" {
+		return fmt.Errorf("usage: ettle pull-hook --room <room>   (wire it to SessionStart + a PostToolUse matcher on the Linear MCP tools)")
+	}
+	// Claude Code writes the hook payload to stdin; we don't need it, but drain it
+	// so the pipe never blocks the caller.
+	_, _ = io.Copy(io.Discard, os.Stdin)
+
+	due, err := dueForPull(*room, *debounce)
+	if err != nil {
+		return err
+	}
+	if !due {
+		return nil // pulled recently — nothing to do
+	}
+
+	// Detach a background `ettle pull` so the hook returns instantly. Its output is
+	// discarded here; any error surfaces on the next explicit `ettle pull`.
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(exe, "pull", "--room", *room)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // own process group: survives the hook exiting
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}
+
+// dueForPull reports whether enough time has passed since the last hook-triggered
+// pull for this room, recording "now" when it returns true — so a burst of tool
+// calls collapses to a single pull and firing the hook on every Linear tool use
+// stays cheap.
+func dueForPull(room string, window time.Duration) (bool, error) {
+	path, err := hookRunPath(room)
+	if err != nil {
+		return false, err
+	}
+	if data, rerr := os.ReadFile(path); rerr == nil {
+		if ts, perr := time.Parse(time.RFC3339, strings.TrimSpace(string(data))); perr == nil {
+			if time.Since(ts) < window {
+				return false, nil
+			}
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339)), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// hookRunPath is the per-room debounce marker, beside the cursor file.
+func hookRunPath(room string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate config dir: %w", err)
+	}
+	return filepath.Join(dir, "ettle", "pull", transport.SanitizeID(room)+".hookrun"), nil
 }
 
 // runPull is the standalone `ettle pull --room <room>` command.

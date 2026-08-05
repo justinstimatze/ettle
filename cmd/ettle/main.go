@@ -88,6 +88,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "pull-hook":
+			if err := runPullHook(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {

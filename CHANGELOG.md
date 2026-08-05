@@ -16,6 +16,13 @@
   (surfacing ettle's own knots as Linear elicitations, which needs the OAuth
   app-actor token) and a hosted webhook relay — the receive path is member-key
   polling, no always-on server.
+- **`ettle pull-hook` + an example Claude Code hook config** so pull runs
+  recurringly without anyone remembering it. Wired to `SessionStart` and a
+  `PostToolUse` matcher on the Linear MCP tools (see [`hooks/`](hooks/)), it fires
+  whenever a session touches Linear; it spawns pull **detached** (never blocks the
+  agent) and **debounces** so a burst of tool calls collapses to one pull. The
+  standalone `ettle pull` and the auto-pull-before-a-`linear://`-standup path
+  remain; this is the always-on-without-a-server trigger.
 
 - **A Linear-backed transport (`linear://<room>`), for teams already on Linear +
   Claude Code.** The room is a Linear project, each participant owns one document,

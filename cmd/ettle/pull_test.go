@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -90,6 +91,32 @@ func TestPullRepliesDistillsAndPublishesPerAuthor(t *testing.T) {
 	}
 	if got != "2026-08-05T00:42:00.000Z" {
 		t.Errorf("saved cursor = %q, want the newest createdAt", got)
+	}
+}
+
+func TestDueForPullDebounces(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	room := "r"
+	// First call is due and records "now".
+	due, err := dueForPull(room, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !due {
+		t.Fatal("first call should be due")
+	}
+	// A second call inside the window is debounced.
+	due, err = dueForPull(room, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if due {
+		t.Fatal("second call inside the window should be debounced")
+	}
+	// A zero window means every call is due again.
+	due, _ = dueForPull(room, 0)
+	if !due {
+		t.Fatal("zero window should always be due")
 	}
 }
 
