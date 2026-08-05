@@ -1,10 +1,12 @@
 # ettle
 
-A forest looks like a stand of separate trees. Underground, a fungal network wires their roots together — moving what each tree needs to where it's needed, and carrying a warning from the tree that hit a threat to the ones that haven't met it yet.
+Everyone on my team works through Claude Code all day. We message each other when something has already gone wrong. There's no standup to skip and no meeting to fix — the work just runs into itself, and you find out as a merge conflict, or as an afternoon two people spent building the same thing.
 
-ettle is that network for a team that already works through AI agents. Run it, and everyone's working state links up for a moment: the dependency you're about to break, the work two of you are duplicating, the assumption you're holding that someone else quietly dropped — each reaches the person who needs it, and no one else, *before* it becomes the meeting you'd have had to call.
+That gap used to be covered by the implementation window. Building was slow enough that alignment happened in the seams: a message while someone was still writing the code, a comment on a draft PR, a question in a meeting that was going to happen anyway. Agents collapsed the window, the seams went with it, and the pull request now carries every checkpoint that used to be spread across a week — arriving at the one moment when changing course costs the most.
 
-No standup to surface it. No thread half-read. The signal arrives where it's relevant. That's the pitch.
+ettle puts the checkpoints back without adding a place to go. Each person's agent distills their own session into typed atoms — what they're working on, what they've committed to, what they depend on, what they're assuming. Only the atoms cross; the raw session never leaves the machine. A reconcile pass compares them across the team and surfaces just the friction — the dependency you're about to break, the work two of you are duplicating, the assumption you're holding that someone else quietly dropped — privately, in your own next session, before it's the thing you'd have called a meeting about.
+
+The other answer to this is a shared workspace: move the team into one multiplayer room and coordinate there. (GitHub Next's Ace is the clearest version — [One Developer, Two Dozen Agents, Zero Alignment](https://maggieappleton.com/zero-alignment) is worth your time either way.) That works if your team will move. Mine won't: we already have the shared room, and we route around it. So ettle assumes the opposite — nobody changes tools, nothing lands anywhere shared unless you decide to put it there, and it's useful at N=1 before a second person ever joins.
 
 > ⚠️ **Extremely early — a design-stage proof-of-concept, shared well before it's proven.** The
 > coordination engine runs, but its accuracy is **not validated**: `ettle eval` is an inspectable smoke
@@ -15,11 +17,9 @@ No standup to surface it. No thread half-read. The signal arrives where it's rel
 > a runnable skeleton, not a product. Read the `docs/` caveats before trusting anything; breakage and
 > rethinks expected, feedback very welcome.
 
-A rolling shared horizon of minimized surprise for a high-trust team whose members already think through their work with AI agents.
+Distill and reconcile are the two ends — L1 and L3. Between them sits the *directed-model layer* — L2, what your agent believes each teammate is assuming, held per-pair and carried across rounds so it can go **stale**. Its structural half now runs (`ettle drift`): each session emits only the deltas that would leave a teammate's model of it stale — the staleness is *computed*, not guessed — so a change reaches exactly the teammates it affects, before it becomes a surprise. (What's still open there is the *semantic* enrichment — your agent inferring what a teammate is assuming beyond what they stated — and the calibration loop; see [Status](#status).) The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
 
-Mechanically, what runs today: each person's agent distills their notes or live session into typed atoms — only those cross, never the raw text — and a reconcile pass compares them across the team, surfacing the deltas that would otherwise become a surprise (a dependency someone is about to break, two people converging on the same work, an assumption one person holds that another has quietly abandoned). Between distill and reconcile sits the *directed-model layer* — L2, what your agent believes each teammate is assuming, held per-pair and carried across rounds so it can go **stale**. Its structural half now runs (`ettle drift`): each session emits only the deltas that would leave a teammate's model of it stale — the staleness is *computed*, not guessed — so a change reaches exactly the teammates it affects, before it becomes a surprise. (What's still open there is the *semantic* enrichment — your agent inferring what a teammate is assuming beyond what they stated — and the calibration loop; see [Status](#status).) The aim is that coordination mostly happens before anyone notices they would have needed a meeting.
-
-It is easy to misread as "a shared dashboard." It is the opposite: your raw notes are never transmitted verbatim — your agent distills them into typed atoms and only those cross; there is no shared channel humans read (your own agent surfaces only what's relevant to *you*); and friction is kept on purpose — but only at the genuine choices a human should own. (The distillation is a model judgment, not a verified redaction — what an atom *contains* is the real privacy surface, not the raw note. See [SECURITY.md](SECURITY.md).)
+There's no dashboard here, and no shared channel a human reads — your own agent surfaces only what's relevant to *you*. What friction remains is deliberate, kept at the genuine choices a person should own. (Distillation is a model judgment, not a verified redaction: what an atom *contains* is the real privacy surface, not the raw note. See [SECURITY.md](SECURITY.md).)
 
 ```mermaid
 flowchart TB
@@ -51,7 +51,7 @@ flowchart TB
 
 *Full reading guide: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).*
 
-The name is a Scots / Northern-English verb: **to intend, to aim at, to plan or prepare ahead.** The system's job is to ettle on the team's behalf — to act on intent ahead of time — not merely to record shared state.
+The name is a Scots / Northern-English verb: **to intend, to aim at, to plan or prepare ahead.** The system's job is to ettle on the team's behalf — to act on intent ahead of time, rather than record shared state after the fact. A forest is the picture I keep coming back to: separate trees above ground, roots wired together below, and the tree that meets a threat first is how the others learn it exists.
 
 The aim is not "frictionless." It is **friction in the right spots**: remove it from coordination and status-sync (the bullshit-meeting toil → zero), and keep it exactly where a genuine values choice belongs to a person — surfaced as a clean, pre-staged either/or, never auto-decided by the mesh. The felt result: empowered and free of bullshit meetings, while still getting the benefit of having had a great meeting, because the mesh held it on everyone's behalf.
 
