@@ -9,7 +9,7 @@ import (
 )
 
 func TestHooksJSONCoversEveryHook(t *testing.T) {
-	body := hooksJSON()
+	body := hooksJSON(true)
 	var parsed struct {
 		Hooks map[string][]struct {
 			Matcher string `json:"matcher"`
@@ -30,7 +30,7 @@ func TestHooksJSONCoversEveryHook(t *testing.T) {
 			}
 		}
 	}
-	for _, h := range ettleHooks() {
+	for _, h := range ettleHooks(true) {
 		if !got[h.event+"|"+h.matcher+"|"+h.command] {
 			t.Errorf("hook %s %q missing from the printed fragment", h.event, h.command)
 		}
@@ -42,6 +42,50 @@ func TestHooksJSONCoversEveryHook(t *testing.T) {
 	}
 }
 
+func TestHooksSkipTheLinearOnlyPullHookElsewhere(t *testing.T) {
+	gh := hooksJSON(false)
+	if strings.Contains(gh, "pull-hook") {
+		t.Errorf("pull reads Linear agent activities; a GitHub room must not wire it:\n%s", gh)
+	}
+	if strings.Contains(gh, "mcp__linear") {
+		t.Errorf("a GitHub room must not wire a matcher on a Linear MCP server:\n%s", gh)
+	}
+	for _, want := range []string{"horizon-hook", "capture-hook"} {
+		if !strings.Contains(gh, want) {
+			t.Errorf("the bus-and-whisper half still applies everywhere, missing %q:\n%s", want, gh)
+		}
+	}
+	if !strings.Contains(hooksJSON(true), "pull-hook") {
+		t.Error("a Linear room should still get pull-hook")
+	}
+}
+
+func TestGitHubRemoteDerivesTheRoom(t *testing.T) {
+	for _, url := range []string{
+		"git@github.com:acme/widgets.git",
+		"https://github.com/acme/widgets.git",
+		"https://github.com/acme/widgets",
+		"ssh://git@github.com/acme/widgets.git",
+	} {
+		owner, repo, ok := parseGitHubRemote(url)
+		if !ok || owner != "acme" || repo != "widgets" {
+			t.Errorf("%q → %q/%q ok=%v, want acme/widgets", url, owner, repo, ok)
+		}
+	}
+	// Not GitHub → say so rather than invent a room that fails later, further from
+	// the cause.
+	for _, url := range []string{
+		"git@gitlab.com:acme/widgets.git",
+		"https://github.com/acme",
+		"/some/local/path",
+		"",
+	} {
+		if _, _, ok := parseGitHubRemote(url); ok {
+			t.Errorf("%q must not parse as a GitHub room", url)
+		}
+	}
+}
+
 func TestInstallHooksIsIdempotentAndPreservesOtherSettings(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
@@ -50,12 +94,12 @@ func TestInstallHooksIsIdempotentAndPreservesOtherSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	added, err := installHooks(path)
+	added, err := installHooks(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if added != len(ettleHooks()) {
-		t.Errorf("first install should add every hook: got %d, want %d", added, len(ettleHooks()))
+	if added != len(ettleHooks(true)) {
+		t.Errorf("first install should add every hook: got %d, want %d", added, len(ettleHooks(true)))
 	}
 	if _, err := os.Stat(path + ".bak"); err != nil {
 		t.Errorf("the previous settings file should be backed up: %v", err)
@@ -76,7 +120,7 @@ func TestInstallHooksIsIdempotentAndPreservesOtherSettings(t *testing.T) {
 		t.Error("an existing unrelated hook must survive the merge")
 	}
 
-	again, err := installHooks(path)
+	again, err := installHooks(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +132,7 @@ func TestInstallHooksIsIdempotentAndPreservesOtherSettings(t *testing.T) {
 func TestInstallHooksCreatesMissingFileAndRefusesGarbage(t *testing.T) {
 	dir := t.TempDir()
 	fresh := filepath.Join(dir, "nested", "settings.json")
-	if added, err := installHooks(fresh); err != nil || added != len(ettleHooks()) {
+	if added, err := installHooks(fresh, true); err != nil || added != len(ettleHooks(true)) {
 		t.Fatalf("a missing settings file should be created: added=%d err=%v", added, err)
 	}
 
@@ -96,7 +140,7 @@ func TestInstallHooksCreatesMissingFileAndRefusesGarbage(t *testing.T) {
 	if err := os.WriteFile(bad, []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := installHooks(bad); err == nil {
+	if _, err := installHooks(bad, true); err == nil {
 		t.Error("unparseable settings must be refused, not overwritten")
 	}
 	data, _ := os.ReadFile(bad)

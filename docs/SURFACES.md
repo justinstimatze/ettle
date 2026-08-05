@@ -83,7 +83,16 @@ repo that is private today can be made public tomorrow and the history goes with
 so the guard runs on every construction and fails the next publish loudly. **And
 roles 2 and 3 have no GitHub equivalent yet** — pull and escalate ride Linear's agent
 activities, which is a surface GitHub has no counterpart for. A GitHub team gets the
-bus and the whisper; reaching a non-adopter through a comment thread is unbuilt.
+bus and the whisper; reaching a non-adopter through a comment thread is unbuilt. That
+is why `ettle init` installs only three hooks for a GitHub room: wiring `pull-hook`
+and a `PostToolUse` matcher on a Linear MCP server the team doesn't run would be two
+hooks that can only ever no-op.
+
+Naming a room is friction the GitHub path doesn't need, so it doesn't have it: run
+`ettle init` with no argument inside a checkout and the room is derived from the
+`origin` remote. That is worth more than the keystrokes — the failure it removes is
+two teammates typing different names and each sitting alone in a room they think the
+other is in.
 
 **The payoff of the split:** if both people install ettle, role 3 is never
 needed. Role 1 (bus) + the whisper (in-session horizon) is the entire loop, all

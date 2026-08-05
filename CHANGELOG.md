@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Muting was silently broken on every bus except Linear.** The per-room knot stores
+  keyed off the *Linear room*, so on a `github://` or leat room the key fell through
+  to a shared `"default"` bucket — every non-Linear room on the machine muting each
+  other's knots — and the injected SessionStart horizon skipped mute-suppression
+  entirely because it was gated behind "is this Linear?". Since muting is the only
+  thing that stops a wrong knot re-surfacing every session, that made the
+  wrong-knot failure unfixable on exactly the bus a GitHub team uses. The stores now
+  key by the transport **spec**, so every room gets its own bucket and muting applies
+  everywhere; escalation stays Linear-only, so `escalated` is still nil elsewhere and
+  a non-Linear horizon shows no share tags. `mcpserver.Serve` takes the two keys
+  separately (`stateKey` for the stores, `linRoom` for the escalate target) rather
+  than conflating them.
+- **`ettle init` needs no room name inside a GitHub repo.** Naming a room was
+  arbitrary startup friction, and worse than arbitrary: two teammates typing
+  different names each sit alone in a room they think the other is in. Bare `ettle
+  init` now derives `github://<owner>/<repo>` from the `origin` remote, so everyone
+  runs the same command and lands in the same room. A non-GitHub remote derives
+  nothing rather than guessing.
+- **A GitHub room no longer installs the two Linear-only hooks.** `pull-hook` reads
+  Linear agent activities, so wiring it — plus a `PostToolUse` matcher on a Linear
+  MCP server the team doesn't run — meant two hooks that could only ever no-op.
+
 - **Setup is drivable by an agent, found by walking the path as one.** Three things
   broke for a coding agent told "install and set up ettle," none of which show up
   when a human does it:

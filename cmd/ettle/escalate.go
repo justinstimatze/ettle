@@ -101,13 +101,15 @@ func postKnots(ctx context.Context, w knotPoster, room, teamID string, knots []e
 }
 
 // loadEmitted / saveEmitted are the per-room escalated-knot store (idempotency),
-// now backed by the shared knotstate package so the MCP server reads the same set.
+// backed by the shared knotstate package so the MCP server reads the same set. The
+// store keys by the transport SPEC, not the bare room, so every bus gets its own
+// bucket — hence the linear:// prefix here.
 func loadEmitted(room string) (map[string]bool, error) {
-	return knotstate.Load(knotstate.Escalated, room)
+	return knotstate.Load(knotstate.Escalated, "linear://"+room)
 }
 
 func saveEmitted(room string, set map[string]bool) error {
-	return knotstate.Save(knotstate.Escalated, room, set)
+	return knotstate.Save(knotstate.Escalated, "linear://"+room, set)
 }
 
 // runEscalate is `ettle escalate --room <room>`.
@@ -156,7 +158,7 @@ func runEscalate(args []string) error {
 	if err != nil {
 		return err
 	}
-	muted, err := knotstate.Load(knotstate.Muted, *room)
+	muted, err := knotstate.Load(knotstate.Muted, "linear://"+*room)
 	if err != nil {
 		return err
 	}

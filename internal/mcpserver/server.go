@@ -102,8 +102,13 @@ type server struct {
 	h      *horizon
 	labels labelSink // where ettle_respond writes verdicts; nil disables the tool
 
-	// room is the Linear room this server coordinates over (""=none/non-Linear). It
-	// keys the per-room escalated/muted stores (knotstate) and is the escalate target.
+	// stateKey names the room for the per-room knot stores (muted/escalated). It is
+	// the full transport SPEC, not the Linear room, because muting has to work on
+	// every bus: keying it off the Linear room made a mute on a github:// or leat
+	// room land in a shared "default" bucket, so every non-Linear room on the machine
+	// muted each other's knots.
+	stateKey string
+	// room is the Linear room this server escalates into (""=none/non-Linear).
 	room string
 	// team is the Linear team id, needed only to create the coordination issue the
 	// first time an escalation lands.
@@ -387,8 +392,8 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	// escalate only what a non-adopter can't already see. A store read error is
 	// non-fatal — degrade to "nothing muted / nothing escalated" rather than fail the
 	// horizon.
-	muted, _ := knotstate.Load(knotstate.Muted, s.room)
-	escalated, _ := knotstate.Load(knotstate.Escalated, s.room)
+	muted, _ := knotstate.Load(knotstate.Muted, s.stateKey)
+	escalated, _ := knotstate.Load(knotstate.Escalated, s.stateKey)
 
 	// Remember exactly what we surface (firm AND soft are both shown, so both are
 	// labelable) so a later ettle_respond can join its verdict to the tangle's
@@ -603,7 +608,7 @@ func (s *server) respond(ctx context.Context, _ *mcp.CallToolRequest, in respond
 	// "real" leaves it surfaced (a genuine open conflict the human should keep seeing).
 	muted := ""
 	if v == "not_real" || v == "handled" {
-		if err := knotstate.Add(knotstate.Muted, s.room, key); err != nil {
+		if err := knotstate.Add(knotstate.Muted, s.stateKey, key); err != nil {
 			return nil, respondOut{}, fmt.Errorf("mute %s: %w", key, err)
 		}
 		muted = " (muted — it won't resurface)"
@@ -651,7 +656,7 @@ func (s *server) escalate(ctx context.Context, _ *mcp.CallToolRequest, in escala
 	if _, err := s.esc.PostKnot(ctx, sid, escalateBody(view)); err != nil {
 		return nil, escalateOut{}, fmt.Errorf("post knot: %w", err)
 	}
-	if err := knotstate.Add(knotstate.Escalated, s.room, key); err != nil {
+	if err := knotstate.Add(knotstate.Escalated, s.stateKey, key); err != nil {
 		return nil, escalateOut{}, fmt.Errorf("record escalated: %w", err)
 	}
 	return text(fmt.Sprintf("escalated %s to room %q's coordination issue.", key, s.room)),
@@ -756,11 +761,13 @@ func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPrompt
 // bus is the horizon's backing transport: pass transport.NewInProcess() for a
 // local single-process server, or a room's bus so the agents driving this server
 // share a horizon with teammates on other machines. Serve closes it on return.
-// room is the Linear room the coordination bus is on ("" if the bus is not Linear):
-// it keys the per-room escalated/muted stores and is the escalate target. When it is
-// set and LINEAR_AGENT_TOKEN is present, ettle_escalate is enabled (posts as the
-// OAuth app actor); otherwise the tool reports it is not configured.
-func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, room string) error {
+// stateKey is the transport spec (e.g. "github://acme/widgets/crew"), which keys the
+// per-room muted/escalated stores — every bus needs muting, so this is deliberately
+// not the Linear room. linRoom IS the Linear room ("" if the bus is not Linear) and
+// is only the escalate target: when it is set and LINEAR_AGENT_TOKEN is present,
+// ettle_escalate is enabled (posts as the OAuth app actor); otherwise the tool
+// reports it is not configured.
+func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string) error {
 	// Label capture is local-first: an append-only JSONL file in the working dir,
 	// overridable by ETTLE_LABELS_PATH. The verdicts are the calibration loop's future
 	// input (stage 2); writing them now means the data exists before the loop does.
@@ -768,10 +775,10 @@ func Serve(ctx context.Context, det reconciler, bus transport.Transport, version
 	if path == "" {
 		path = "ettle-labels.jsonl"
 	}
-	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(path), room: room}
+	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(path), stateKey: stateKey, room: linRoom}
 	// Enable ettle_escalate only for a Linear room with an app-actor token present —
 	// the member key can read agent activities but not post them.
-	if tok := strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")); tok != "" && strings.TrimSpace(room) != "" {
+	if tok := strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")); tok != "" && strings.TrimSpace(linRoom) != "" {
 		s.esc = transport.NewLinearAgentWriter(tok, version)
 		s.team = strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID"))
 	}

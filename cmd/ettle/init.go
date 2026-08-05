@@ -33,14 +33,24 @@ type hookSpec struct {
 	why     string
 }
 
-func ettleHooks() []hookSpec {
-	return []hookSpec{
+// ettleHooks is the bundle for a room. The two pull-hook entries are LINEAR-ONLY:
+// pull reads replies off Linear's agent activities, a surface GitHub has no
+// counterpart for, so installing them for a GitHub room would wire two hooks that
+// can only ever no-op — and a PostToolUse matcher on a Linear MCP server the team
+// doesn't run.
+func ettleHooks(linear bool) []hookSpec {
+	hooks := []hookSpec{
 		{"SessionStart", "", "ettle horizon-hook", "inject the knots relevant to you when a session opens"},
-		{"SessionStart", "", "ettle pull-hook", "ingest teammates' Linear replies before you look"},
 		{"SessionEnd", "", "ettle capture-hook", "distill this session and publish your atoms"},
 		{"Stop", "", "ettle capture-hook", "same, mid-session (debounced, so not every turn)"},
-		{"PostToolUse", "mcp__linear", "ettle pull-hook", "touching Linear catches you up"},
 	}
+	if !linear {
+		return hooks
+	}
+	return append(hooks,
+		hookSpec{"SessionStart", "", "ettle pull-hook", "ingest teammates' Linear replies before you look"},
+		hookSpec{"PostToolUse", "mcp__linear", "ettle pull-hook", "touching Linear catches you up"},
+	)
 }
 
 // check is one line of the init report. required=false means the feature it gates is
@@ -78,19 +88,39 @@ func runInit(args []string) error {
 	if room == "" {
 		room = fs.Arg(0)
 	}
+	derived := false
 	if strings.TrimSpace(room) == "" {
-		return fmt.Errorf(`usage: ettle init <room> [--me <you>] [--install-hooks]
-       ettle init github://<owner>/<repo>[/<room>] [--me <you>] [--install-hooks]
+		// Naming a room is a decision nobody wants to make, and inside a GitHub repo it
+		// is one nobody has to: the repo IS the room. Derive it from the origin remote,
+		// which also guarantees teammates land on the same room without agreeing on a
+		// name first — the failure mode where two people typo different rooms and each
+		// sees an empty bus.
+		if spec, ok := roomFromGitRemote(*dir); ok {
+			room, derived = spec, true
+		}
+	}
+	if strings.TrimSpace(room) == "" {
+		return fmt.Errorf(`usage: ettle init [<room>] [--me <you>] [--install-hooks]
 
-  Sets up a room for this project: verifies the keys, resolves (or creates) the
-  thing that carries the atoms, writes .ettle-room here, and wires the Claude Code
-  hooks. A bare name is a Linear room (its project is ettle-<room>); a github://
-  spec uses a PRIVATE repo's Discussions instead. Teammates pass the same spec.
-  Neither? ` + "`ettle room init <git-url>`" + ` is the plain git-repo bus.`)
+  Inside a GitHub repo, the room needs no name — it is derived from the origin
+  remote, so teammates cannot land in different rooms by typing different names.
+  Elsewhere, name it:
+
+    ettle init github://<owner>/<repo>[/<room>]   a PRIVATE repo's Discussions
+    ettle init <name>                             a Linear room (project ettle-<name>)
+
+  Either way this verifies the keys, resolves (or creates) the thing that carries
+  the atoms, writes .ettle-room here, and wires the Claude Code hooks. Neither
+  platform? ` + "`ettle room init <git-url>`" + ` is the plain git-repo bus.
+
+  (No origin remote found here, which is why you are reading this.)`)
 	}
 
 	spec, label, env, verify := initTarget(room)
-	rep := initReport{Room: spec, Label: label, Me: *me, Docs: docsLinearSetup, Environment: env}
+	if derived {
+		label += " — derived from the origin remote, so a teammate runs the same bare `ettle init`"
+	}
+	rep := initReport{Room: spec, Label: label, Me: *me, Derived: derived, Docs: docsLinearSetup, Environment: env}
 
 	// The report is emitted on EVERY exit, including a failure partway down: the
 	// checks already gathered are the most useful thing to show whoever's setup just
@@ -118,7 +148,7 @@ func runInit(args []string) error {
 		what: fmt.Sprintf("room = %s — every ettle command in this tree reads it, so none need --room. Safe to commit; you are %q on this machine only, so a teammate's atoms are never published as yours", spec, *me),
 	}}
 
-	hookLine, hookBody, hookErr := setupHooks(*install, *settings)
+	hookLine, hookBody, hookErr := setupHooks(*install, *settings, strings.HasPrefix(spec, "linear://"))
 	rep.HooksInstalled = hookErr == nil && *install
 	rep.HooksJSON = hookBody
 	rep.Hooks = []check{{ok: rep.HooksInstalled, required: false, name: "Claude Code", what: hookLine}}
@@ -128,6 +158,54 @@ func runInit(args []string) error {
 		return fmt.Errorf("setup is incomplete — see the ✗ lines above (%s has each key)", docsLinearSetup)
 	}
 	return nil
+}
+
+// roomFromGitRemote derives github://<owner>/<repo> from the origin remote of the
+// repo containing dir (or the cwd), so `ettle init` inside a GitHub checkout needs
+// no argument at all.
+func roomFromGitRemote(dir string) (string, bool) {
+	at := strings.TrimSpace(dir)
+	if at == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", false
+		}
+		at = cwd
+	}
+	out, err := git(at, "remote", "get-url", "origin")
+	if err != nil {
+		return "", false
+	}
+	owner, repo, ok := parseGitHubRemote(out)
+	if !ok {
+		return "", false
+	}
+	return "github://" + owner + "/" + repo, true
+}
+
+// parseGitHubRemote pulls owner/repo out of the GitHub remote URL forms git actually
+// hands back. Anything that is not github.com returns false rather than a guess — a
+// GitLab remote is not a GitHub room, and silently inventing one would fail later and
+// further from the cause.
+func parseGitHubRemote(url string) (owner, repo string, ok bool) {
+	u := strings.TrimSuffix(strings.TrimSpace(url), ".git")
+	switch {
+	case strings.HasPrefix(u, "git@github.com:"):
+		u = strings.TrimPrefix(u, "git@github.com:")
+	case strings.HasPrefix(u, "ssh://git@github.com/"):
+		u = strings.TrimPrefix(u, "ssh://git@github.com/")
+	case strings.HasPrefix(u, "https://github.com/"):
+		u = strings.TrimPrefix(u, "https://github.com/")
+	case strings.HasPrefix(u, "http://github.com/"):
+		u = strings.TrimPrefix(u, "http://github.com/")
+	default:
+		return "", "", false
+	}
+	parts := strings.Split(strings.Trim(u, "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // docsLinearSetup is a URL, not a repo-relative path: the person most likely to hit
@@ -142,6 +220,7 @@ type initReport struct {
 	Label          string  `json:"label"`
 	Me             string  `json:"me"`
 	OK             bool    `json:"ok"`
+	Derived        bool    `json:"derived_from_git_remote"`
 	RoomFile       string  `json:"room_file,omitempty"`
 	HooksInstalled bool    `json:"hooks_installed"`
 	HooksJSON      string  `json:"hooks_json,omitempty"`
@@ -355,20 +434,20 @@ func projectDir(explicit string) (string, error) {
 // setupHooks either merges the hooks into the settings file or renders the JSON to
 // merge by hand. Returns the status line, the JSON body to print (empty when
 // installed), and any install error.
-func setupHooks(install bool, settingsPath string) (string, string, error) {
+func setupHooks(install bool, settingsPath string, linear bool) (string, string, error) {
 	if !install {
-		return "not installed — merge this into ~/.claude/settings.json, or re-run with --install-hooks:", hooksJSON(), nil
+		return "not installed — merge this into ~/.claude/settings.json, or re-run with --install-hooks:", hooksJSON(linear), nil
 	}
 	path, err := settingsFilePath(settingsPath)
 	if err != nil {
-		return "install failed: " + err.Error(), hooksJSON(), err
+		return "install failed: " + err.Error(), hooksJSON(linear), err
 	}
-	added, err := installHooks(path)
+	added, err := installHooks(path, linear)
 	if err != nil {
-		return "install failed: " + err.Error(), hooksJSON(), err
+		return "install failed: " + err.Error(), hooksJSON(linear), err
 	}
 	if added == 0 {
-		return path + " — all five already present, nothing to add", "", nil
+		return fmt.Sprintf("%s — all %d already present, nothing to add", path, len(ettleHooks(linear))), "", nil
 	}
 	return fmt.Sprintf("%s — %d added (a .bak of the previous file is beside it)", path, added), "", nil
 }
@@ -386,9 +465,9 @@ func settingsFilePath(explicit string) (string, error) {
 
 // hooksJSON renders the fragment to merge by hand — the same entries installHooks
 // would add, so the two paths never drift.
-func hooksJSON() string {
+func hooksJSON(linear bool) string {
 	hooks := map[string]any{}
-	for _, h := range ettleHooks() {
+	for _, h := range ettleHooks(linear) {
 		groups, _ := hooks[h.event].([]any)
 		hooks[h.event] = addToGroups(groups, h)
 	}
@@ -446,7 +525,7 @@ func allEttleCommands(entries []any) bool {
 // alone, so re-running init never duplicates hooks. The previous file is copied to
 // <path>.bak first — this is the user's global config and a bad merge should be one
 // `mv` from undone.
-func installHooks(path string) (int, error) {
+func installHooks(path string, linear bool) (int, error) {
 	settings := map[string]any{}
 	if data, err := os.ReadFile(path); err == nil {
 		if len(strings.TrimSpace(string(data))) > 0 {
@@ -466,7 +545,7 @@ func installHooks(path string) (int, error) {
 		hooks = map[string]any{}
 	}
 	added := 0
-	for _, h := range ettleHooks() {
+	for _, h := range ettleHooks(linear) {
 		groups, _ := hooks[h.event].([]any)
 		if hasHookCommand(groups, h) {
 			continue

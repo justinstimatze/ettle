@@ -132,11 +132,17 @@ from inside a session instead — offer a knot, escalate it on a yes, mute it wh
 handled — add the MCP server: `claude mcp add ettle -- ettle mcp`.
 
 **On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
-Discussions carry the atoms, one comment per person:
+Discussions carry the atoms, one comment per person — and inside a repo there is
+**nothing to name**:
 
 ```sh
-ettle init github://acme/widgets/crew --me alice --install-hooks
+ettle init --me alice --install-hooks
 ```
+
+The room comes from the `origin` remote, so a teammate runs the same bare command
+and lands in the same room; nobody invents a name and nobody typos into an empty
+bus of their own. (Spell it out as `ettle init github://acme/widgets` if you want
+to, or add a third segment to run several rooms in one repo.)
 
 It needs no new secret: the token `gh auth login` already stored is enough. It also
 **refuses a public repository outright** rather than warning — a public repo's

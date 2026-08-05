@@ -103,7 +103,7 @@ func collisionServer(t *testing.T) *server {
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
 		voted: []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}},
 	}
-	s := &server{det: f, h: newHorizon(), labels: &memLabelSink{}, room: "room-x", team: "team-1"}
+	s := &server{det: f, h: newHorizon(), labels: &memLabelSink{}, stateKey: "github://acme/widgets/crew", room: "room-x", team: "team-1"}
 	if _, _, err := s.emit(context.Background(), nil, emitIn{Participant: "alice", Notes: "n"}); err != nil {
 		t.Fatal(err)
 	}

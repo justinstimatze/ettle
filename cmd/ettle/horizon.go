@@ -73,14 +73,17 @@ func runHorizon(args []string) error {
 	if err != nil {
 		return err
 	}
-	// For a Linear room, bring parity with the MCP horizon: suppress muted knots and
-	// flag which are already escalated. Escalation is Linear-only, so the stores key
-	// by the Linear room name (matching `ettle escalate` and the MCP server).
-	if linRoom, ok := linearRoomOf(*room, *transportName); ok {
-		muted, _ := knotstate.Load(knotstate.Muted, linRoom)
-		escalated, _ := knotstate.Load(knotstate.Escalated, linRoom)
-		res = tagHorizon(res, muted, escalated)
+	// Parity with the MCP horizon. MUTING applies to every bus — a knot the human
+	// said was handled must stop re-surfacing whether the room is Linear, GitHub, or
+	// a git repo — so the stores key by the room SPEC. ESCALATION is Linear-only, so
+	// `escalated` stays nil elsewhere and the block shows no share tags.
+	stateKey := roomStateKey(*room, *transportName)
+	muted, _ := knotstate.Load(knotstate.Muted, stateKey)
+	var escalated map[string]bool
+	if _, isLinear := linearRoomOf(*room, *transportName); isLinear {
+		escalated, _ = knotstate.Load(knotstate.Escalated, stateKey)
 	}
+	res = tagHorizon(res, muted, escalated)
 	block := renderHorizonBlock(res, who, time.Now().UTC())
 
 	if !*cache {
@@ -212,6 +215,17 @@ func foldLatest(envs []transport.Envelope) []transport.Envelope {
 // linearRoomOf returns the Linear room name (and true) when the horizon's transport
 // is a Linear bus, so the escalated/muted stores key the same way `ettle escalate`
 // and the MCP server do. A leat --room is not a Linear room, so it yields false.
+// roomStateKey names a room for the per-room knot stores (muted/escalated). It is
+// the transport SPEC, so every bus gets its own bucket — keying off the Linear room
+// meant a mute on a github:// or leat room landed in a shared "default" bucket and
+// non-Linear rooms muted each other's knots.
+func roomStateKey(room, transportName string) string {
+	if strings.TrimSpace(transportName) != "" {
+		return transportName
+	}
+	return room
+}
+
 func linearRoomOf(_ /*room*/, transportName string) (string, bool) {
 	if r, ok := strings.CutPrefix(transportName, "linear://"); ok {
 		if r = strings.TrimSpace(r); r != "" {

@@ -1796,9 +1796,10 @@ func runMCP(args []string) error {
 		return err
 	}
 
-	// The escalate tool posts onto Linear, so it only applies when the bus IS Linear:
-	// pass the linear room (empty otherwise) so the server keys its stores and targets
-	// escalation correctly.
+	// Two different keys. The knot stores (muted/escalated) key by the transport SPEC,
+	// because muting has to work on every bus. Escalation posts onto Linear, so it
+	// only applies when the bus IS Linear and takes the bare room name.
+	stateKey := roomStateKey(*room, *transportName)
 	linRoom := ""
 	if r, ok := strings.CutPrefix(*transportName, "linear://"); ok {
 		linRoom = strings.TrimSpace(r)
@@ -1812,7 +1813,7 @@ func runMCP(args []string) error {
 		escNote = ", ettle_escalate"
 	}
 	fmt.Fprintf(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond%s · prompt: ettle_distill\n", escNote)
-	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), linRoom)
+	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), stateKey, linRoom)
 }
 
 // mcpserverReconciler mirrors the (unexported) interface mcpserver.Serve takes, so
