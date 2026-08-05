@@ -1780,7 +1780,9 @@ func runMCP(args []string) error {
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
 	room := fs.String("room", "", "serve the horizon over a configured git-repo room (`ettle room join`); empty = the project's .ettle-room if it has one, else in-process, this process only")
 	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
-	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
+	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to a localhost gemot or NATS")
+	gemotURL := fs.String("gemot", "", "gemot MCP endpoint to deliberate contested tangles against (e.g. https://gemot.example/mcp); empty = the inline either/or, which needs nothing running")
+	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	_ = fs.Parse(args)
 
 	// A project with a `.ettle-room` needs neither flag, so `claude mcp add ettle --
@@ -1820,8 +1822,18 @@ func runMCP(args []string) error {
 	if linRoom != "" && strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")) != "" {
 		escNote = ", ettle_escalate"
 	}
-	fmt.Fprintf(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond%s · prompt: ettle_distill\n", escNote)
-	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), stateKey, linRoom)
+	fmt.Fprintf(os.Stderr, "  tools: ettle_emit, ettle_horizon, ettle_self_check, ettle_respond, ettle_mirror, ettle_drift, ettle_room_status%s · prompt: ettle_distill\n", escNote)
+
+	// A contested tangle is staged inline unless a gemot endpoint is named. ettle's
+	// server dials gemot itself, so this is gemot-the-HTTP-service, not gemot loaded
+	// as a stdio MCP server in the caller's own session — that one the agent can
+	// reach and ettle cannot.
+	var resolver crux.Resolver
+	if *gemotURL != "" {
+		resolver = crux.Gemot{URL: *gemotURL, Token: os.Getenv("ETTLE_GEMOT_TOKEN"), InsecureLocal: *insecureLocal, Timeout: *gemotTimeout}
+		fmt.Fprintf(os.Stderr, "  contested tangles → gemot at %s\n", *gemotURL)
+	}
+	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), stateKey, linRoom, resolver)
 }
 
 // mcpserverReconciler mirrors the (unexported) interface mcpserver.Serve takes, so

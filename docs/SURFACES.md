@@ -184,6 +184,15 @@ effective operator rather than a forgetful one:
   holds now, and neither tool makes a model call. `ettle_room_status` is the presence
   view on the same read.
 
+A contested tangle — a firm decision-rights conflict or team-wide divergence, the
+two kinds that are a values call rather than something bindable — arrives on
+`ettle_horizon` with a `crux` attached: the choice framed as branches, plus the
+instruction not to take it. The resolver is `crux.Inline` by default, which needs no
+service and no key, so this holds on every install rather than only where a gemot is
+running. An unreachable resolver reports itself in the branch text instead of failing
+the horizon, because the choice does not stop being the humans' because a service was
+down.
+
 `ettle init` is the one thing that stays in the shell, because it creates the room
 the server connects to. Everything else an agent needs is a tool, which is the point:
 a surface the agent has to remember to shell out to is a surface it will skip.

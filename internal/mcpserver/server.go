@@ -29,6 +29,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/justinstimatze/ettle/internal/crux"
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 	"github.com/justinstimatze/ettle/internal/tanglestate"
 	"github.com/justinstimatze/ettle/internal/transport"
@@ -128,6 +129,13 @@ type server struct {
 	// (no app token, or not a Linear room). *transport.LinearAgentWriter satisfies it.
 	esc escalator
 
+	// resolver pre-stages a CONTESTED tangle (a decision-rights conflict or a
+	// team-wide divergence) as the either/or a human decides between. nil means
+	// crux.Inline, which needs no service and no key; a gemot resolver can be
+	// substituted for the same seam the CLI uses. It never decides anything —
+	// pre-staging the choice is the whole job.
+	resolver crux.Resolver
+
 	// lastSurfaced remembers the features of the tangles shown by the most recent
 	// horizon() call, keyed by tangleKey, so a later ettle_respond can join a verdict
 	// to the tangle's recurrence/tier (label enrichment). lastView remembers the full
@@ -224,6 +232,22 @@ type tangleView struct {
 	// coordination issue (ettle_escalate / `ettle escalate`), so the agent offers to
 	// escalate only what a non-adopter can't already see.
 	Escalated bool `json:"escalated,omitempty"`
+	// Crux is set only on a CONTESTED tangle — a firm decision-rights conflict or
+	// team-wide divergence, the two kinds that are a genuine values call rather than
+	// something bindable. It is the choice pre-staged, never taken: present the
+	// branches to the human and let them pick.
+	Crux *cruxView `json:"crux,omitempty"`
+}
+
+// cruxView is a crux.Resolution shaped for the wire. Controversy and Proposal are
+// gemot's; the inline resolver leaves them empty and supplies branches only.
+type cruxView struct {
+	Source      string   `json:"source" jsonschema:"inline | gemot"`
+	Crux        string   `json:"crux" jsonschema:"the contested point, sharpened"`
+	Controversy float64  `json:"controversy,omitempty"`
+	Proposal    string   `json:"proposal,omitempty" jsonschema:"a binding compromise, when the resolver produced one"`
+	Branches    []string `json:"branches"`
+	Note        string   `json:"note"`
 }
 
 func toTangleView(k ettlemesh.Tangle) tangleView {
@@ -422,6 +446,7 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 			continue
 		}
 		v.Escalated = escalated[v.Key]
+		v.Crux = s.resolve(ctx, k, atoms)
 		feats[v.Key] = tangleFeat{Kind: k.Kind, Votes: k.Votes, Samples: k.Samples, Firm: k.Firm()}
 		views[v.Key] = v
 		if k.Firm() {
@@ -444,6 +469,36 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	}
 	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft tangle(s) across %d participant(s)%s.",
 		scope, len(out.Firm), len(out.Soft), len(parts), heldBackNote(len(out.HeldBack), floorHeld))), out, nil
+}
+
+// resolve pre-stages a contested tangle as the either/or a human picks between,
+// which is the whole reason the crux seam exists: the mesh binds what is bindable
+// and refuses to decide what isn't. Returns nil for every other tangle.
+//
+// A resolver failure is reported in the branch text rather than raised: a contested
+// tangle whose crux is missing still has to reach the human, and failing the whole
+// horizon over an unreachable gemot would hide every other tangle with it.
+func (s *server) resolve(ctx context.Context, k ettlemesh.Tangle, atoms []ettlemesh.Atom) *cruxView {
+	if !crux.Contested(k) {
+		return nil
+	}
+	r := s.resolver
+	if r == nil {
+		r = crux.Inline{}
+	}
+	res, err := r.Resolve(ctx, k, atoms)
+	if err != nil || res == nil {
+		return &cruxView{
+			Source: "unavailable", Crux: k.About,
+			Branches: []string{fmt.Sprintf("resolver unavailable (%v) — the choice is still %s's to make", err, strings.Join(k.Parties, " and "))},
+			Note:     "this is a values call, not a bindable one; present it and let the human decide",
+		}
+	}
+	return &cruxView{
+		Source: res.Source, Crux: res.Crux, Controversy: res.Controversy,
+		Proposal: res.Proposal, Branches: res.Branches,
+		Note: "this is a values call, not a bindable one; offer the branches and let the human pick — never choose for them",
+	}
 }
 
 // heldBackNote renders the optional suppression tail on the horizon summary so a
@@ -833,11 +888,20 @@ func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPrompt
 // is only the escalate target: when it is set and LINEAR_AGENT_TOKEN is present,
 // ettle_escalate is enabled (posts as the OAuth app actor); otherwise the tool
 // reports it is not configured.
-func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string) error {
+// resolver selects how contested tangles get staged: nil takes crux.Inline, which
+// needs nothing running. Pass a crux.Gemot to deliberate them against a gemot
+// endpoint instead.
+func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string, resolver crux.Resolver) error {
 	// Label capture is local-first (see LabelsPath). The verdicts are the calibration
 	// loop's future input (stage 2); writing them now means the data exists before the
 	// loop does.
-	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(LabelsPath()), stateKey: stateKey, room: linRoom}
+	// crux.Inline needs no service and no key, so a contested tangle arrives
+	// pre-staged on every install rather than only where a gemot happens to be
+	// running (see server.resolver).
+	if resolver == nil {
+		resolver = crux.Inline{}
+	}
+	s := &server{det: det, h: newHorizonOn(bus), labels: newFileLabelSink(LabelsPath()), stateKey: stateKey, room: linRoom, resolver: resolver}
 	// Enable ettle_escalate only for a Linear room with an app-actor token present —
 	// the member key can read agent activities but not post them.
 	if tok := strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")); tok != "" && strings.TrimSpace(linRoom) != "" {

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **A contested tangle now arrives in the session already staged as the choice.**
+  `internal/mcpserver` never touched `internal/crux`, so the resolver stage was
+  CLI-only and a values call reached an agent as an undifferentiated question — the
+  one thing v0.4.0's "carries the whole engine" claim got wrong. `ettle_horizon` now
+  attaches a `crux` to firm decision-rights and team-wide-divergence tangles, and to
+  nothing else, because staging a choice for something bindable puts friction exactly
+  where it doesn't belong. The default resolver is `crux.Inline` — no service, no key
+  — so this holds on every install. Every crux carries the instruction not to take the
+  decision, and an unreachable resolver reports itself in the branch text rather than
+  failing the whole horizon; the choice does not stop being the humans' because a
+  service was down.
+- **`ettle mcp --gemot <url>`** swaps that resolver for a real deliberation, the same
+  seam and the same `ETTLE_GEMOT_TOKEN` the CLI uses. Worth naming what this does not
+  cover: ettle's server dials gemot over HTTP itself, so this is gemot-the-service. A
+  gemot loaded as a stdio MCP server inside your own session is reachable by your
+  agent and not by ettle, and no bridge between the two is built.
+
 ## v0.4.0 — 2026-08-05
 
 - **The MCP surface now carries the whole engine.** ettle is agent-first — the CLI is

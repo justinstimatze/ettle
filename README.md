@@ -160,9 +160,9 @@ mcp`. That is the surface ettle is built for, and where a verdict normally gets
 entered (`ettle_respond`, same log as the shell form). It carries emit, reconcile,
 respond, escalate, the presence view, and both sides of the L2 layer —
 `ettle_mirror` for what the team believes about you, `ettle_drift` for who your
-changes are routed to. Two things stay in the shell: `ettle init`, which creates
-the room the server connects to, and the crux resolver, so a contested tangle
-arrives over MCP as a question rather than a pre-staged either/or.
+changes are routed to, and a contested tangle arriving with its either/or already
+staged. `ettle init` is the one thing left in the shell, because it creates the room
+the server connects to.
 
 **On GitHub instead of Linear?** Same setup, different bus — a **private** repo's
 Discussions carry the atoms, one comment per person — and inside a checkout there is
