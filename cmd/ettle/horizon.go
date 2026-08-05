@@ -274,9 +274,12 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 	}
 	// Address the agent directly: this is context to act on, not a message to post.
 	fmt.Fprintf(&b, "You are %s's ettle agent. These are cross-person coordination tangles involving %s, surfaced privately for you — nothing is posted anywhere. When %s's current work touches one, raise it with them; don't dump the list unprompted. Firm = worth a look; soft = worth a question with the other person.\n", who, who, who)
-	// Every bus, not only Linear: muting is the only way a wrong tangle stops opening
-	// every session, and an agent that doesn't know the command can't offer it.
-	b.WriteString("If one of these is wrong or already handled, say so and run `ettle mute <kind> <the people in it>` — that stops it resurfacing here and keeps it out of any escalation. `ettle mute --clear` undoes it.\n")
+	// Every bus, not only Linear: muting is the only thing that stops a wrong tangle
+	// opening every session, and an agent that doesn't know how can't offer it.
+	// ettle_respond leads because the MCP server is the surface this is normally driven
+	// from, and because it records the verdict as calibration ground truth on the way
+	// past; the CLI is for a session without the tools loaded.
+	b.WriteString("If one of these is wrong or already handled, tell ettle rather than living with it: `ettle_respond` with verdict `not_real` or `handled` records the verdict and stops the tangle resurfacing (or `ettle mute <kind> <the people in it>` from a shell). Either way it also stays out of any escalation, and `ettle mute --clear` undoes it.\n")
 	if res.escalated != nil {
 		b.WriteString(shareLegend(res, who))
 	}

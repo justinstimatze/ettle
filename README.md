@@ -148,7 +148,10 @@ ettle escalate               # post the firm cross-person tangles where a non-ad
 tangle surfacing and keeps it out of any escalation, on every bus, and
 `ettle mute --clear` undoes it. Reach for it the first time something wrong shows
 up — a tool that interrupts you and can't be told it was wrong is a tool you turn
-off.
+off. From inside a session the same thing is `ettle_respond` with verdict
+`not_real` or `handled`, which mutes it *and* records the verdict as the
+calibration ground truth; the shell command is for when the MCP server isn't
+loaded.
 
 None takes a `--room`: the `.ettle-room` in the repo answers that, which is also why
 the hooks can be global and still do the right thing per project. To drive it from
