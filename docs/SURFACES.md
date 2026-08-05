@@ -82,29 +82,32 @@ Three hooks close the instruction-free loop:
 |------|-----|--------|
 | **SessionStart** | pull teammates' replies **and** inject the current horizon into context, so the person sees relevant knots the instant a session opens | pull **built**; horizon-injection **unbuilt** |
 | **PostToolUse(`mcp__linear`)** | pull, so touching Linear catches you up | **built** (`ettle pull-hook`, `hooks/settings.example.json`) |
-| **Stop** | distill *this* session's transcript into the person's own atoms and publish them to the bus | **unbuilt** |
+| **SessionEnd / Stop** | distill *this* session's transcript into the person's own atoms and publish them to the bus | **built** (`ettle capture-hook` → `ettle capture --room`) |
 
-## The honest gap: auto-capture
+## Auto-capture (the send half of set-and-forget)
 
-Today a session's atoms reach the bus only when Claude is *told* to call the
-`ettle_emit` MCP tool — that is "instructing it," which is exactly what
-set-and-forget forbids. The parse half exists: `ettle capture`
-(`cmd/ettle/main.go:1705`, `internal/capture`) reads a Claude Code transcript and
-produces an L1 digest. What is missing is the wiring — digest → `Detector.Distill`
-→ `bus.Publish` — behind a **Stop hook** that fires automatically, non-blocking,
-debounced, and calibration-gated so a trivial session does not spam atoms. It is
-the same detached-spawn shape as the shipped `ettle pull-hook`, pointed at the
-transcript instead of at Linear.
+Before, a session's atoms reached the bus only when Claude was *told* to call the
+`ettle_emit` MCP tool — "instructing it," which is exactly what set-and-forget
+forbids. Now `ettle capture --room <room>` (`cmd/ettle/capture.go`) distills a
+Claude Code transcript locally — reusing the parse in `internal/capture` and
+`Detector.Distill` — and publishes the atoms as you; `ettle capture-hook` fires it
+from a **SessionEnd** hook (once per session) and optionally **Stop** (each turn,
+debounced), detached so it never blocks the agent. Only typed atoms cross; the raw
+transcript stays local. A session that distills to no atoms publishes nothing, so
+an empty session never wipes your existing atoms off the bus.
 
-That one hook is what makes "works in every session without being told" literally
-true. Until it lands, the receive half and the bus are in place but the person's
-*own* contribution still depends on an instruction.
+With capture and pull both wired, the loop closes with no command to run: your
+sessions put you on the bus, teammates come in over Linear, coordination surfaces
+in each person's own horizon. The remaining unbuilt piece is the *surface* — the
+SessionStart horizon-injection that shows the knots without being asked; capture
+puts the atoms there, injection is what makes them visible unprompted.
 
 ## What this commits us to (and what it defers)
 
 - **Default install never posts to an issue.** Whisper + bus only.
 - **Escalation-emit is opt-in and lands on a dedicated coordination issue**, gated
-  by calibration — deferred, and the paired follow-on to auto-capture.
+  by calibration — still deferred (needs the OAuth app-actor token), and only ever
+  the bridge to a teammate who won't install ettle.
 - **No auto-resolution, ever** — a named invariant, not a roadmap item.
 - **Consent-first holds:** the non-adopter participates from outside via Linear
   replies and opts in once they've felt the value; adoption is never pushed

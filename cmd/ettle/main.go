@@ -94,6 +94,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "capture-hook":
+			if err := runCaptureHook(os.Args[2:]); err != nil {
+				fmt.Fprintln(os.Stderr, "ettle:", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -101,7 +107,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  each input is one participant: a note file, or a Claude Code")
 		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
 		fmt.Fprintln(os.Stderr, "  ettle room <init|join|list|status>  # join a team's shared bus once, then use --room <name>")
-		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview what a session distills to")
+		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview a session's digest; add --room <room> to distill + publish it as your atoms")
 		fmt.Fprintln(os.Stderr, "  ettle drift <prev-dir> <curr-dir>  # L2: directed models + surprise-gated deltas across two rounds")
 		fmt.Fprintln(os.Stderr, "  ettle mirror --me <name> <prev> <curr> # what the team's models believe ABOUT you, stale flagged")
 		fmt.Fprintln(os.Stderr, "  ettle eval [--leak] <corpus>...    # smoke-test the detector / measure the privacy boundary")
@@ -1702,24 +1708,47 @@ func loadDir(dir string) ([]participant, error) {
 // runCapture previews the L1 digest a session transcript distills to — what
 // would cross the boundary before any model call. The raw transcript stays
 // local; this shows the lossy, privacy-respecting extraction.
+// runCapture inspects or publishes a Claude Code session. With no bus target it
+// prints each transcript's L1 digest (the dev inspector). With --room/--transport
+// it distills the session locally and publishes the atoms as your own — this is
+// the auto-capture half of set-and-forget, fired by the Stop/SessionEnd hook
+// (capture-hook) so a session's own reasoning reaches the bus without anyone
+// running an emit tool by hand. See capture.go and docs/SURFACES.md.
 func runCapture(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: ettle capture <transcript.jsonl>")
+	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
+	room := fs.String("room", "", "publish the distilled atoms to this leat room (created by `ettle room init|join`) instead of printing the digest")
+	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | nats")
+	me := fs.String("me", "", "your identity for the published atoms (default: the room's agent, else $USER)")
+	model := fs.String("model", "claude-haiku-4-5", "model id for distilling the session")
+	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
-	for _, path := range args {
-		s, err := capture.Read(path)
-		if err != nil {
-			return fmt.Errorf("capture %s: %w", path, err)
-		}
-		fmt.Printf("\n  ── %s ──\n", filepath.Base(path))
-		if s.Empty() {
-			fmt.Println("  (no L1 signal extracted — no prompts, edits, or commands)")
-			continue
-		}
-		fmt.Println(s.Digest())
-		fmt.Println()
+	paths := fs.Args()
+	if len(paths) == 0 {
+		return fmt.Errorf("usage: ettle capture <transcript.jsonl>   (add --room <room> to distill + publish it as your atoms)")
 	}
-	return nil
+
+	// Inspector mode: no bus target → print each digest (the original behavior).
+	if *room == "" && *transportName == "" {
+		for _, path := range paths {
+			s, err := capture.Read(path)
+			if err != nil {
+				return fmt.Errorf("capture %s: %w", path, err)
+			}
+			fmt.Printf("\n  ── %s ──\n", filepath.Base(path))
+			if s.Empty() {
+				fmt.Println("  (no L1 signal extracted — no prompts, edits, or commands)")
+				continue
+			}
+			fmt.Println(s.Digest())
+			fmt.Println()
+		}
+		return nil
+	}
+
+	// Publish mode: distill the session(s) locally and publish as `me`'s atoms.
+	return capturePublish(paths, *room, *transportName, *me, *model, *insecureLocal)
 }
 
 // runMCP serves the coordination engine over an MCP stdio transport, so any MCP

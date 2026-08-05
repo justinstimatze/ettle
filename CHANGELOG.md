@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Auto-capture: a session puts you on the bus with no command to run.** `ettle
+  capture --room <room>` distills *this* Claude Code session's own reasoning
+  **locally** (reusing `internal/capture` + the detector) and publishes the atoms
+  as you — raw prose never crosses, only typed atoms. `ettle capture-hook` fires it
+  from a Claude Code **SessionEnd** hook (and optionally **Stop** for mid-session
+  freshness), spawned **detached** so it never blocks the agent and **debounced** so
+  a per-turn Stop collapses to the occasional distill. A session that distills to no
+  atoms publishes nothing, so an empty session never erases your atoms. This is the
+  send half of set-and-forget; with `pull-hook` (the receive half) the loop closes
+  with nothing to remember. `ettle capture <transcript>` with no `--room` still just
+  prints the digest. Identity is `--me`, else the room's agent, else `$USER`. See
+  [`hooks/`](hooks/) and [docs/SURFACES.md](docs/SURFACES.md).
 - **`ettle pull` — a teammate who never installs ettle can contribute through
   Linear's native agent UI.** When someone replies to ettle in a Linear agent
   session, `ettle pull --room <room>` reads that reply (a plain member key — no

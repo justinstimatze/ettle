@@ -1,10 +1,24 @@
 {
-  "//": "ettle pull hook — see hooks/README.md. Merge these into your Claude Code settings (~/.claude/settings.json for all projects, or a project's .claude/settings.json). Replace YOUR_ROOM with your Linear room, and adjust the PostToolUse matcher to your Linear MCP server's tool prefix.",
+  "//": "ettle hooks — see hooks/README.md. Merge into your Claude Code settings (~/.claude/settings.json for all projects, or a project's .claude/settings.json). Replace YOUR_ROOM everywhere with your room, and adjust the PostToolUse matcher to your Linear MCP server's tool prefix. pull-hook ingests teammates' Linear replies; capture-hook distills THIS session and publishes your own atoms. Together they are the set-and-forget loop: install once, works in every session with no command to run.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           { "type": "command", "command": "ettle pull-hook --room YOUR_ROOM" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "ettle capture-hook --room YOUR_ROOM" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "ettle capture-hook --room YOUR_ROOM" }
         ]
       }
     ],
