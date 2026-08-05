@@ -76,6 +76,7 @@ func runMute(args []string) error {
 	// A silence recorded without WHY teaches the calibration loop nothing, so this
 	// writes the same label ettle_respond would, into the same log.
 	lbl := mcpserver.Label{Key: key, Verdict: verdict, By: captureIdentity(*me, *room, *transportName)}
+	enrichFromSurfaced(&lbl, stateKey, key)
 	if err := mcpserver.RecordLabel(lbl); err != nil {
 		// The mute already landed and is what the human asked for; losing the label is
 		// worth saying out loud and not worth failing over.

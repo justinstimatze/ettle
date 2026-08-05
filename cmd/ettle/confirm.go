@@ -66,6 +66,7 @@ func runConfirm(args []string) error {
 	// happened to reach for. Losing it is worth saying and not worth failing over —
 	// the confirmation already landed and is what the human asked for.
 	lbl := mcpserver.Label{Key: key, Verdict: "real", By: captureIdentity(*me, *room, *transportName)}
+	enrichFromSurfaced(&lbl, stateKey, key)
 	if err := mcpserver.RecordLabel(lbl); err != nil {
 		fmt.Fprintf(os.Stderr, "ettle: confirmed, but the verdict was not recorded: %v\n", err)
 	} else {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **A verdict typed at the shell now carries the recurrence it was answering.** Only
+  the MCP server could attach that before — it holds the surfaced set in memory, so
+  an agent answering the horizon it just read wrote a learnable row, while `ettle
+  confirm` and `ettle mute` wrote the kind and zero. That is backwards from where the
+  rows come from: the default install is hooks-only, no MCP server, so the surface
+  producing the most verdicts was producing the ones `ettle calibrate` counts and can
+  never use. The horizon now records what it showed, keyed by room — which tangles
+  you see depends on `--me`, what their recurrence was does not — and the shell
+  verdicts read it back. A tangle absent from the last horizon still records zero
+  rather than a guess, because `ettle calibrate` cannot tell an invented row from a
+  real one. Held-back tangles are never recorded: the floor means they were not
+  shown, so no verdict can be answering them.
 - **Saying a tangle is real now does something, so the verdict log stops arriving
   one-armed.** `not_real` and `handled` mute — the nuisance ends, which is a payoff a
   human can feel — while `real` left the tangle exactly as it was, asked about again

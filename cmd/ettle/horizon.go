@@ -89,6 +89,13 @@ func runHorizon(args []string) error {
 		escalated, _ = tanglestate.Load(tanglestate.Escalated, stateKey)
 	}
 	res = tagHorizon(res, muted, confirmed, escalated)
+	// Record what this horizon showed, so a verdict typed at the shell afterwards
+	// carries the recurrence it was answering — the feature every cut point
+	// thresholds on. Best-effort: a verdict with zero recurrence is a weaker row, and
+	// failing the horizon over a cache write would be a worse trade. See surfaced.go.
+	if err := writeSurfaced(stateKey, res, time.Now()); err != nil {
+		fmt.Fprintf(os.Stderr, "ettle: horizon shown, but its features were not cached (verdicts will lack recurrence): %v\n", err)
+	}
 	block := renderHorizonBlock(res, who, time.Now().UTC())
 
 	if !*cache {
