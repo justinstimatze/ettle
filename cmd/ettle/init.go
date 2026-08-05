@@ -648,6 +648,14 @@ func renderNextSteps(room, me string, ok bool, docs string) string {
 	if !ok {
 		fmt.Fprintf(&b, "    fix the ✗ lines first — %s\n", docs)
 		b.WriteString("    walks what each one is for.\n")
+		// Naming WHERE the keys go is the step a cold start otherwise has to guess.
+		// The env file matters more than it looks: the hooks inherit whatever
+		// environment the session was launched with, so a key exported in one
+		// terminal is invisible to them.
+		if p := userEnvPath(); p != "" {
+			fmt.Fprintf(&b, "    put them in %s (one KEY=VALUE per line, chmod 600) —\n", p)
+			b.WriteString("    read by every ettle command, and so by the hooks, which see no shell you export in.\n")
+		}
 		return b.String()
 	}
 	fmt.Fprintf(&b, "    ettle horizon --me %s          # what the room already knows that concerns you\n", me)

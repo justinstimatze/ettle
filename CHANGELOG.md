@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 — 2026-08-05
+
+The set-and-forget release: ettle stopped being a thing you run. `ettle init` sets a
+team up in one command on a Linear project or a private repo's GitHub Discussions,
+and from then on sessions publish themselves and the tangles that involve you surface
+at the start of the next one. **Anyone who installed before this tag has none of it** —
+`go install …@latest` was still serving v0.2.1, which predates init, the hooks, the
+GitHub bus, and the project room file.
 
 - **`make ci` runs a prose vocabulary gate** (`calque vocab-check` against
   `.calque/vocab-allowlist.txt`), so a second word competing with an existing one

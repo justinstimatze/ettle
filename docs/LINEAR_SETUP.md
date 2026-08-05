@@ -12,8 +12,11 @@ install.
 | `LINEAR_TEAM_ID` | first run only | Creating the room's project. Ignored once the project exists, so only the first person in a room needs it. |
 | `LINEAR_AGENT_TOKEN` | no | Escalation only — posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. |
 
-Put them wherever your shell reads env vars, or in a `.env` beside the binary
-(`.env.example` lists all four). They are read once per command; nothing is stored.
+**Where to put them: `~/.config/ettle/env`**, one `KEY=VALUE` per line, `chmod 600`.
+Every ettle command reads it, which is the point — the Claude Code hooks inherit
+whatever environment the session was launched with, so a key you export in one
+terminal is invisible to them. An explicit environment variable still wins if you
+prefer to export. (`.env.example` lists all four.)
 
 ## `ANTHROPIC_API_KEY`
 
