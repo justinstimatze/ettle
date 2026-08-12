@@ -3,7 +3,7 @@ module github.com/justinstimatze/ettle
 go 1.25.0
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.61.0
+	github.com/anthropics/anthropic-sdk-go v1.62.0
 	github.com/justinstimatze/leat v0.1.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/nats-io/nats-server/v2 v2.14.4
