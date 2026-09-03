@@ -157,29 +157,8 @@ func runInit(args []string) error {
 	if err := saveIdentity(spec, *me); err != nil {
 		return fmt.Errorf("save identity: %w", err)
 	}
-	// Record which workspace this room was actually found in, so a later run holding a
-	// different workspace's key is refused rather than quietly creating a second
-	// same-named project. Best-effort: a room that did not verify has nothing to
-	// record, and failing setup over the bookkeeping would be worse than the risk.
 	if busOK {
-		if org, err := linearOrgOf(spec); err == nil && org.ID != "" {
-			// Read the neighbours BEFORE recording this one, or this room's own
-			// workspace counts as evidence of working across several.
-			others := otherWorkspaces(org.ID)
-			_ = saveOrg(spec, org.ID, org.Name)
-			rep.Workspace = org.Name
-			if org.Name == "" {
-				rep.Workspace = "id " + org.ID
-			}
-			if prof == "" && len(others) > 0 {
-				rep.CrossWorkspace = fmt.Sprintf(
-					"this machine also has ettle rooms in %s, and this project names no key profile — "+
-						"so every project here shares one Linear key. If %q is not the workspace you meant, "+
-						"re-run with --profile <name> (keys in %s) before anyone joins: a key that cannot see a "+
-						"room does not fail, it creates a second one nobody else can find. %s",
-					strings.Join(others, ", "), rep.Workspace, profileEnvPath("<name>"), docsFor(spec))
-			}
-		}
+		rep.Workspace, rep.CrossWorkspace = recordWorkspace(spec, prof)
 	}
 	rep.RoomFile = path
 	rep.Project = []check{{
@@ -415,6 +394,43 @@ func profileCheck(name string) check {
 	}
 	return check{ok: true, required: true, name: "profile " + strconv.Quote(name),
 		what: path + " — layered over the global file, so this project's keys can point at their own Linear workspace"}
+}
+
+// recordWorkspace notes which workspace this room was actually found in, so a later
+// run holding a different workspace's key is refused rather than quietly creating a
+// second same-named project. It returns what the report should say: the workspace, and
+// a warning when there is one.
+//
+// Best-effort by design — a workspace that cannot be read is not worth failing setup
+// over, and every other transport has none to read.
+func recordWorkspace(spec, profile string) (workspace, warning string) {
+	org, err := linearOrgOf(spec)
+	if err != nil || org.ID == "" {
+		return "", ""
+	}
+	// Read the neighbours BEFORE recording this one, or this room's own workspace
+	// counts as evidence of working across several.
+	others := otherWorkspaces(org.ID)
+	_ = saveOrg(spec, org.ID, org.Name)
+
+	workspace = org.Name
+	if workspace == "" {
+		workspace = "id " + org.ID
+	}
+	// Warn only on evidence, not on possibility. This machine holds rooms in another
+	// workspace and this project names no profile, so they are sharing one key — which
+	// is the case a first init cannot catch any other way, because there is no prior
+	// record for THIS room to check against. A single-workspace machine stays quiet;
+	// a warning everyone sees is a warning nobody reads.
+	if profile == "" && len(others) > 0 {
+		warning = fmt.Sprintf(
+			"this machine also has ettle rooms in %s, and this project names no key profile — "+
+				"so every project here shares one Linear key. If %q is not the workspace you meant, "+
+				"re-run with --profile <name> (keys in %s) before anyone joins: a key that cannot see a "+
+				"room does not fail, it creates a second one nobody else can find. %s",
+			strings.Join(others, ", "), workspace, profileEnvPath("<name>"), docsFor(spec))
+	}
+	return workspace, warning
 }
 
 // linearOrgOf resolves the workspace behind a linear:// spec, for recording. Any other

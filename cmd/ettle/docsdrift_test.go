@@ -34,30 +34,45 @@ var sharedKeyClaims = []string{
 	"whoever reconciles",
 }
 
+// sharedClaimIn returns the first "somebody else's key covers you" phrase the line
+// makes about key, or "" when it makes none.
+func sharedClaimIn(line, key string) string {
+	if !strings.Contains(line, key) {
+		return ""
+	}
+	lower := strings.ToLower(line)
+	for _, claim := range sharedKeyClaims {
+		if strings.Contains(lower, claim) {
+			return claim
+		}
+	}
+	return ""
+}
+
 func TestDocsDoNotCallARequiredKeyShared(t *testing.T) {
 	// envChecks is the same function `ettle init` reports from, so this asserts against
 	// the enforcement itself rather than a restatement of it.
+	var required []string
 	for _, c := range envChecks() {
-		if !c.required {
-			continue
+		if c.required {
+			required = append(required, c.name)
 		}
-		for _, path := range docPaths {
-			body, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("read %s: %v", path, err)
-			}
-			for _, line := range strings.Split(string(body), "\n") {
-				if !strings.Contains(line, c.name) {
+	}
+
+	for _, path := range docPaths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, line := range strings.Split(string(body), "\n") {
+			for _, key := range required {
+				claim := sharedClaimIn(line, key)
+				if claim == "" {
 					continue
 				}
-				lower := strings.ToLower(line)
-				for _, claim := range sharedKeyClaims {
-					if strings.Contains(lower, claim) {
-						t.Errorf("%s describes %s as %q, but envChecks marks it required for every install "+
-							"— a reader will tell a teammate they need no key and that teammate's `ettle init` will fail:\n  %s",
-							filepath.Base(path), c.name, claim, strings.TrimSpace(line))
-					}
-				}
+				t.Errorf("%s describes %s as %q, but envChecks marks it required for every install "+
+					"— a reader will tell a teammate they need no key and that teammate's `ettle init` will fail:\n  %s",
+					filepath.Base(path), key, claim, strings.TrimSpace(line))
 			}
 		}
 	}
