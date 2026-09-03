@@ -311,6 +311,30 @@ type orgRef struct {
 type knownRoom struct {
 	Spec string
 	Me   string
+	Org  *orgRef
+}
+
+// otherWorkspaces names the Linear workspaces this machine has rooms in besides the
+// one given. A non-empty result is positive evidence that this person works across
+// more than one workspace — the case where picking the wrong key silently builds a
+// room nobody else can see, and the case a first `ettle init` cannot otherwise catch,
+// because there is no prior record for that room to check against.
+func otherWorkspaces(exceptID string) []string {
+	seen := map[string]bool{strings.TrimSpace(exceptID): true}
+	var out []string
+	for _, r := range knownRooms() {
+		if r.Org == nil || seen[r.Org.ID] {
+			continue
+		}
+		seen[r.Org.ID] = true
+		name := strings.TrimSpace(r.Org.Name)
+		if name == "" {
+			name = "id " + r.Org.ID
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // knownRooms lists every room this machine has an identity for, on any transport.
@@ -342,7 +366,7 @@ func knownRooms() []knownRoom {
 		if json.Unmarshal(data, &v) != nil || strings.TrimSpace(v.Room) == "" {
 			continue
 		}
-		out = append(out, knownRoom{Spec: strings.TrimSpace(v.Room), Me: strings.TrimSpace(v.Me)})
+		out = append(out, knownRoom{Spec: strings.TrimSpace(v.Room), Me: strings.TrimSpace(v.Me), Org: v.Org})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Spec < out[j].Spec })
 	return out

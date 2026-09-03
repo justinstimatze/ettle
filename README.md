@@ -84,9 +84,10 @@ What's **deliberately unbuilt** is the part that needs the most care: the longit
 
 ## Quickstart
 
-Requires **Go ≥ 1.25** and one Anthropic API key for the room. A teammate driving
-ettle from their own agent (Claude Code, Cursor) distills locally and needs no key
-at all.
+Requires **Go ≥ 1.25** and an Anthropic API key. Which of you needs one depends on
+the path: everyone running the Claude Code hooks needs their own, because capture and
+horizon both call the model on their own machine; a teammate driving ettle from their
+own agent (Claude Code, Cursor) distills in-session and needs none at all.
 
 Install the binary — it self-describes its version (`ettle version`):
 
@@ -129,14 +130,23 @@ you** rather than failing on the first, resolves or creates that project, writes
 `~/.claude/settings.json` — backing up the previous file and skipping anything
 already there. Drop `--install-hooks` to print the JSON and merge it yourself; add
 `--json` if an agent is driving the setup. Every teammate runs the same line with
-their own `--me`.
+their own `--me`. It is safe to re-run as often as you like — nothing is
+half-applied, and a run after you fill in a missing key picks up where it stopped.
 
-Only one of the four keys is per-person:
+**More than one Linear workspace?** Add `--profile work`, and this project reads its
+keys from `~/.config/ettle/env.d/work` instead of the global file. A member key sees
+exactly one workspace, so without this every project on the machine shares one — and
+a key that cannot see a room does not fail, it *creates a second one* your teammate
+will never find. `init` names the workspace it resolved on every run, and refuses a
+later run whose key points somewhere else. Details:
+[docs/LINEAR_SETUP.md](docs/LINEAR_SETUP.md#more-than-one-workspace).
+
+Two of the four keys are per-person:
 
 | Key | Who needs it | What it buys |
 |---|---|---|
 | `LINEAR_API_KEY` | everyone running ettle | The atom bus — a Linear project's documents — and reading teammates' replies. A personal member key: Settings → Security & access, no admin. |
-| `ANTHROPIC_API_KEY` | whoever reconciles; one per room | Distilling notes into atoms and reconciling the room, both on your machine. A teammate driving ettle from their own agent distills client-side and needs none. |
+| `ANTHROPIC_API_KEY` | everyone running the hooks | Distilling notes into atoms and reconciling the room, both on your machine. `capture` and `horizon` hard-fail without it. Only the key-free `ettle mcp` path needs none — there your own agent distills in-session. |
 | `LINEAR_TEAM_ID` | the first person in the room | Creating the room's project. Ignored once it exists. |
 | `LINEAR_AGENT_TOKEN` | nobody, until you escalate — then one person holds it | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth app-actor token, because a member key cannot post agent activities. Workspace admin, about ten minutes. |
 
@@ -241,8 +251,9 @@ claude mcp add ettle -- go run ./cmd/ettle mcp       # from a clone
 
 # no key needed to take part: ask for the `ettle_distill` prompt, YOUR agent
 # distills locally, then calls ettle_emit with `atoms` instead of `notes` — the
-# raw notes never leave your machine. Only whoever runs reconcile (ettle_horizon)
-# needs a key, one per room. `ettle mcp` starts without one and serves the rest.
+# raw notes never leave your machine. On THIS path a key is needed only by whoever
+# runs reconcile (ettle_horizon); `ettle mcp` starts without one and serves the rest.
+# (The hook path is different — see the key table above.)
 
 # multiplayer with NO broker: point at a folder the team already shares
 # (Dropbox/Drive/git/Syncthing). Each agent writes only its own file under

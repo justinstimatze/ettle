@@ -163,8 +163,22 @@ func runInit(args []string) error {
 	// record, and failing setup over the bookkeeping would be worse than the risk.
 	if busOK {
 		if org, err := linearOrgOf(spec); err == nil && org.ID != "" {
+			// Read the neighbours BEFORE recording this one, or this room's own
+			// workspace counts as evidence of working across several.
+			others := otherWorkspaces(org.ID)
 			_ = saveOrg(spec, org.ID, org.Name)
 			rep.Workspace = org.Name
+			if org.Name == "" {
+				rep.Workspace = "id " + org.ID
+			}
+			if prof == "" && len(others) > 0 {
+				rep.CrossWorkspace = fmt.Sprintf(
+					"this machine also has ettle rooms in %s, and this project names no key profile — "+
+						"so every project here shares one Linear key. If %q is not the workspace you meant, "+
+						"re-run with --profile <name> (keys in %s) before anyone joins: a key that cannot see a "+
+						"room does not fail, it creates a second one nobody else can find. %s",
+					strings.Join(others, ", "), rep.Workspace, profileEnvPath("<name>"), docsFor(spec))
+			}
 		}
 	}
 	rep.RoomFile = path
@@ -259,6 +273,7 @@ type initReport struct {
 	Me             string  `json:"me"`
 	Profile        string  `json:"profile,omitempty"`
 	Workspace      string  `json:"workspace,omitempty"`
+	CrossWorkspace string  `json:"cross_workspace_warning,omitempty"`
 	OK             bool    `json:"ok"`
 	Derived        bool    `json:"derived_from_git_remote"`
 	RoomFile       string  `json:"room_file,omitempty"`
@@ -281,8 +296,18 @@ func renderInitReport(rep initReport, asJSON bool) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n  ettle init — %s\n", rep.Label)
+	if rep.Workspace != "" {
+		// Say WHICH workspace, always. On a room's first init nothing is recorded yet,
+		// so the wrong-workspace guard has no expectation to check — this line is the
+		// only thing standing between a mistyped key and a room your teammate cannot
+		// see. It costs one line and it is the one a person should read.
+		fmt.Fprintf(&b, "  workspace: %s\n", rep.Workspace)
+	}
 	b.WriteString(renderChecks("environment", rep.Environment))
 	b.WriteString(renderChecks("bus", rep.Bus))
+	if rep.CrossWorkspace != "" {
+		fmt.Fprintf(&b, "\n  ⚠ %s\n", rep.CrossWorkspace)
+	}
 	if len(rep.Project) > 0 {
 		b.WriteString(renderChecks("project", rep.Project))
 	}
@@ -713,6 +738,12 @@ func renderNextSteps(room, me string, ok bool, docs string) string {
 			fmt.Fprintf(&b, "    put them in %s (one KEY=VALUE per line, chmod 600) —\n", p)
 			b.WriteString("    read by every ettle command, and so by the hooks, which see no shell you export in.\n")
 		}
+		// Nothing here is half-applied: the room pointer and identity are already
+		// written, the hook merge is idempotent, and a re-run overwrites with the same
+		// values. Saying so is what stops a careful reader treating an incomplete setup
+		// as a broken one.
+		b.WriteString("    then run the same command again — this is safe to re-run as often as you like,\n")
+		b.WriteString("    and it picks up where it stopped rather than starting over.\n")
 		return b.String()
 	}
 	fmt.Fprintf(&b, "    ettle horizon --me %s          # what the room already knows that concerns you\n", me)

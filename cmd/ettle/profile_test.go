@@ -228,3 +228,39 @@ func TestResolveTeamIDSeesTheProfileValue(t *testing.T) {
 		t.Errorf("an explicit --team still wins, got %q", got)
 	}
 }
+
+func TestOtherWorkspacesSeesOnlyTheNeighbours(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, r := range []struct{ spec, id, name string }{
+		{"linear://crew", "org_acme", "Acme"},
+		{"linear://infra", "org_acme", "Acme"}, // same workspace, must not double-count
+		{"linear://side", "org_side", "Side Project"},
+	} {
+		if err := saveIdentity(r.spec, "alice"); err != nil {
+			t.Fatal(err)
+		}
+		if err := saveOrg(r.spec, r.id, r.name); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A non-empty result is the positive evidence `ettle init` warns on: this machine
+	// demonstrably works across workspaces, so a project naming no profile is sharing
+	// one key with all of them.
+	got := otherWorkspaces("org_acme")
+	if len(got) != 1 || got[0] != "Side Project" {
+		t.Errorf("got %v, want just [Side Project]", got)
+	}
+	if only := otherWorkspaces("org_side"); len(only) != 1 || only[0] != "Acme" {
+		t.Errorf("got %v, want just [Acme]", only)
+	}
+	// A machine with one workspace must stay quiet — a warning everyone sees is a
+	// warning nobody reads.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := saveOrg("linear://crew", "org_acme", "Acme"); err != nil {
+		t.Fatal(err)
+	}
+	if quiet := otherWorkspaces("org_acme"); len(quiet) != 0 {
+		t.Errorf("a single-workspace machine should produce no warning, got %v", quiet)
+	}
+}

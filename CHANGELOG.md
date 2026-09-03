@@ -36,10 +36,26 @@
   its path, reports the workspace it resolved, and fails a profile that is named but
   absent — falling back to the global keys quietly is how a project ends up talking to
   the wrong workspace.
-- Docs: a "more than one workspace" section in `docs/LINEAR_SETUP.md` with the guard's
-  two honest limits, and a corrected `ANTHROPIC_API_KEY` row — it said "one per room",
-  but the hook path needs one per person (`ettle capture` and `ettle horizon` both
-  hard-fail without it) and only the key-free `ettle mcp` path needs none.
+- **The setup reads the same in the README as in the setup doc.** Both carry a key
+  table, for two different audiences, and they had drifted: both still said
+  `ANTHROPIC_API_KEY` was "one per room; whoever reconciles" long after `envChecks`
+  began marking it required for every install. Someone following the README would tell
+  a teammate they needed no key, and that teammate's `ettle init` would then fail on a
+  required check. Corrected in `README.md` (four places) and `docs/LINEAR_SETUP.md`,
+  with a "more than one workspace" section carrying the guard's two honest limits. A
+  test now holds the docs to what the code enforces rather than to each other, so this
+  drift fails the build instead of a teammate's setup.
+- **`ettle init` names the workspace it resolved, on every run.** On a room's FIRST
+  init nothing is recorded yet, so the wrong-workspace guard has no expectation to
+  check — that line is the only thing between a mistyped key and a room a teammate
+  cannot see. And when the machine demonstrably works across workspaces (it holds
+  rooms in another one) while this project names no profile, init says so outright
+  rather than leaving the question unasked. `--profile` is in the top-level usage too,
+  since it answers a question nobody knows to ask.
+- **An incomplete setup says it is safe to re-run.** Nothing is half-applied — the
+  room pointer and identity are written, the hook merge is idempotent — but the report
+  never said so, and "setup is incomplete" reads like breakage to someone deciding
+  whether to touch it again.
 
 ## v0.5.0 — 2026-08-05
 
