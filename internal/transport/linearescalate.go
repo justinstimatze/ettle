@@ -25,14 +25,18 @@ type LinearAgentWriter struct {
 const coordinationIssueTitle = "ettle coordination"
 
 // NewLinearAgentWriter builds the writer over the live GraphQL backend using an
-// OAuth app-actor token (Bearer auth).
-func NewLinearAgentWriter(appToken, version string) *LinearAgentWriter {
+// OAuth app-actor token (Bearer auth). expect carries the same workspace expectation
+// the bus uses: EnsureCoordinationIssue calls the same resolveProject, so without it
+// escalation would be the one path that could still create a room in the wrong
+// workspace.
+func NewLinearAgentWriter(appToken, version string, expect Workspace) *LinearAgentWriter {
 	return &LinearAgentWriter{gql: &linearDocStore{
-		http:     &http.Client{Timeout: 30 * time.Second},
-		apiKey:   strings.TrimSpace(appToken),
-		endpoint: linearEndpoint,
-		ua:       "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
-		bearer:   true,
+		http:      &http.Client{Timeout: 30 * time.Second},
+		apiKey:    strings.TrimSpace(appToken),
+		endpoint:  linearEndpoint,
+		ua:        "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
+		bearer:    true,
+		expectOrg: expect,
 	}}
 }
 

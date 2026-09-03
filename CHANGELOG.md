@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+- **A project can point at its own Linear workspace, via a named key profile.** A
+  Linear member key is scoped to one workspace, and ettle had exactly one key slot per
+  machine: `linearBusFor` reads `LINEAR_API_KEY` from the process environment, and the
+  only source a hook-launched process has is the single global `~/.config/ettle/env`,
+  loaded before any command knows which room it is in. Someone working across two
+  workspaces could not point two projects at them. Now `.ettle-room` can carry
+  `profile = work`, whose keys live in `~/.config/ettle/env.d/work` and layer over the
+  global file — one profile serves however many projects share a workspace. The line
+  is a name and not a secret, so it stays as safe to commit as `room`; `ETTLE_PROFILE`
+  overrides it for a teammate who names theirs differently. Precedence is explicit
+  environment, then profile, then global file. A project with no `profile` line
+  behaves exactly as before.
+- **Pointing at the wrong workspace is now refused instead of silently duplicating the
+  room.** The old failure was the bad kind: a key from another workspace does not
+  error, it simply cannot see `ettle-<room>`, so `resolveProject` would **create a
+  second project of that name** in the wrong workspace — a real bus with a teammate
+  who never sees it. `ettle init` records which workspace a room was found in, and a
+  later run holding a different key is refused by name. The check runs only on the
+  create branch, so a normal read costs nothing, and it also refuses when the
+  workspace cannot be determined at all — "could not check, carry on" would restore
+  the exact bug. Escalation inherits it, since it resolves the same project. No
+  recorded workspace means no expectation, so every existing install is unaffected.
+- **`saveIdentity` no longer erases the recorded workspace.** It marshaled a fresh map
+  of its own two fields rather than the record, so in `ettle init` the workspace was
+  written and erased nine lines later — leaving the guard permanently inert with the
+  build green. Both writers now read the record first and persist the struct.
+- **`ettle escalate` reads `LINEAR_TEAM_ID` after the room resolves, not as a flag
+  default.** A flag default is evaluated before `linearRoomFor` runs, which is what
+  loads the project's profile, so a second-workspace project silently got the global
+  team id.
+- **`ettle init --profile <name>`** writes the line, reports the active profile and
+  its path, reports the workspace it resolved, and fails a profile that is named but
+  absent — falling back to the global keys quietly is how a project ends up talking to
+  the wrong workspace.
+- Docs: a "more than one workspace" section in `docs/LINEAR_SETUP.md` with the guard's
+  two honest limits, and a corrected `ANTHROPIC_API_KEY` row — it said "one per room",
+  but the hook path needs one per person (`ettle capture` and `ettle horizon` both
+  hard-fail without it) and only the key-free `ettle mcp` path needs none.
+
 ## v0.5.0 — 2026-08-05
 
 - **Docs stop calling the calibration loop unbuilt, and stop calling it built.** The

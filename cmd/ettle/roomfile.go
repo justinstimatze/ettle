@@ -22,15 +22,17 @@ import (
 const roomFileName = ".ettle-room"
 
 // roomFile is the parsed pointer: a transport spec ("linear://crew") or a configured
-// leat room name, plus where it was found.
+// leat room name, the key profile to read, plus where it was found.
 //
-// The room is the only thing in here, deliberately — it is a fact about the PROJECT
-// and is safe to commit. Identity is a fact about the PERSON and lives per-machine
-// (see loadIdentity): a committed `me = alice` would publish Bob's atoms as Alice's,
-// which is exactly the misattribution the transport works to prevent.
+// Both fields are facts about the PROJECT and safe to commit — a profile is a NAME,
+// never a secret, and the keys it names stay per-machine under <config>/ettle/env.d.
+// Identity is a fact about the PERSON and stays out (see loadIdentity): a committed
+// `me = alice` would publish Bob's atoms as Alice's, which is exactly the
+// misattribution the transport works to prevent.
 type roomFile struct {
-	Spec string
-	Path string
+	Spec    string
+	Profile string
+	Path    string
 }
 
 // parseRoomFile reads the tiny key=value format, tolerating a hand-authored file that
@@ -51,12 +53,28 @@ func parseRoomFile(text string) roomFile {
 			}
 			continue
 		}
-		if key := strings.ToLower(strings.TrimSpace(k)); key == "room" || key == "transport" {
+		switch key := strings.ToLower(strings.TrimSpace(k)); key {
+		case "room", "transport":
 			rf.Spec = strings.TrimSpace(v)
+		case "profile":
+			rf.Profile = strings.TrimSpace(v)
 		}
 	}
 	return rf
 }
+
+// activeProfile decides which key profile a command should read: an explicit
+// ETTLE_PROFILE wins over the committed line, because the room file is SHARED and a
+// teammate may name their profile something else on their own machine.
+func activeProfile(rf roomFile) string {
+	if p := strings.TrimSpace(os.Getenv(profileEnvVar)); p != "" {
+		return p
+	}
+	return rf.Profile
+}
+
+// profileEnvVar is the per-machine override for the room file's committed profile line.
+const profileEnvVar = "ETTLE_PROFILE"
 
 // findRoomFile walks up from dir to the filesystem root looking for `.ettle-room`,
 // so a session started in a subdirectory still finds the project's room.
@@ -109,11 +127,19 @@ func splitRoomSpec(spec string) (room, transportName string) {
 // applyRoomFile fills an empty (--room, --transport) pair from the nearest
 // `.ettle-room`. Explicit flags always win, so a project pointer never overrides
 // what someone typed.
+//
+// It also loads the project's key profile, and does so BEFORE the explicit-flags
+// early return: a typed `--room` still belongs to this project and still wants this
+// project's keys. Putting the load here rather than at the ~8 call sites is the same
+// anti-drift reasoning loadAndDetect uses — a funnel someone can forget is a funnel
+// someone will forget, and the failure would be silent (the wrong workspace's key,
+// no error).
 func applyRoomFile(room, transportName string) (string, string) {
+	rf, ok := currentRoomFile()
+	loadProfileEnv(activeProfile(rf))
 	if room != "" || transportName != "" {
 		return room, transportName
 	}
-	rf, ok := currentRoomFile()
 	if !ok {
 		return "", ""
 	}
@@ -126,12 +152,13 @@ func applyRoomFile(room, transportName string) (string, string) {
 // is not Linear, and silently treating its name as a Linear project would be worse
 // than reporting nothing.
 func linearRoomFor(room string) string {
+	rf, _ := currentRoomFile()
+	// Load before the explicit-room return, for the same reason applyRoomFile does:
+	// pull and escalate read LINEAR_API_KEY straight from the environment moments
+	// later, and a typed --room does not make this a different project.
+	loadProfileEnv(activeProfile(rf))
 	if strings.TrimSpace(room) != "" {
 		return strings.TrimSpace(room)
-	}
-	rf, ok := currentRoomFile()
-	if !ok {
-		return ""
 	}
 	if r, ok := strings.CutPrefix(rf.Spec, "linear://"); ok {
 		return strings.TrimSpace(r)
@@ -149,26 +176,86 @@ func identityPath(spec string) (string, error) {
 	return filepath.Join(dir, "ettle", "identity", transport.SanitizeID(spec)+".json"), nil
 }
 
-// saveIdentity records who you are in a room, so no later command needs --me.
-func saveIdentity(spec, me string) error {
-	if strings.TrimSpace(spec) == "" || strings.TrimSpace(me) == "" {
-		return nil
-	}
+// readIdentity returns the stored record for a spec, or a zero value when there is
+// none. Every writer goes through this first so it can preserve the fields it does
+// not own — the file has two independent authors (identity and workspace) and a
+// writer that marshals only its own half silently erases the other's.
+func readIdentity(spec string) (identityFile, string, error) {
 	path, err := identityPath(spec)
 	if err != nil {
-		return err
+		return identityFile{}, "", err
 	}
+	var v identityFile
+	data, err := os.ReadFile(path)
+	if err == nil {
+		_ = json.Unmarshal(data, &v)
+	}
+	return v, path, nil
+}
+
+// writeIdentity persists a whole record. Marshaling the STRUCT rather than a literal
+// map is the whole point: a map of just the caller's fields is how the workspace got
+// dropped, and that failure is invisible — the guard it feeds simply never fires.
+func writeIdentity(path string, v identityFile) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	// The spec rides along because the filename is sanitized and therefore lossy
-	// ("linear://crew" and "linear__crew" collapse to the same name). Without it
-	// `ettle room list` could not name the rooms this machine belongs to.
-	data, err := json.Marshal(map[string]string{"me": strings.TrimSpace(me), "room": strings.TrimSpace(spec)})
+	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// saveIdentity records who you are in a room, so no later command needs --me. It
+// preserves any recorded workspace.
+func saveIdentity(spec, me string) error {
+	if strings.TrimSpace(spec) == "" || strings.TrimSpace(me) == "" {
+		return nil
+	}
+	v, path, err := readIdentity(spec)
+	if err != nil {
+		return err
+	}
+	v.Me = strings.TrimSpace(me)
+	// The spec rides along because the filename is sanitized and therefore lossy
+	// ("linear://crew" and "linear__crew" collapse to the same name). Without it
+	// `ettle room list` could not name the rooms this machine belongs to.
+	v.Room = strings.TrimSpace(spec)
+	return writeIdentity(path, v)
+}
+
+// saveOrg records which Linear workspace a room actually lives in, so a later run
+// with a different workspace's key can be refused instead of quietly creating a
+// second project of the same name somewhere nobody will look. It preserves the
+// identity — the mirror image of saveIdentity, and for the same reason.
+//
+// Both id and name are kept: the comparison needs the id, and the refusal has to be
+// able to say WHICH workspace, which an id cannot do for a human.
+func saveOrg(spec, id, name string) error {
+	if strings.TrimSpace(spec) == "" || strings.TrimSpace(id) == "" {
+		return nil
+	}
+	v, path, err := readIdentity(spec)
+	if err != nil {
+		return err
+	}
+	v.Org = &orgRef{ID: strings.TrimSpace(id), Name: strings.TrimSpace(name)}
+	if strings.TrimSpace(v.Room) == "" {
+		v.Room = strings.TrimSpace(spec)
+	}
+	return writeIdentity(path, v)
+}
+
+// loadOrg returns the workspace recorded for a room, or a zero orgRef when none is —
+// which is the "no expectation" case every pre-existing install starts in, and why
+// adding the guard cannot break a setup that already works.
+func loadOrg(spec string) orgRef {
+	v, _, err := readIdentity(spec)
+	if err != nil || v.Org == nil {
+		return orgRef{}
+	}
+	return *v.Org
 }
 
 // loadIdentity returns the saved identity for a room spec, "" when none. Falls back
@@ -205,10 +292,19 @@ func loadIdentity(spec string) string {
 	return strings.TrimSpace(v.Me)
 }
 
-// identityFile is the per-machine record: who you are in a room, and which room.
+// identityFile is the per-machine record: who you are in a room, which room, and
+// which Linear workspace that room was found in.
 type identityFile struct {
-	Me   string `json:"me"`
-	Room string `json:"room,omitempty"`
+	Me   string  `json:"me"`
+	Room string  `json:"room,omitempty"`
+	Org  *orgRef `json:"org,omitempty"`
+}
+
+// orgRef names a Linear workspace. The id is what gets compared; the name is what a
+// person can act on when the comparison fails.
+type orgRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
 }
 
 // knownRoom is one entry in the machine's room registry, as `ettle room list` shows it.
@@ -254,10 +350,18 @@ func knownRooms() []knownRoom {
 
 // renderRoomFile is what `ettle init` writes — self-describing, because the next
 // person to open it will not have read the docs.
-func renderRoomFile(spec string) string {
-	return "# ettle — this project's coordination room. Written by `ettle init`.\n" +
+func renderRoomFile(spec, profile string) string {
+	out := "# ettle — this project's coordination room. Written by `ettle init`.\n" +
 		"# The Claude Code hooks read it, so the hook config names no room and one\n" +
 		"# global settings.json works across every project. Safe to commit: it says\n" +
 		"# which room, not who you are (your identity is per-machine).\n" +
 		"room = " + spec + "\n"
+	if p := strings.TrimSpace(profile); p != "" {
+		out += "\n# Which key set to read, for a machine that works across more than one\n" +
+			"# Linear workspace. A NAME, not a secret — the keys stay per-machine in\n" +
+			"# <config>/ettle/env.d/" + p + ". Override with ETTLE_PROFILE if you name yours\n" +
+			"# something else.\n" +
+			"profile = " + p + "\n"
+	}
+	return out
 }

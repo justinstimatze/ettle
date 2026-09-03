@@ -34,7 +34,7 @@ func TestFindRoomFileWalksUp(t *testing.T) {
 	if _, ok := findRoomFile(deep); ok {
 		t.Fatal("no pointer anywhere should find nothing")
 	}
-	if err := os.WriteFile(filepath.Join(root, roomFileName), []byte(renderRoomFile("linear://crew")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, roomFileName), []byte(renderRoomFile("linear://crew", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rf, ok := findRoomFile(deep)
@@ -67,7 +67,7 @@ func TestSplitRoomSpec(t *testing.T) {
 
 func TestApplyRoomFileFlagsWin(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("linear://crew")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("linear://crew", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
@@ -93,7 +93,7 @@ func TestLinearRoomForOnlyAnswersForLinear(t *testing.T) {
 		t.Errorf("an explicit room wins: %q", got)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("linear://crew")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("linear://crew", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if got := linearRoomFor(""); got != "crew" {
@@ -101,7 +101,7 @@ func TestLinearRoomForOnlyAnswersForLinear(t *testing.T) {
 	}
 	// A leat room means this project's bus is not Linear — better to report nothing
 	// than to treat its name as a Linear project that doesn't exist.
-	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("standup-room")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, roomFileName), []byte(renderRoomFile("standup-room", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if got := linearRoomFor(""); got != "" {
@@ -127,7 +127,7 @@ func TestIdentityRoundTripIsPerRoom(t *testing.T) {
 	}
 	// An empty spec resolves through the project pointer.
 	cwd, _ := os.Getwd()
-	if err := os.WriteFile(filepath.Join(cwd, roomFileName), []byte(renderRoomFile("linear://crew")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(cwd, roomFileName), []byte(renderRoomFile("linear://crew", "")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if got := loadIdentity(""); got != "justin" {

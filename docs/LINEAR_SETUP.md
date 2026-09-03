@@ -8,11 +8,13 @@ install.
 | Variable | Who needs it | What it buys |
 |---|---|---|
 | `LINEAR_API_KEY` | everyone running ettle | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |
-| `ANTHROPIC_API_KEY` | whoever reconciles; one per room | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
+| `ANTHROPIC_API_KEY` | everyone on the hook path — see below | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
 | `LINEAR_TEAM_ID` | the first person in the room | Creating the room's project. Ignored once the project exists. |
 | `LINEAR_AGENT_TOKEN` | nobody, until you escalate | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. One person holds it, not one per teammate. |
 
 **Where to put them: `~/.config/ettle/env`**, one `KEY=VALUE` per line, `chmod 600`.
+(Working across more than one Linear workspace? See [More than one
+workspace](#more-than-one-workspace) below — one global file cannot serve two.)
 Every ettle command reads it, which is the point — the Claude Code hooks inherit
 whatever environment the session was launched with, so a key you export in one
 terminal is invisible to them. An explicit environment variable still wins if you
@@ -20,9 +22,16 @@ prefer to export. (`.env.example` lists all four.)
 
 ## `ANTHROPIC_API_KEY`
 
-<https://console.anthropic.com/settings/keys>. One key per room is enough, not one per
-person: a teammate driving ettle from their own agent distills client-side and never
-needs one (`ettle mcp` runs key-free — see the README).
+<https://console.anthropic.com/settings/keys>. Whether this is one key per room or one
+per person depends on which path you are on, and the difference catches people out:
+
+- **The hook path** (`ettle init --install-hooks`, the lead path) needs **one per
+  person**. `ettle capture` and `ettle horizon` both call the model on your own
+  machine and fail without a key, so every teammate running the hooks has their own.
+  `ettle init` reports it as required for this reason.
+- **The MCP path** needs **none at all**. `ettle mcp` runs key-free: the agent already
+  in the session does the distilling and calls `ettle_emit` with the atoms, so a
+  teammate driving ettle from their own agent never mints one.
 
 ## `LINEAR_API_KEY` — a personal member key
 
@@ -100,6 +109,45 @@ curl -s https://api.linear.app/graphql -H "Authorization: Bearer $LINEAR_AGENT_T
 ```
 
 The name should be your application's, not yours.
+
+## More than one workspace
+
+A Linear member key is scoped to **one workspace**, so a single global
+`~/.config/ettle/env` cannot serve two. Name a **profile** instead:
+
+```
+ettle init crew --profile work
+```
+
+That writes `profile = work` into the project's `.ettle-room` and reads its keys from
+`~/.config/ettle/env.d/work` — one file per workspace, however many projects share it.
+The profile is a **name, not a secret**, so the line stays as safe to commit as `room`
+already is; the keys never leave your machine. A project with no `profile` line
+behaves exactly as before.
+
+Four places a value can come from, in order:
+
+1. an explicit environment variable (an `export` always wins)
+2. the named profile, `~/.config/ettle/env.d/<name>`
+3. the global `~/.config/ettle/env`
+4. a `.env` in the working directory — `ANTHROPIC_API_KEY` only
+
+A profile only needs the keys that *differ*; anything it omits keeps the global value.
+If your teammate names their profile something else, `ETTLE_PROFILE` overrides the
+committed line per machine.
+
+**The guard.** Pointing a project at the wrong workspace used to fail silently in the
+worst way: the key simply cannot see `ettle-<room>`, so ettle would **create a second
+project of that name** in the wrong workspace, and the teammate you meant to reach
+would never see it. `ettle init` now records which workspace a room was found in, and
+a later run holding a different workspace's key is refused by name rather than
+creating anything. Two honest limits:
+
+- On a room's **first** `ettle init` there is nothing recorded yet, so nothing is
+  checked. What protects you there is the report line naming the workspace it
+  resolved — read it before you carry on.
+- The record is per-machine and keyed by room, so it protects *your* machine. A
+  teammate's first init is their own first init.
 
 ## What ettle touches in your workspace
 

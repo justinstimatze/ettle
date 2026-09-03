@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,6 +78,7 @@ func (c check) MarshalJSON() ([]byte, error) {
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	me := fs.String("me", defaultAgent(), "your identity in the room — how your atoms are attributed to you")
+	profile := fs.String("profile", "", "which key set to read for this project, from <config>/ettle/env.d/<name> — for a machine working across more than one Linear workspace (default: the `profile` line in .ettle-room, or ETTLE_PROFILE)")
 	dir := fs.String("dir", "", "project directory for .ettle-room (default: the git root above the cwd, else the cwd)")
 	install := fs.Bool("install-hooks", false, "merge the ettle hooks into ~/.claude/settings.json (a .bak is written first); default prints the JSON to merge yourself")
 	settings := fs.String("settings", "", "which settings file --install-hooks writes (default: ~/.claude/settings.json, which serves every project)")
@@ -116,11 +118,24 @@ func runInit(args []string) error {
   (No origin remote found here, which is why you are reading this.)`)
 	}
 
+	// runInit is on neither room funnel — it resolves the room itself, above — so it
+	// has to load the key profile itself too, and BEFORE initTarget, because that is
+	// where envChecks and the live bus verification both read the keys.
+	rf, _ := currentRoomFile()
+	prof := strings.TrimSpace(*profile)
+	if prof == "" {
+		prof = activeProfile(rf)
+	}
+	loadProfileEnv(prof)
+
 	spec, label, env, verify := initTarget(room)
 	if derived {
 		label += " — derived from the origin remote, so a teammate runs the same bare `ettle init`"
 	}
-	rep := initReport{Room: spec, Label: label, Me: *me, Derived: derived, Docs: docsFor(spec), Environment: env}
+	if prof != "" {
+		env = append(env, profileCheck(prof))
+	}
+	rep := initReport{Room: spec, Label: label, Me: *me, Profile: prof, Derived: derived, Docs: docsFor(spec), Environment: env}
 
 	// The report is emitted on EVERY exit, including a failure partway down: the
 	// checks already gathered are the most useful thing to show whoever's setup just
@@ -136,11 +151,21 @@ func runInit(args []string) error {
 		return err
 	}
 	path := filepath.Join(target, roomFileName)
-	if err := os.WriteFile(path, []byte(renderRoomFile(spec)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(renderRoomFile(spec, prof)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	if err := saveIdentity(spec, *me); err != nil {
 		return fmt.Errorf("save identity: %w", err)
+	}
+	// Record which workspace this room was actually found in, so a later run holding a
+	// different workspace's key is refused rather than quietly creating a second
+	// same-named project. Best-effort: a room that did not verify has nothing to
+	// record, and failing setup over the bookkeeping would be worse than the risk.
+	if busOK {
+		if org, err := linearOrgOf(spec); err == nil && org.ID != "" {
+			_ = saveOrg(spec, org.ID, org.Name)
+			rep.Workspace = org.Name
+		}
 	}
 	rep.RoomFile = path
 	rep.Project = []check{{
@@ -232,6 +257,8 @@ type initReport struct {
 	Room           string  `json:"room"`
 	Label          string  `json:"label"`
 	Me             string  `json:"me"`
+	Profile        string  `json:"profile,omitempty"`
+	Workspace      string  `json:"workspace,omitempty"`
 	OK             bool    `json:"ok"`
 	Derived        bool    `json:"derived_from_git_remote"`
 	RoomFile       string  `json:"room_file,omitempty"`
@@ -350,6 +377,36 @@ func envChecks() []check {
 		{ok: present("LINEAR_AGENT_TOKEN"), required: false, name: "LINEAR_AGENT_TOKEN",
 			what: "escalation only — posting a tangle to the coordination issue for teammates who don't run ettle (OAuth app-actor token)"},
 	}
+}
+
+// profileCheck reports the named key profile. A named-but-absent profile is a FAILURE,
+// not a note: falling back to the global keys silently is how a project ends up
+// talking to the wrong workspace, which is the whole thing this machinery prevents.
+func profileCheck(name string) check {
+	path := profileEnvPath(name)
+	if _, err := os.Stat(path); err != nil {
+		return check{ok: false, required: true, name: "profile " + strconv.Quote(name),
+			what: "named, but " + path + " does not exist — the keys below came from the global file instead, which may be a different workspace"}
+	}
+	return check{ok: true, required: true, name: "profile " + strconv.Quote(name),
+		what: path + " — layered over the global file, so this project's keys can point at their own Linear workspace"}
+}
+
+// linearOrgOf resolves the workspace behind a linear:// spec, for recording. Any other
+// transport has no workspace to record.
+func linearOrgOf(spec string) (orgRef, error) {
+	room, ok := strings.CutPrefix(spec, "linear://")
+	if !ok || strings.TrimSpace(room) == "" {
+		return orgRef{}, nil
+	}
+	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
+	if key == "" {
+		return orgRef{}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	w, err := transport.LinearWorkspace(ctx, key, buildVersion())
+	return orgRef{ID: w.ID, Name: w.Name}, err
 }
 
 func allRequiredOK(cs []check) bool {

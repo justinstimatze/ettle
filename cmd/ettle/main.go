@@ -1841,7 +1841,7 @@ func runMCP(args []string) error {
 		resolver = crux.Gemot{URL: *gemotURL, Token: os.Getenv("ETTLE_GEMOT_TOKEN"), InsecureLocal: *insecureLocal, Timeout: *gemotTimeout}
 		fmt.Fprintf(os.Stderr, "  contested tangles → gemot at %s\n", *gemotURL)
 	}
-	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), stateKey, linRoom, resolver)
+	return mcpserver.Serve(context.Background(), det, bus, buildVersion(), stateKey, linRoom, linearWorkspaceFor(linRoom), resolver)
 }
 
 // mcpserverReconciler mirrors the (unexported) interface mcpserver.Serve takes, so

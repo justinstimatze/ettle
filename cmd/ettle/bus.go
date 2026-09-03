@@ -78,7 +78,18 @@ func linearBusFor(room string) (transport.Transport, error) {
 		return nil, fmt.Errorf("linear transport needs LINEAR_API_KEY (a Linear personal API key)")
 	}
 	team := strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID"))
-	return transport.NewLinearBus(key, room, team, buildVersion())
+	// Reconstruct the spec dirBusFor stripped: the workspace is recorded per-machine
+	// under the FULL spec (identityPath sanitizes "linear://crew"), so looking it up by
+	// the bare room would miss what `ettle init` wrote and leave the guard inert —
+	// silently, since an empty expectation is also the legitimate first-run state.
+	return transport.NewLinearBus(key, room, team, buildVersion(), linearWorkspaceFor(room))
+}
+
+// linearWorkspaceFor returns the workspace recorded for a Linear room, keyed the way
+// every other per-machine record for that room is.
+func linearWorkspaceFor(room string) transport.Workspace {
+	o := loadOrg("linear://" + strings.TrimSpace(room))
+	return transport.Workspace{ID: o.ID, Name: o.Name}
 }
 
 // leatBusFor builds a leat git-bus transport from the repo path plus the

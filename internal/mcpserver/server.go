@@ -913,7 +913,10 @@ func distillPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPrompt
 // resolver selects how contested tangles get staged: nil takes crux.Inline, which
 // needs nothing running. Pass a crux.Gemot to deliberate them against a gemot
 // endpoint instead.
-func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string, resolver crux.Resolver) error {
+// expect is the Linear workspace linRoom is known to live in, threaded through so
+// escalation cannot create a coordination issue in a workspace this room does not
+// belong to. A zero value means no expectation (see transport.Workspace).
+func Serve(ctx context.Context, det reconciler, bus transport.Transport, version, stateKey, linRoom string, expect transport.Workspace, resolver crux.Resolver) error {
 	// Label capture is local-first (see LabelsPath). The verdicts are the calibration
 	// loop's future input (stage 2); writing them now means the data exists before the
 	// loop does.
@@ -927,7 +930,7 @@ func Serve(ctx context.Context, det reconciler, bus transport.Transport, version
 	// Enable ettle_escalate only for a Linear room with an app-actor token present —
 	// the member key can read agent activities but not post them.
 	if tok := strings.TrimSpace(os.Getenv("LINEAR_AGENT_TOKEN")); tok != "" && strings.TrimSpace(linRoom) != "" {
-		s.esc = transport.NewLinearAgentWriter(tok, version)
+		s.esc = transport.NewLinearAgentWriter(tok, version, expect)
 		s.team = strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID"))
 	}
 	defer func() { _ = s.h.close() }()

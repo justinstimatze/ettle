@@ -92,15 +92,20 @@ func newLinearBusOn(store docStore) *LinearBus { return &LinearBus{store: store}
 // participant. teamID is required only when the project must be created (Linear
 // needs a team to own a new project); if the project already exists it is
 // ignored. version tags the User-Agent so Linear can see it is ettle calling.
-func NewLinearBus(apiKey, room, teamID, version string) (*LinearBus, error) {
+// expect says which workspace this room is already known to live in; a zero value
+// means no expectation, which is how every first run and every install predating the
+// check behaves — so the guard is additive and cannot break a setup that already
+// works.
+func NewLinearBus(apiKey, room, teamID, version string, expect Workspace) (*LinearBus, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("transport/linear: empty API key (set LINEAR_API_KEY)")
 	}
 	store := &linearDocStore{
-		http:     &http.Client{Timeout: 30 * time.Second},
-		apiKey:   strings.TrimSpace(apiKey),
-		endpoint: linearEndpoint,
-		ua:       "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
+		http:      &http.Client{Timeout: 30 * time.Second},
+		apiKey:    strings.TrimSpace(apiKey),
+		endpoint:  linearEndpoint,
+		ua:        "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
+		expectOrg: expect,
 	}
 	pid, err := store.resolveProject(context.Background(), room, strings.TrimSpace(teamID))
 	if err != nil {
@@ -248,6 +253,81 @@ type linearDocStore struct {
 	// path posts as the app). The member key can read agent activities but cannot post
 	// them, so the two auth modes are genuinely different tokens, not a style choice.
 	bearer bool
+	// expectOrg is the Linear workspace id this room is already known to live in, or
+	// "" for no expectation. A member key is workspace-scoped, so a key from the wrong
+	// workspace does not fail — it simply cannot SEE the room, and resolveProject then
+	// creates a same-named project in the wrong place. Recording the workspace once and
+	// checking it before a create is what turns that silent duplicate into a refusal.
+	// The Name is carried only so the refusal can say WHICH workspace.
+	expectOrg Workspace
+}
+
+// Workspace names a Linear workspace. The ID is what gets compared; the Name is what
+// a person can act on when the comparison fails. A zero Workspace means "no
+// expectation", which is how a first run and every install predating this behave.
+type Workspace struct {
+	ID   string
+	Name string
+}
+
+// LinearWorkspace reports which workspace a member key belongs to. `ettle init` calls
+// it once, after the room verifies, to record where that room actually lives — the
+// expectation every later run is checked against.
+func LinearWorkspace(ctx context.Context, apiKey, version string) (Workspace, error) {
+	s := &linearDocStore{
+		http:     &http.Client{Timeout: 30 * time.Second},
+		apiKey:   strings.TrimSpace(apiKey),
+		endpoint: linearEndpoint,
+		ua:       "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
+	}
+	return s.viewerOrg(ctx)
+}
+
+// viewerOrg reports which workspace this store's key belongs to. There is no cheaper
+// way to ask: Linear scopes a member key to one workspace implicitly, and nothing in a
+// project listing says which workspace produced it.
+func (s *linearDocStore) viewerOrg(ctx context.Context) (Workspace, error) {
+	var q struct {
+		Viewer struct {
+			Organization struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"organization"`
+		} `json:"viewer"`
+	}
+	if err := s.do(ctx, `query{ viewer{ organization{ id name } } }`, nil, &q); err != nil {
+		return Workspace{}, err
+	}
+	return Workspace{ID: q.Viewer.Organization.ID, Name: q.Viewer.Organization.Name}, nil
+}
+
+// checkOrgBeforeCreate refuses a create when the key's workspace is not the one this
+// room is known to live in — and equally when the workspace cannot be determined at
+// all. "Could not check, carry on" would restore the exact silent duplicate this
+// exists to prevent, so an unverifiable workspace does not get a create either.
+func (s *linearDocStore) checkOrgBeforeCreate(ctx context.Context, name string) error {
+	if strings.TrimSpace(s.expectOrg.ID) == "" {
+		return nil // no expectation recorded yet — first run, or an install predating this
+	}
+	got, err := s.viewerOrg(ctx)
+	if err != nil {
+		return fmt.Errorf("transport/linear: refusing to create %q — could not confirm which workspace this key belongs to: %w", name, err)
+	}
+	if got.ID == s.expectOrg.ID {
+		return nil
+	}
+	return fmt.Errorf("transport/linear: refusing to create %q — this room lives in workspace %s, but the key in use belongs to %s. "+
+		"Point this project at the right key profile (<config>/ettle/env.d/<name>, named by `profile =` in .ettle-room) rather than creating a second room nobody else can see",
+		name, describeOrg(s.expectOrg), describeOrg(got))
+}
+
+// describeOrg prefers the human name and falls back to the id, so the refusal stays
+// readable when a record predates names being stored.
+func describeOrg(w Workspace) string {
+	if strings.TrimSpace(w.Name) != "" {
+		return strconv.Quote(w.Name)
+	}
+	return "id " + w.ID
 }
 
 // do executes one GraphQL request, decoding data into out (which may be nil).
@@ -376,6 +456,12 @@ func (s *linearDocStore) resolveProject(ctx context.Context, room, teamID string
 	}
 	if teamID == "" {
 		return "", fmt.Errorf("transport/linear: project %q not found and no LINEAR_TEAM_ID set to create it", name)
+	}
+	// The create branch is the only destructive one and the only rare one, so the
+	// workspace check is paid for here and nowhere else — a read that found the
+	// project by name costs nothing extra.
+	if err := s.checkOrgBeforeCreate(ctx, name); err != nil {
+		return "", err
 	}
 	var m struct {
 		ProjectCreate struct {

@@ -36,8 +36,14 @@ entries — `capture-hook` alone still puts you on the bus.
 
 The session needs `ANTHROPIC_API_KEY` (capture and pull both distill locally) and,
 for the Linear receive half, `LINEAR_API_KEY` (a member key — reading agent replies
-needs no OAuth app token) in its environment. `ettle init` reports which of those
-you have; [`docs/LINEAR_SETUP.md`](../docs/LINEAR_SETUP.md) is how to get each.
+needs no OAuth app token). Put them in `~/.config/ettle/env` rather than a shell
+profile: a hook inherits whatever environment the session was launched with, so a key
+exported in one terminal is invisible to it. If this machine works across more than
+one Linear workspace, the project's `.ettle-room` can name a key profile
+(`profile = work` → `~/.config/ettle/env.d/work`) and the hooks read that too — a
+member key is workspace-scoped, so one global key cannot serve two. `ettle init`
+reports which of those you have; [`docs/LINEAR_SETUP.md`](../docs/LINEAR_SETUP.md) is
+how to get each.
 
 ## What the hooks do
 

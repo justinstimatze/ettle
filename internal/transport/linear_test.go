@@ -129,7 +129,7 @@ func TestLinearLive(t *testing.T) {
 		t.Fatal("live test needs LINEAR_API_KEY and LINEAR_TEAM_ID")
 	}
 	room := "livetest-" + time.Now().UTC().Format("150405")
-	b, err := NewLinearBus(key, room, team, "test")
+	b, err := NewLinearBus(key, room, team, "test", Workspace{})
 	if err != nil {
 		t.Fatal(err)
 	}

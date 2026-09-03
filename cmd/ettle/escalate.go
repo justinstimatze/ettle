@@ -112,17 +112,36 @@ func saveEmitted(room string, set map[string]bool) error {
 	return tanglestate.Save(tanglestate.Escalated, "linear://"+room, set)
 }
 
+// resolveTeamID returns the --team flag, falling back to LINEAR_TEAM_ID.
+//
+// It exists as a function so the ORDER is enforceable rather than remembered: this has
+// to run after linearRoomFor, which is what loads the project's key profile. As a flag
+// DEFAULT the env read happens during flag definition — before any room is resolved —
+// so a project pointed at a second Linear workspace would silently get the global
+// team id and create its coordination issue in the wrong place.
+func resolveTeamID(flagValue string) string {
+	if v := strings.TrimSpace(flagValue); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID"))
+}
+
 // runEscalate is `ettle escalate --room <room>`.
 func runEscalate(args []string) error {
 	fs := flag.NewFlagSet("escalate", flag.ContinueOnError)
 	room := fs.String("room", "", "the Linear room whose firm tangles to escalate (maps to project ettle-<room>)")
 	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
 	samples := fs.Int("samples", 5, "reconcile samples to vote across; only firm tangles (majority recurrence) are escalated")
-	team := fs.String("team", strings.TrimSpace(os.Getenv("LINEAR_TEAM_ID")), "Linear team id, to create the coordination issue the first time (default LINEAR_TEAM_ID)")
+	// Deliberately NOT defaulted from the environment here: a flag default is
+	// evaluated before linearRoomFor runs, and linearRoomFor is what loads this
+	// project's key profile — so reading LINEAR_TEAM_ID now would capture the global
+	// value and ignore the profile's. Resolved below instead.
+	team := fs.String("team", "", "Linear team id, to create the coordination issue the first time (default LINEAR_TEAM_ID)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	*room = linearRoomFor(*room)
+	*team = resolveTeamID(*team)
 	if *room == "" {
 		return fmt.Errorf("no Linear room: run `ettle init <room>` in this project, or pass --room   (escalate posts the room's firm cross-person tangles to its one coordination issue, for teammates who don't run ettle)")
 	}
@@ -168,7 +187,7 @@ func runEscalate(args []string) error {
 		return nil
 	}
 
-	writer := transport.NewLinearAgentWriter(appTok, buildVersion())
+	writer := transport.NewLinearAgentWriter(appTok, buildVersion(), linearWorkspaceFor(*room))
 	_, created, postedKeys, postErr := postTangles(ctx, writer, *room, *team, tangles)
 
 	// Record what actually posted before returning any error, so a partial run
