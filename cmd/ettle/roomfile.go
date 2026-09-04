@@ -107,6 +107,24 @@ func findRoomFile(dir string) (roomFile, bool) {
 // command's fallback actually calls.
 func currentRoomFile() (roomFile, bool) { return currentRoom() }
 
+// loadProjectProfile loads THIS directory's key profile without touching the room
+// target, for the commands that resolve their target some other way — `ettle capture`,
+// whose bare form is a free local preview that applyRoomFile would silently turn into a
+// paid publish, and `ettle teams`, which has no room yet. `override` is a --profile flag
+// and wins when set.
+//
+// Splitting the keys off from the room is the whole point: applyRoomFile does both, so a
+// command that must not adopt the room used to get neither, and its failure was a
+// missing LINEAR_API_KEY in exactly the projects that name a profile.
+func loadProjectProfile(override string) {
+	if p := strings.TrimSpace(override); p != "" {
+		loadProfileEnv(p)
+		return
+	}
+	rf, _ := currentRoomFile()
+	loadProfileEnv(activeProfile(rf))
+}
+
 // splitRoomSpec maps a spec onto the (--room, --transport) pair the commands already
 // take: anything with a scheme is a transport, anything else is a configured leat room.
 func splitRoomSpec(spec string) (room, transportName string) {

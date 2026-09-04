@@ -123,6 +123,13 @@ func TestRoomFunnelsLoadTheProjectProfile(t *testing.T) {
 		{"applyRoomFile from the file", func() { applyRoomFile("", "") }},
 		{"linearRoomFor with an explicit room", func() { linearRoomFor("other") }},
 		{"linearRoomFor from the file", func() { linearRoomFor("") }},
+		// The keys-without-the-room funnel, for `ettle capture` and `ettle teams`.
+		// capture was on NEITHER funnel until this was found by running the command
+		// rather than a test: the hook path works because capture-hook calls
+		// applyRoomFile and the detached child inherits the environment, so a typed
+		// `ettle capture --transport linear://<room>` was the only way to see it.
+		{"loadProjectProfile from the file", func() { loadProjectProfile("") }},
+		{"loadProjectProfile with an explicit --profile", func() { loadProjectProfile("work") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			writeProfile(t, "LINEAR_API_KEY=global_key\n",

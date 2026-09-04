@@ -82,9 +82,16 @@ func Read(path string) (Session, error) {
 // 8.5 GB and none.
 //
 // Offsets are only ever recorded at a line boundary (a file size, or the size after a
-// complete read), so seeking to one lands cleanly. A `from` past the end means the
+// complete read), so seeking to one lands cleanly. A `from` PAST the end means the
 // transcript was replaced or truncated — a fresh session reusing a path, say — so the
 // whole file is read rather than silently producing nothing.
+//
+// `from` EQUAL to the end is the opposite case and must not reset. Every recorded offset
+// is a file size, so "nothing appended since last time" arrives here as from == size —
+// the normal state on a quiet stretch. Treating that as a replaced file re-read the
+// entire transcript on every capture that had nothing to do, which is the exact cost
+// this function exists to remove: 43s and a full 833 MB read, every two minutes, on a
+// long session with no new turns.
 func ReadFrom(path string, from int64) (Session, int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -96,7 +103,7 @@ func ReadFrom(path string, from int64) (Session, int64, error) {
 	if err != nil {
 		return Session{}, 0, err
 	}
-	if from > 0 && from >= size {
+	if from > size {
 		from = 0 // shrank or replaced: start over rather than publish nothing
 	}
 	if _, err := f.Seek(from, io.SeekStart); err != nil {

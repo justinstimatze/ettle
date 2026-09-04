@@ -35,12 +35,7 @@ func runTeams(args []string) error {
 	// lists the wrong workspace's teams — in a project with `profile = work`, which is
 	// the only situation the command matters. Worse than an error if both workspaces
 	// happen to have an ENG: no error, wrong team.
-	rf, _ := currentRoomFile()
-	if p := strings.TrimSpace(*profile); p != "" {
-		loadProfileEnv(p)
-	} else {
-		loadProfileEnv(activeProfile(rf))
-	}
+	loadProjectProfile(*profile)
 	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
 	if key == "" {
 		return fmt.Errorf("no LINEAR_API_KEY — put a personal member key in %s (see docs/LINEAR_SETUP.md)", userEnvPath())

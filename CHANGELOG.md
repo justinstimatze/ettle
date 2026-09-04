@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **An offset AT the end no longer re-reads the whole transcript.** Every recorded
+  offset is a file size, so "nothing appended since last time" arrives as
+  `from == size` — the normal state on a quiet stretch. The guard read that as a
+  replaced file and started over, so a capture with nothing to do re-read the entire
+  session. Measured on the transcript it was found against: 43.78s and a full 833 MB
+  read before, 0.00s after, same command, same file. It also marked such a run
+  incremental, so a whole-session digest was merged into atoms that already held it;
+  a genuine reset now publishes as a fresh read rather than a merge.
+- **`ettle capture` loads the project's key profile.** It was on neither room funnel,
+  so a typed `ettle capture --transport linear://<room>` in a project naming a profile
+  failed on a missing `LINEAR_API_KEY` — in exactly the projects profiles exist for.
+  The hook path was unaffected and hid it: `capture-hook` calls `applyRoomFile` and the
+  detached child inherits the environment. Keys load without the room target, because
+  adopting the room would turn the bare `ettle capture <file>` preview into a publish
+  that costs a model call. `ettle teams` now shares that one helper instead of its own
+  copy. Both found by running the command rather than by a test.
 - **Nearest pointer wins across both sources.** The migration first took a store entry
   unconditionally, which silently changed where a directory published: one with its own
   legacy pointer to a personal-workspace room, sitting under a parent recorded for a work
@@ -11,7 +27,7 @@
 - **Installing does not backfill.** `ettle init` is the opt-in act, so the first
   capture should cover what happens next rather than distilling hours of work from
   before the person joined the room — ADOPTION.md is explicit that state enters the
-  shared layer only from a person'''s own act. Sessions already running are marked
+  shared layer only from a person's own act. Sessions already running are marked
   as already-distilled at init, and the report says how many. Scope is narrow on
   purpose: capture only ever sees a transcript a hook hands it, and hooks fire for the
   session that is running, so a transcript from a session that ended last month can

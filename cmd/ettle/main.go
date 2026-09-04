@@ -1759,6 +1759,17 @@ func runCapture(args []string) error {
 		return fmt.Errorf("usage: ettle capture <transcript.jsonl>   (add --room <room> to distill + publish it as your atoms)")
 	}
 
+	// Load this directory's key profile — but NOT its room. The other commands call
+	// applyRoomFile, which does both; here that would turn `ettle capture <file>` inside
+	// an ettle project from the free preview into a publish that costs a model call, so
+	// the target stays explicit and only the keys are resolved.
+	//
+	// Missing this made `ettle capture --transport linear://<room>` unusable by hand in
+	// exactly the projects profiles are for: the hook path works because capture-hook
+	// runs applyRoomFile and the detached child inherits the environment, so the gap was
+	// invisible until the command was typed rather than fired.
+	loadProjectProfile("")
+
 	// Inspector mode: no bus target → print each digest (the original behavior).
 	if *room == "" && *transportName == "" {
 		for _, path := range paths {

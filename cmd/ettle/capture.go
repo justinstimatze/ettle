@@ -52,7 +52,11 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 			return fmt.Errorf("capture %s: %w", path, err)
 		}
 		consumed[path] = total
-		if from > 0 {
+		// Incremental means "this note covers only the turns since last time", which is
+		// what licenses the merge below. A `from` past the end is a REPLACED transcript:
+		// ReadFrom silently restarts at zero, so the note covers the whole session and
+		// merging it into the existing atoms would fold a full history into a slice.
+		if from > 0 && from <= total {
 			incremental = true
 		}
 		if s.Empty() {

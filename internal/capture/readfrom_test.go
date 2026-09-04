@@ -98,3 +98,27 @@ func TestReadIsReadFromZero(t *testing.T) {
 		t.Errorf("Read must stay exactly ReadFrom(path, 0): %d vs %d", len(a.Prompts), len(b.Prompts))
 	}
 }
+
+// The bug this guards: `from == size` is "nothing appended since last time", which is
+// the NORMAL state on a quiet stretch — every recorded offset is a file size. The guard
+// used to treat it as a replaced transcript and start over, so a capture with nothing to
+// do re-read the entire file. Measured live before the fix: 43s and a full 833 MB read,
+// on a session whose last two minutes had produced no new turns.
+func TestReadFromAtEndReadsNothingRatherThanEverything(t *testing.T) {
+	path := writeTranscript(t, 6)
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, size, err := ReadFrom(path, fi.Size())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size != fi.Size() {
+		t.Errorf("the size is still the file's, got %d want %d", size, fi.Size())
+	}
+	if len(s.Prompts) != 0 {
+		t.Fatalf("an offset AT the end has nothing new to read, got %d prompts — "+
+			"the whole transcript was re-read", len(s.Prompts))
+	}
+}
