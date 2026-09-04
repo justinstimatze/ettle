@@ -26,12 +26,14 @@ of it. If you only ever answer in Linear, the room still works.
 Two things only the room's owner can do. Everything else is yours, in your accounts,
 and stays there.
 
-**The owner shares the project with you, if it is private.** ettle creates
-`ettle-<room>` in whichever team the first person named, and sets no visibility on it —
-so it inherits that team's default. When that default is private, being in the
-workspace is not enough, and every command below will report that the room does not
-exist rather than that you cannot see it. If the project is visible to the workspace,
-there is nothing for them to do.
+**The owner adds you to the team, if that team is private.** Linear has no per-project
+visibility — a project's audience is the audience of the team that owns it, and privacy
+is a setting on the team. ettle creates `ettle-<room>` in whichever team the first
+person named, so if that team is private you have to be a member of it; being in the
+workspace is not enough. Worth them checking before you start, because the failure is
+misleading: a project a key cannot see is indistinguishable from one that is not there,
+so every command below reports the room as missing and you go hunting for a typo in its
+name. If the team is open to the workspace, there is nothing for them to do.
 
 **You mint your own keys.** A Linear personal API key acts as you and can only be
 created by you; the same is true of an Anthropic key. Nobody can create either one for

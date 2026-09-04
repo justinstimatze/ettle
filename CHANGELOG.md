@@ -9,9 +9,9 @@
   path — the three tiers (reply in Linear and install nothing; `ettle mcp` with no
   Anthropic key; the hooks), what only the room's owner can do, and the three setup
   steps a joiner can skip. The owner's step is the one that is easy to miss and fails
-  confusingly: ettle sets no visibility when it creates `ettle-<room>`, so a project
-  that inherits a private default reports as MISSING to a teammate rather than as
-  unreadable. A successful `ettle init` now prints that page beside its existing
+  confusingly: Linear scopes visibility to the TEAM rather than the project, so a
+  teammate outside a private team sees `ettle-<room>` as MISSING rather than as
+  unreadable, and goes looking for a typo in the room name. A successful `ettle init` now prints that page beside its existing
   `tell a teammate` line.
 - **A prose pass over every tracked `.md`.** basanite found `substrate` seventeen times;
   eleven are the word doing real work (TEEs genuinely are a substrate, and `TEAM_SIM.md`'s
