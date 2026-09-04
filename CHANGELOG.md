@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.2 — 2026-09-03
 
 - **A page for the person joining, not the person setting up.** `LINEAR_SETUP.md` is
   organized by key, which is the right axis for the first person in a room and the wrong
@@ -13,6 +13,16 @@
   that inherits a private default reports as MISSING to a teammate rather than as
   unreadable. A successful `ettle init` now prints that page beside its existing
   `tell a teammate` line.
+- **A prose pass over every tracked `.md`.** basanite found `substrate` seventeen times;
+  eleven are the word doing real work (TEEs genuinely are a substrate, and `TEAM_SIM.md`'s
+  "pattern substrate" is a coined term used consistently), six were reaching for it as a
+  synonym for foundation and now say what they mean. cope found 114 instances of the
+  not-A-but-B flip, and reading every one changed seven — all in `PRIOR_ART.md`, all
+  flagged by density rather than form: three in one paragraph, four across eleven summary
+  bullets, one phrase repeated verbatim in the same document. The rest stay on purpose.
+  In `SECURITY.md` the negated half *is* the caveat — "evidence, not a proof", "named, not
+  defended", "presentation, not access control" — and rewriting those positively would
+  make the file claim more than it can support.
 
 ## v0.6.1 — 2026-09-03
 
