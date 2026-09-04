@@ -79,6 +79,7 @@ func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	me := fs.String("me", defaultAgent(), "your identity in the room — how your atoms are attributed to you")
 	profile := fs.String("profile", "", "which key set to read for this project, from <config>/ettle/env.d/<name> — for a machine working across more than one Linear workspace (default: the `profile` line in .ettle-room, or ETTLE_PROFILE)")
+	team := fs.String("team", "", "which Linear team owns the room's project, as a team key (\"ENG\") or name — resolved to the id for you; only needed the first time. `ettle teams` lists them (default: LINEAR_TEAM_ID)")
 	dir := fs.String("dir", "", "project directory for .ettle-room (default: the git root above the cwd, else the cwd)")
 	install := fs.Bool("install-hooks", false, "merge the ettle hooks into ~/.claude/settings.json (a .bak is written first); default prints the JSON to merge yourself")
 	settings := fs.String("settings", "", "which settings file --install-hooks writes (default: ~/.claude/settings.json, which serves every project)")
@@ -132,6 +133,13 @@ func runInit(args []string) error {
 		prof = activeProfile(rf)
 	}
 	loadProfileEnv(prof)
+
+	// Resolve --team AFTER the profile loads, so a team named for this project is
+	// looked up with this project's key. LINEAR_TEAM_ID is what the transport reads,
+	// so resolving into it keeps the whole rest of the path unchanged.
+	if err := applyTeamFlag(*team); err != nil {
+		return err
+	}
 
 	spec, label, env, verify := initTarget(room)
 	if derived {
@@ -436,6 +444,26 @@ func recordWorkspace(spec, profile string) (workspace, warning string) {
 			strings.Join(others, ", "), workspace, profileEnvPath("<name>"), docsFor(spec))
 	}
 	return workspace, warning
+}
+
+// applyTeamFlag turns a team KEY or name into the id LINEAR_TEAM_ID carries. Nobody
+// should have to find a uuid Linear shows on no screen, and an existing
+// LINEAR_TEAM_ID is left alone when no flag is passed.
+func applyTeamFlag(team string) error {
+	if strings.TrimSpace(team) == "" {
+		return nil
+	}
+	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
+	if key == "" {
+		return fmt.Errorf("--team needs LINEAR_API_KEY to look the team up (put it in %s)", userEnvPath())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	t, err := transport.ResolveLinearTeam(ctx, key, buildVersion(), team)
+	if err != nil {
+		return err
+	}
+	return os.Setenv("LINEAR_TEAM_ID", t.ID)
 }
 
 // linearOrgOf resolves the workspace behind a linear:// spec, for recording. Any other

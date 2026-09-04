@@ -270,17 +270,112 @@ type Workspace struct {
 	Name string
 }
 
-// LinearWorkspace reports which workspace a member key belongs to. `ettle init` calls
-// it once, after the room verifies, to record where that room actually lives — the
-// expectation every later run is checked against.
-func LinearWorkspace(ctx context.Context, apiKey, version string) (Workspace, error) {
-	s := &linearDocStore{
+// Team is one Linear team, as a person sees it. Key is the short prefix on every
+// issue ("ENG"); ID is the uuid the API wants and no interface shows you.
+type Team struct {
+	ID   string
+	Key  string
+	Name string
+}
+
+// LinearTeams lists the teams the key's workspace holds. It exists because
+// LINEAR_TEAM_ID is a uuid, the uuid appears in no Linear screen, and the documented
+// way to find it was a curl with the key interpolated into the shell — which is both
+// a bad habit and broken for anyone following ettle's own convention of keeping keys
+// in a config file rather than exported.
+func LinearTeams(ctx context.Context, apiKey, version string) ([]Team, error) {
+	return liveStore(apiKey, version).teams(ctx)
+}
+
+// liveStore builds the read-only store the setup helpers share, so the endpoint and
+// User-Agent are set in one place rather than three.
+func liveStore(apiKey, version string) *linearDocStore {
+	return &linearDocStore{
 		http:     &http.Client{Timeout: 30 * time.Second},
 		apiKey:   strings.TrimSpace(apiKey),
 		endpoint: linearEndpoint,
 		ua:       "ettle/" + version + " (+https://github.com/justinstimatze/ettle)",
 	}
-	return s.viewerOrg(ctx)
+}
+
+func (s *linearDocStore) teams(ctx context.Context) ([]Team, error) {
+	var q struct {
+		Teams struct {
+			Nodes []Team `json:"nodes"`
+		} `json:"teams"`
+	}
+	if err := s.do(ctx, `query{ teams(first:250){ nodes{ id key name } } }`, nil, &q); err != nil {
+		return nil, fmt.Errorf("transport/linear: list teams: %w", err)
+	}
+	return q.Teams.Nodes, nil
+}
+
+// ResolveLinearTeam turns what a person can actually see — a team key ("ENG") or its
+// name ("Current AI") — into the uuid the API needs. A value that is already a uuid
+// passes through, so an existing LINEAR_TEAM_ID keeps working unchanged.
+//
+// Matching is case-insensitive on both key and name, and an ambiguous match is an
+// error rather than a guess: creating the room's project under the wrong team is the
+// kind of mistake nobody notices until a teammate cannot find it.
+func ResolveLinearTeam(ctx context.Context, apiKey, version, want string) (Team, error) {
+	return liveStore(apiKey, version).resolveTeam(ctx, want)
+}
+
+// resolveTeam is the testable half — it takes the store, so a stub server can drive
+// the same code path the live call uses rather than a copy of it.
+func (s *linearDocStore) resolveTeam(ctx context.Context, want string) (Team, error) {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		return Team{}, fmt.Errorf("transport/linear: no team given")
+	}
+	if looksLikeUUID(want) {
+		return Team{ID: want}, nil
+	}
+	teams, err := s.teams(ctx)
+	if err != nil {
+		return Team{}, err
+	}
+	var hits []Team
+	for _, t := range teams {
+		if strings.EqualFold(t.Key, want) || strings.EqualFold(t.Name, want) {
+			hits = append(hits, t)
+		}
+	}
+	switch len(hits) {
+	case 1:
+		return hits[0], nil
+	case 0:
+		var have []string
+		for _, t := range teams {
+			have = append(have, fmt.Sprintf("%s (%s)", t.Key, t.Name))
+		}
+		return Team{}, fmt.Errorf("transport/linear: no team %q in this workspace — it has: %s",
+			want, strings.Join(have, ", "))
+	default:
+		return Team{}, fmt.Errorf("transport/linear: %q matches %d teams; use the team key or its id instead", want, len(hits))
+	}
+}
+
+// looksLikeUUID is deliberately loose: it only has to tell a Linear uuid from a team
+// key or a human name, and every one of those is far shorter and has no dashes in
+// this shape.
+func looksLikeUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for _, i := range []int{8, 13, 18, 23} {
+		if s[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// LinearWorkspace reports which workspace a member key belongs to. `ettle init` calls
+// it once, after the room verifies, to record where that room actually lives — the
+// expectation every later run is checked against.
+func LinearWorkspace(ctx context.Context, apiKey, version string) (Workspace, error) {
+	return liveStore(apiKey, version).viewerOrg(ctx)
 }
 
 // viewerOrg reports which workspace this store's key belongs to. There is no cheaper

@@ -36,6 +36,19 @@
   its path, reports the workspace it resolved, and fails a profile that is named but
   absent — falling back to the global keys quietly is how a project ends up talking to
   the wrong workspace.
+- **`ettle teams`, and `ettle init --team CUR`.** `LINEAR_TEAM_ID` is a uuid, Linear
+  shows that uuid on no screen, and the documented way to find it was a curl with the
+  key interpolated into the shell — which is a bad habit and also *broken* for anyone
+  following ettle's own convention, since keys live in `<config>/ettle/env` precisely
+  so the hooks can read them and are therefore not exported. The header comes out
+  empty and Linear answers 401, and the obvious fix is putting a key in a shell
+  variable. So ettle asks on your behalf with the key it already loads: `ettle teams`
+  prints each team's key, name and id under the workspace name, and `--team` takes the
+  short key or the team name and resolves the id itself. A value that is already a
+  uuid passes straight through, so every existing `LINEAR_TEAM_ID` keeps working, and
+  an ambiguous or unknown name is refused with the real teams listed rather than
+  guessed at — creating the room's project under the wrong team is invisible until a
+  teammate cannot find it.
 - **The setup reads the same in the README as in the setup doc.** Both carry a key
   table, for two different audiences, and they had drifted: both still said
   `ANTHROPIC_API_KEY` was "one per room; whoever reconciles" long after `envChecks`

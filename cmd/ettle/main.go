@@ -112,6 +112,9 @@ func main() {
 		case "calibrate":
 			exitOn(runCalibrate(os.Args[2:]))
 			return
+		case "teams":
+			exitOn(runTeams(os.Args[2:]))
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -120,6 +123,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  session transcript (.jsonl) — the live-reasoning L1 source.")
 		fmt.Fprintln(os.Stderr, "  ettle init <room>                  # START HERE on Linear + Claude Code: verify keys, set up the room, wire the hooks")
 		fmt.Fprintln(os.Stderr, "    ... --profile <name>             #   more than one Linear workspace? name this project's key set — a member key sees only one")
+		fmt.Fprintln(os.Stderr, "  ettle teams                        # which Linear teams this key can see, with the ids init wants (no uuid hunting)")
 		fmt.Fprintln(os.Stderr, "  ettle room <init|join|list|status>  # no Linear? the git-repo bus instead — join once, then --room <name>")
 		fmt.Fprintln(os.Stderr, "  ettle capture <transcript.jsonl>   # preview a session's digest; add --room <room> to distill + publish it as your atoms")
 		fmt.Fprintln(os.Stderr, "  ettle drift <prev-dir> <curr-dir>  # L2: directed models + surprise-gated deltas across two rounds")
