@@ -83,3 +83,36 @@ func TestLegacyRoomFileStillResolvesForOneRelease(t *testing.T) {
 		t.Errorf("the store should take precedence after migration, got %+v", rf)
 	}
 }
+
+// The migration must not change which room a directory resolves to. A deeper legacy
+// pointer under a shallower store entry is the case that broke: taking the store
+// unconditionally made that directory publish into a different Linear workspace than
+// the one it was deliberately pointed at, silently.
+func TestNearestPointerWinsAcrossBothSources(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	root := t.TempDir()
+	inner := filepath.Join(root, "deploy")
+	if err := os.MkdirAll(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveRoomForDir(root, "linear://dumpling", "dayjob"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inner, roomFileName),
+		[]byte("room = linear://personal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if rf, _ := resolveRoom(inner); rf.Spec != "linear://personal" {
+		t.Errorf("the deeper legacy pointer must still win, got %+v — that directory would "+
+			"publish into the wrong workspace", rf)
+	}
+	// And the other way round: a deeper store entry beats a shallower legacy file.
+	if err := os.WriteFile(filepath.Join(root, roomFileName),
+		[]byte("room = linear://old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if rf, _ := resolveRoom(root); rf.Spec != "linear://dumpling" {
+		t.Errorf("a store entry AT the directory should beat a legacy file there, got %+v", rf)
+	}
+}

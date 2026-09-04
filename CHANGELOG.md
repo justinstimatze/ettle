@@ -2,6 +2,12 @@
 
 ## v0.6.0 — 2026-09-03
 
+- **Nearest pointer wins across both sources.** The migration first took a store entry
+  unconditionally, which silently changed where a directory published: one with its own
+  legacy pointer to a personal-workspace room, sitting under a parent recorded for a work
+  room, started resolving to the parent. That is a cross-workspace redirect with no
+  error — the exact failure this release exists to prevent, reintroduced by its own
+  migration. Found by verifying a claim rather than restating it.
 - **The room moved out of the repo, into `~/.config/ettle/rooms.json`.** `.ettle-room`
   described itself as "safe to commit". It wasn't, and the reason is ettle's own
   invariant rather than a general worry: `docs/ADOPTION.md` says state enters the

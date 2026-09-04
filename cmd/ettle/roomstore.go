@@ -83,9 +83,16 @@ func saveRoomForDir(dir, spec, profile string) error {
 // one of its ancestors, so a subdirectory can override the tree it sits in — the same
 // nearest-wins rule the old file walk had.
 func roomForDir(dir string) (roomFile, bool) {
+	rf, _, ok := roomForDirAt(dir)
+	return rf, ok
+}
+
+// roomForDirAt is roomForDir plus WHICH directory matched, so resolveRoom can compare
+// how near this answer is against a legacy file's.
+func roomForDirAt(dir string) (roomFile, string, bool) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return roomFile{}, false
+		return roomFile{}, "", false
 	}
 	store := loadRoomStore()
 	keys := make([]string, 0, len(store))
@@ -99,10 +106,10 @@ func roomForDir(dir string) (roomFile, bool) {
 			if strings.TrimSpace(e.Room) == "" {
 				continue
 			}
-			return roomFile{Spec: e.Room, Profile: e.Profile, Path: roomStorePath()}, true
+			return roomFile{Spec: e.Room, Profile: e.Profile, Path: roomStorePath()}, k, true
 		}
 	}
-	return roomFile{}, false
+	return roomFile{}, "", false
 }
 
 // resolveRoom is what every command uses: the per-machine store first, then a legacy
@@ -112,10 +119,25 @@ func roomForDir(dir string) (roomFile, bool) {
 // `ettle init` migrates a file it finds into the store. Nothing writes `.ettle-room`
 // any more.
 func resolveRoom(dir string) (roomFile, bool) {
-	if rf, ok := roomForDir(dir); ok {
-		return rf, true
+	stored, at, haveStore := roomForDirAt(dir)
+	legacy, haveLegacy := findRoomFile(dir)
+	switch {
+	case haveStore && haveLegacy:
+		// NEAREST wins, whichever source it came from. Taking the store unconditionally
+		// was wrong and silently changed behaviour: a directory with its own legacy
+		// pointer to one room sat under a parent recorded for another, and the parent
+		// won — so that directory would have published into a different Linear
+		// workspace than the one it was deliberately pointed at, with no error. That is
+		// the failure this release exists to prevent, reintroduced by its own migration.
+		if len(filepath.Dir(legacy.Path)) > len(at) {
+			return legacy, true
+		}
+		return stored, true
+	case haveStore:
+		return stored, true
+	default:
+		return legacy, haveLegacy
 	}
-	return findRoomFile(dir)
 }
 
 // currentRoom is resolveRoom anchored at the working directory — what the hooks hit.
