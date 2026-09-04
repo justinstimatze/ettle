@@ -17,9 +17,9 @@ lowest one that gets you what you want; you can move up later without redoing an
 | **`ettle mcp`** | the binary | a Linear key | Your agent drives ettle through MCP tools. The agent already in your session does the distilling, so **no Anthropic key** — see [LINEAR_SETUP.md](LINEAR_SETUP.md#anthropic_api_key). |
 | **The hooks** | the binary | a Linear key and an Anthropic key | Set-and-forget. Nothing after setup is a command you run. The rest of this page. |
 
-The first row is not a lesser tier bolted on — it is the point of
-[ADOPTION.md](ADOPTION.md): the consenting act is writing in the room, not running the
-binary. If you only ever answer in Linear, the room still works.
+[ADOPTION.md](ADOPTION.md) puts that first row at the centre of the design: what you
+consent to is writing in the room, and running the binary is a separate choice on top
+of it. If you only ever answer in Linear, the room still works.
 
 ## Who does what
 
@@ -34,8 +34,8 @@ exist rather than that you cannot see it. If the project is visible to the works
 there is nothing for them to do.
 
 **You mint your own keys.** A Linear personal API key acts as you and can only be
-created by you; the same is true of an Anthropic key. Nobody hands you either one, and
-nobody else ever sees them. What actually gets sent to you is one line: the room, in
+created by you; the same is true of an Anthropic key. Nobody can create either one for
+you, and both live in a file on your own machine. What actually gets sent to you is one line: the room, in
 the form `ettle init linear://<room>` that a successful `ettle init` prints under
 **next**.
 
@@ -64,8 +64,8 @@ the form `ettle init linear://<room>` that a successful `ettle init` prints unde
 4. **Make your Anthropic key.** <https://console.anthropic.com/settings/keys>. The
    distilling runs on your machine against your key, which is exactly why your raw
    session text never has to leave it — and it is also why the usage bills to you.
-   It is a small model over a compact digest, and only over the turns since the last
-   run, but it is not free and you should know it is there.
+   It is a small model over a compact digest covering only the turns since the last
+   run — cheap, but it lands on your bill, so it is worth knowing it is there.
 
 5. **Put both in the file init named.** One `KEY=VALUE` per line, then `chmod 600`.
    Take the path from init's own output rather than guessing it — it is
@@ -89,9 +89,9 @@ somebody joining an existing room. Named here so you do not go looking for them.
 
 ## After it is on
 
-The tangles that involve you are injected at the start of a session; your session
-distills and publishes into your own document as it goes; teammates' Linear replies come
-back the same way. Nothing is posted anywhere shared unless you escalate it on purpose,
+The tangles that involve you are injected at the start of a session. As you work, your
+session distills and publishes into your own document. Teammates' Linear replies arrive
+the same way. Nothing is posted anywhere shared unless you escalate it on purpose,
 and the whole bus is readable in Linear like any other project — documents, not a black
 box. [SURFACES.md](SURFACES.md) says which output lands where.
 

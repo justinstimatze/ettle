@@ -44,7 +44,7 @@ Deterministic detection, LLM judgment at the one consequential fork, typed outco
 
 ## Atom schemas
 
-Two atoms. The first is a *view* over the predecessor's existing cells; the second is new and is the did-it-help substrate.
+Two atoms. The first is a *view* over the predecessor's existing cells; the second is new and is where did-it-help gets recorded.
 
 **`ClosedDecision`** — a cell where `Source ∈ {user-closed, user-corrected-claude}`, `Status = closed`, `Confidence ≥ θ_high`.
 
