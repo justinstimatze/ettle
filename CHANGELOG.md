@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 — 2026-09-03
+## Unreleased
 
 - **Nearest pointer wins across both sources.** The migration first took a store entry
   unconditionally, which silently changed where a directory published: one with its own
@@ -8,6 +8,24 @@
   room, started resolving to the parent. That is a cross-workspace redirect with no
   error — the exact failure this release exists to prevent, reintroduced by its own
   migration. Found by verifying a claim rather than restating it.
+- **Installing does not backfill.** `ettle init` is the opt-in act, so the first
+  capture should cover what happens next rather than distilling hours of work from
+  before the person joined the room — ADOPTION.md is explicit that state enters the
+  shared layer only from a person'''s own act. Sessions already running are marked
+  as already-distilled at init, and the report says how many. Scope is narrow on
+  purpose: capture only ever sees a transcript a hook hands it, and hooks fire for the
+  session that is running, so a transcript from a session that ended last month can
+  never reach capture and seeding it protects against nothing. Only recently-written
+  ones are marked — 8 of 823 on the machine this was built on.
+- **The capture offset is a byte offset, not a line count.** Skipping N lines still
+  meant reading and discarding N lines off disk, so a session running for hours
+  re-read its whole transcript on every capture even while distilling only the tail.
+  Seeking makes both the read and the seed proportional to what is new: seeding a live
+  session is now a stat rather than a scan, which on that same machine was the
+  difference between 8.5 GB read and none.
+
+## v0.6.0 — 2026-09-03
+
 - **The room moved out of the repo, into `~/.config/ettle/rooms.json`.** `.ettle-room`
   described itself as "safe to commit". It wasn't, and the reason is ettle's own
   invariant rather than a general worry: `docs/ADOPTION.md` says state enters the
@@ -32,21 +50,6 @@
   API keys (`HTTPS_PROXY` being the obvious lever). `filepath.Join` cleans `..` rather
   than confining it, so the join was no defence. Names with a separator, a leading dot,
   or `..` are now refused with a warning.
-- **Installing does not backfill.** `ettle init` is the opt-in act, so the first
-  capture should cover what happens next rather than distilling hours of work from
-  before the person joined the room — ADOPTION.md is explicit that state enters the
-  shared layer only from a person'''s own act. Sessions already running are marked
-  as already-distilled at init, and the report says how many. Scope is narrow on
-  purpose: capture only ever sees a transcript a hook hands it, and hooks fire for the
-  session that is running, so a transcript from a session that ended last month can
-  never reach capture and seeding it protects against nothing. Only recently-written
-  ones are marked — 8 of 823 on the machine this was built on.
-- **The capture offset is a byte offset, not a line count.** Skipping N lines still
-  meant reading and discarding N lines off disk, so a session running for hours
-  re-read its whole transcript on every capture even while distilling only the tail.
-  Seeking makes both the read and the seed proportional to what is new: seeding a live
-  session is now a stat rather than a scan, which on that same machine was the
-  difference between 8.5 GB read and none.
 - **Capture is incremental.** It re-digested the whole transcript every time, so on a
   session running for hours the cost of each two-minute capture climbed with the
   session's length — and keying the debounce per session (below) multiplied that by
