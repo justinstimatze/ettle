@@ -33,19 +33,26 @@ func writeTranscript(t *testing.T, n int) string {
 func TestReadFromSkipsAlreadyDistilledLines(t *testing.T) {
 	path := writeTranscript(t, 5)
 
-	all, total, err := ReadFrom(path, 0)
+	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != 5 {
-		t.Fatalf("total should count every line, got %d", total)
-	}
-	rest, total2, err := ReadFrom(path, 3)
+	all, size, err := ReadFrom(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total2 != 5 {
-		t.Errorf("total is the file's length regardless of the offset, got %d", total2)
+	// The offset is a BYTE offset, so a capture seeks past what it already read rather
+	// than reading and discarding it — the difference between O(new) and O(file) on a
+	// session running for hours.
+	if size != fi.Size() {
+		t.Fatalf("the returned offset should be the file size, got %d want %d", size, fi.Size())
+	}
+	rest, size2, err := ReadFrom(path, fi.Size()/2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size2 != fi.Size() {
+		t.Errorf("the size is the file's, regardless of where the read started, got %d", size2)
 	}
 	if len(rest.Prompts) >= len(all.Prompts) {
 		t.Errorf("reading from an offset should yield fewer prompts: %d vs %d",
@@ -60,13 +67,17 @@ func TestReadFromStartsOverWhenTheTranscriptShrank(t *testing.T) {
 	// A fresh session reusing a path, or a truncated file. Silently publishing nothing
 	// would lose the session; starting over merely costs a re-distill.
 	path := writeTranscript(t, 2)
-	s, total, err := ReadFrom(path, 99)
+	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != 2 || len(s.Prompts) == 0 {
-		t.Errorf("an offset past the end must re-read the whole file, got total=%d prompts=%d",
-			total, len(s.Prompts))
+	s, size, err := ReadFrom(path, fi.Size()*10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size != fi.Size() || len(s.Prompts) == 0 {
+		t.Errorf("an offset past the end must re-read the whole file, got size=%d prompts=%d",
+			size, len(s.Prompts))
 	}
 }
 

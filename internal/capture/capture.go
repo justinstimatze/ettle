@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -69,31 +70,44 @@ func Read(path string) (Session, error) {
 	return s, err
 }
 
-// ReadFrom is Read starting at line `from`, returning the session and the total line
-// count of the file. It exists so a long-running session is not re-digested in full
-// every couple of minutes: a capture distills only the turns added since the last one,
-// and `read` is the offset to hand back next time.
+// ReadFrom is Read starting at BYTE offset `from`, returning the session and the file's
+// size — the offset to hand back next time. It exists so a long-running session is not
+// re-digested in full every couple of minutes.
 //
-// A `from` past the end means the transcript was replaced or truncated under us — a
-// fresh session reusing a path, say — so the whole file is read rather than silently
-// producing nothing.
-func ReadFrom(path string, from int) (Session, int, error) {
+// A byte offset rather than a line count on purpose. Skipping N lines still means
+// reading and discarding N lines off disk, so a session running for hours would re-read
+// the whole transcript on every capture even while distilling only the tail. Seeking
+// makes both the read and the seed proportional to what is NEW: seeding a live session
+// is a stat rather than a full scan, which on this machine was the difference between
+// 8.5 GB and none.
+//
+// Offsets are only ever recorded at a line boundary (a file size, or the size after a
+// complete read), so seeking to one lands cleanly. A `from` past the end means the
+// transcript was replaced or truncated — a fresh session reusing a path, say — so the
+// whole file is read rather than silently producing nothing.
+func ReadFrom(path string, from int64) (Session, int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return Session{}, 0, err
 	}
 	defer f.Close()
 
+	size, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return Session{}, 0, err
+	}
+	if from > 0 && from >= size {
+		from = 0 // shrank or replaced: start over rather than publish nothing
+	}
+	if _, err := f.Seek(from, io.SeekStart); err != nil {
+		return Session{}, 0, err
+	}
+
 	var s Session
 	editSeen, cmdSeen := map[string]bool{}, map[string]bool{}
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 256*1024), 8*1024*1024) // transcript lines can be large
-	total := 0
 	for sc.Scan() {
-		total++
-		if total <= from {
-			continue // already distilled in an earlier capture
-		}
 		line := sc.Bytes()
 		if len(strings.TrimSpace(string(line))) == 0 {
 			continue
@@ -150,12 +164,6 @@ func ReadFrom(path string, from int) (Session, int, error) {
 	if err := sc.Err(); err != nil {
 		return Session{}, 0, err
 	}
-	if from > 0 && from >= total {
-		// The file shrank or was replaced — a fresh session reusing the path, say.
-		// Starting over beats silently publishing nothing.
-		s2, n2, err := ReadFrom(path, 0)
-		return s2, n2, err
-	}
 	// Keep the most recent prompts (the live reasoning); truncate each.
 	if len(s.Prompts) > maxPrompts {
 		s.Prompts = s.Prompts[len(s.Prompts)-maxPrompts:]
@@ -166,7 +174,7 @@ func ReadFrom(path string, from int) (Session, int, error) {
 	if len(s.Cmds) > maxCmds {
 		s.Cmds = s.Cmds[:maxCmds]
 	}
-	return s, total, nil
+	return s, size, nil
 }
 
 // Digest renders the session as a compact note the detector can distill — the

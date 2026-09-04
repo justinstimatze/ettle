@@ -204,10 +204,20 @@ func runInit(args []string) error {
 	if busOK {
 		rep.Workspace, rep.CrossWorkspace = recordWorkspace(spec, prof)
 	}
+	// Mark the sessions already running as already-distilled. `ettle init` is the
+	// opt-in act, so the first capture should cover what happens NEXT rather than
+	// backfilling hours of work from before the person joined the room.
+	if seeded := SeedCaptureOffsets(target, spec); seeded > 0 {
+		rep.Seeded = seeded
+	}
 	rep.RoomFile = path
 	what := fmt.Sprintf("%s → %s — every ettle command under that directory reads it, so none need --room. Per-machine and never committed: a room pointer in the repo would enrol whoever clones it into a room they never chose. You are %q here only.", target, spec, *me)
 	if legacy != "" {
 		what += " Migrated from " + legacy + ", which is now unused and safe to delete."
+	}
+	if rep.Seeded > 0 {
+		what += fmt.Sprintf(" %s already running marked as already-distilled, so the first capture covers what happens next rather than backfilling work from before you joined.",
+			plural(rep.Seeded, "session", "sessions"))
 	}
 	rep.Project = []check{{ok: true, required: true, name: path, what: what}}
 
@@ -297,6 +307,7 @@ type initReport struct {
 	Me             string  `json:"me"`
 	Profile        string  `json:"profile,omitempty"`
 	Workspace      string  `json:"workspace,omitempty"`
+	Seeded         int     `json:"sessions_seeded,omitempty"`
 	CrossWorkspace string  `json:"cross_workspace_warning,omitempty"`
 	OK             bool    `json:"ok"`
 	Derived        bool    `json:"derived_from_git_remote"`

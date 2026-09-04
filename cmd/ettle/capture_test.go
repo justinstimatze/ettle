@@ -158,7 +158,7 @@ func TestCaptureOffsetRoundTripsPerTranscript(t *testing.T) {
 	if got := captureOffset(room, "", "/t/a.jsonl"); got != 0 {
 		t.Fatalf("an unseen transcript must read from the start, got %d", got)
 	}
-	saveCaptureOffsets(room, "", map[string]int{"/t/a.jsonl": 120, "/t/b.jsonl": 7})
+	saveCaptureOffsets(room, "", map[string]int64{"/t/a.jsonl": 120, "/t/b.jsonl": 7})
 
 	if got := captureOffset(room, "", "/t/a.jsonl"); got != 120 {
 		t.Errorf("offset should round-trip, got %d", got)
@@ -191,5 +191,67 @@ func TestCaptureOffsetFallsBackToZeroOnJunk(t *testing.T) {
 		if got := captureOffset("linear://dumpling", "", "/t/a.jsonl"); got != 0 {
 			t.Errorf("junk offset %q should fall back to 0, got %d", junk, got)
 		}
+	}
+}
+
+// Seeding must stay proportional: a year of transcripts is thousands of files, and
+// almost none can ever reach capture — hooks only hand over the session that is
+// running. Parsing them all to compute a line count was the expensive mistake.
+func TestSeedOnlyMarksSessionsThatCouldStillBeLive(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	proj := filepath.Join(home, "work", "repo")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tdir := filepath.Join(home, ".claude", "projects", claudeProjectKey(proj))
+	if err := os.MkdirAll(tdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(tdir, "live.jsonl")
+	dead := filepath.Join(tdir, "dead.jsonl")
+	for _, p := range []string{live, dead} {
+		if err := os.WriteFile(p, []byte("{}\n{}\n{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-30 * 24 * time.Hour)
+	if err := os.Chtimes(dead, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if n := SeedCaptureOffsets(proj, "linear://dumpling"); n != 1 {
+		t.Fatalf("only the live session should be seeded, got %d", n)
+	}
+	if got := captureOffset("linear://dumpling", "", live); got != 9 {
+		t.Errorf("a live session should be marked at its current SIZE, got %d", got)
+	}
+	if got := captureOffset("linear://dumpling", "", dead); got != 0 {
+		t.Errorf("a long-dead session must not get an offset file it will never use, got %d", got)
+	}
+}
+
+func TestSeedCoversWorktreesBeneathTheDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	parent := filepath.Join(home, "publicai")
+	// Claude Code names a transcript dir per the cwd a session started in, so a
+	// worktree beneath the room's directory has its own — and init governs the tree.
+	for _, sub := range []string{"", "jupiter"} {
+		dir := filepath.Join(parent, sub)
+		tdir := filepath.Join(home, ".claude", "projects", claudeProjectKey(dir))
+		if err := os.MkdirAll(tdir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tdir, "s.jsonl"), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := SeedCaptureOffsets(parent, "linear://dumpling"); n != 2 {
+		t.Errorf("every worktree beneath the room's directory should be covered, got %d", n)
 	}
 }

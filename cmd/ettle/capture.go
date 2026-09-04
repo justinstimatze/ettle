@@ -43,7 +43,7 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 	// Read + digest each transcript; union the notes so one person's several
 	// transcripts publish as a single envelope (Publish is replace-current).
 	var notes []string
-	consumed := map[string]int{}
+	consumed := map[string]int64{}
 	incremental := false
 	for _, path := range paths {
 		from := captureOffset(room, transportName, path)
@@ -322,7 +322,7 @@ func captureOffsetPath(room, transportName, transcript string) (string, error) {
 // captureOffset returns where the last capture stopped, or 0 to read the whole
 // transcript. Any problem reading it means 0: re-distilling costs money, but skipping
 // turns loses work, and only one of those is recoverable.
-func captureOffset(room, transportName, transcript string) int {
+func captureOffset(room, transportName, transcript string) int64 {
 	path, err := captureOffsetPath(room, transportName, transcript)
 	if err != nil {
 		return 0
@@ -331,7 +331,7 @@ func captureOffset(room, transportName, transcript string) int {
 	if err != nil {
 		return 0
 	}
-	n, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	n, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil || n < 0 {
 		return 0
 	}
@@ -340,7 +340,7 @@ func captureOffset(room, transportName, transcript string) int {
 
 // saveCaptureOffsets records how far each transcript was read. Best-effort: failing to
 // write it costs a re-distill next time, which is not worth failing a capture over.
-func saveCaptureOffsets(room, transportName string, consumed map[string]int) {
+func saveCaptureOffsets(room, transportName string, consumed map[string]int64) {
 	for transcript, n := range consumed {
 		path, err := captureOffsetPath(room, transportName, transcript)
 		if err != nil {
@@ -349,6 +349,89 @@ func saveCaptureOffsets(room, transportName string, consumed map[string]int) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			continue
 		}
-		_ = os.WriteFile(path, []byte(strconv.Itoa(n)), 0o644)
+		_ = os.WriteFile(path, []byte(strconv.FormatInt(n, 10)), 0o644)
 	}
+}
+
+// SeedCaptureOffsets marks every transcript that already exists for `dir` and the tree
+// beneath it as already-distilled, so the first capture after `ettle init` covers only
+// what happens NEXT.
+//
+// This is a consent boundary before it is a cost one. `ettle init` is the opt-in act,
+// and ADOPTION.md is explicit that state enters the shared layer only from a person's
+// own act — so distilling hours of work that predate the install, and publishing it to
+// a room the person joined thirty seconds ago, is the wrong default no matter how
+// cheap it is. It happens to also avoid an expensive first run on a long session.
+//
+// Seeding at install rather than on first sight is deliberate. "Skip a transcript we
+// have not seen before" would also skip a genuinely NEW session's first capture, which
+// on a short session loses it entirely. Install is the one moment where "everything
+// before now is pre-consent" is exactly true and needs no heuristic.
+//
+// Scope is deliberately narrow. Capture only ever sees a transcript a HOOK hands it,
+// and hooks fire for the session that is running — so a transcript from a session that
+// ended last month never reaches capture and seeding it protects against nothing. Only
+// sessions that could still be open matter, which is the handful written recently, not
+// the thousands in a year of history. Scanning them all would mean a full parse of
+// every transcript on the machine to compute a line count, and an offset file per
+// transcript that nothing would ever read again.
+//
+// The limit that leaves, stated rather than hidden: a session idle longer than the
+// window and then resumed is captured from its start — one backfill, once, for a
+// session left sitting. That beats parsing an entire history.
+//
+// Returns how many were marked, so the report can say so rather than doing it silently.
+func SeedCaptureOffsets(dir, target string) int {
+	if strings.TrimSpace(target) == "" {
+		return 0
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return 0
+	}
+	root := filepath.Join(home, ".claude", "projects")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return 0
+	}
+	// Claude Code names a project's transcript directory by replacing every "/" and
+	// "." in the absolute path with "-". The encoding is lossy, so match by prefix
+	// rather than trying to decode: a sibling directory whose name happens to encode
+	// the same way would be included, which costs one skipped first capture there and
+	// nothing else.
+	want := claudeProjectKey(abs)
+	consumed := map[string]int64{}
+	for _, e := range entries {
+		if !e.IsDir() || (e.Name() != want && !strings.HasPrefix(e.Name(), want+"-")) {
+			continue
+		}
+		paths, _ := filepath.Glob(filepath.Join(root, e.Name(), "*.jsonl"))
+		for _, p := range paths {
+			fi, err := os.Stat(p)
+			if err != nil || time.Since(fi.ModTime()) > seedLiveWindow {
+				continue // a session that can no longer be live never reaches capture
+			}
+			consumed[p] = fi.Size() // a stat, not a scan: the offset IS the size
+		}
+	}
+	if len(consumed) == 0 {
+		return 0
+	}
+	saveCaptureOffsets(target, "", consumed)
+	return len(consumed)
+}
+
+// seedLiveWindow is how recently a transcript must have been written to count as a
+// session that could still be open. Generous, because the cost of including a dead one
+// is a stray offset file and the cost of missing a live one is a backfill.
+const seedLiveWindow = 2 * time.Hour
+
+// claudeProjectKey encodes an absolute path the way Claude Code names its transcript
+// directories.
+func claudeProjectKey(abs string) string {
+	return strings.NewReplacer("/", "-", ".", "-").Replace(abs)
 }
