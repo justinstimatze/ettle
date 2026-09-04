@@ -25,7 +25,7 @@ import (
 // later.
 
 // hookSpec is one Claude Code hook entry ettle wants installed. The commands name no
-// room — they resolve it from the project's `.ettle-room` — which is what lets a single
+// room — they resolve it from the machine's directory→room map — which is what lets a single
 // global settings.json serve every project (see roomfile.go).
 type hookSpec struct {
 	event   string
@@ -78,9 +78,9 @@ func (c check) MarshalJSON() ([]byte, error) {
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	me := fs.String("me", defaultAgent(), "your identity in the room — how your atoms are attributed to you")
-	profile := fs.String("profile", "", "which key set to read for this project, from <config>/ettle/env.d/<name> — for a machine working across more than one Linear workspace (default: the `profile` line in .ettle-room, or ETTLE_PROFILE)")
+	profile := fs.String("profile", "", "which key set to read for this project, from <config>/ettle/env.d/<name> — for a machine working across more than one Linear workspace (default: the profile recorded for this directory, or ETTLE_PROFILE)")
 	team := fs.String("team", "", "which Linear team owns the room's project, as a team key (\"ENG\") or name — resolved to the id for you; only needed the first time. `ettle teams` lists them (default: LINEAR_TEAM_ID)")
-	dir := fs.String("dir", "", "project directory for .ettle-room (default: the git root above the cwd, else the cwd)")
+	dir := fs.String("dir", "", "which directory this room governs (default: the git root above the cwd, else the cwd); everything beneath it resolves the same room")
 	install := fs.Bool("install-hooks", false, "merge the ettle hooks into ~/.claude/settings.json (a .bak is written first); default prints the JSON to merge yourself")
 	settings := fs.String("settings", "", "which settings file --install-hooks writes (default: ~/.claude/settings.json, which serves every project)")
 	asJSON := fs.Bool("json", false, "emit the report as JSON instead of prose — for an agent driving the setup, so it can branch on what's missing rather than parse English")
@@ -118,7 +118,8 @@ func runInit(args []string) error {
   are two rooms, and each of you would sit alone in one thinking the other joined.
 
   Either way this verifies the keys, resolves (or creates) the thing that carries
-  the atoms, writes .ettle-room here, and wires the Claude Code hooks. Neither
+  the atoms, records the room for this directory in <config>/ettle/rooms.json
+  (per-machine, never in the repo), and wires the Claude Code hooks. Neither
   platform? ` + "`ettle room init <git-url>`" + ` is the plain git-repo bus.
 
   (No origin remote found here, which is why you are reading this.)`)
@@ -601,7 +602,7 @@ func linearAudienceNote(teams []transport.TeamScope) string {
 	return ". Readable by: " + strings.Join(parts, ", ") + " — Linear has no internet-public project, so this is the audience, not a leak"
 }
 
-// projectDir picks where `.ettle-room` goes: the explicit --dir, else the git root
+// projectDir picks which directory the room governs: the explicit --dir, else the git root
 // above the cwd (so a session started in a subdirectory still finds it), else the cwd.
 func projectDir(explicit string) (string, error) {
 	if strings.TrimSpace(explicit) != "" {

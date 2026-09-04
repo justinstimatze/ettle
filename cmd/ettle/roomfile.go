@@ -367,21 +367,3 @@ func knownRooms() []knownRoom {
 	sort.Slice(out, func(i, j int) bool { return out[i].Spec < out[j].Spec })
 	return out
 }
-
-// renderRoomFile is what `ettle init` writes — self-describing, because the next
-// person to open it will not have read the docs.
-func renderRoomFile(spec, profile string) string {
-	out := "# ettle — this project's coordination room. Written by `ettle init`.\n" +
-		"# The Claude Code hooks read it, so the hook config names no room and one\n" +
-		"# global settings.json works across every project. Safe to commit: it says\n" +
-		"# which room, not who you are (your identity is per-machine).\n" +
-		"room = " + spec + "\n"
-	if p := strings.TrimSpace(profile); p != "" {
-		out += "\n# Which key set to read, for a machine that works across more than one\n" +
-			"# Linear workspace. A NAME, not a secret — the keys stay per-machine in\n" +
-			"# <config>/ettle/env.d/" + p + ". Override with ETTLE_PROFILE if you name yours\n" +
-			"# something else.\n" +
-			"profile = " + p + "\n"
-	}
-	return out
-}

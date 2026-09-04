@@ -26,7 +26,7 @@ import (
 // next to the keys and names you can actually see in the app.
 func runTeams(args []string) error {
 	fs := flag.NewFlagSet("teams", flag.ContinueOnError)
-	profile := fs.String("profile", "", "which key set to read (default: the `profile` line in .ettle-room, or ETTLE_PROFILE)")
+	profile := fs.String("profile", "", "which key set to read (default: the profile recorded for this directory, or ETTLE_PROFILE)")
 	asJSON := fs.Bool("json", false, "emit JSON instead of a table — for an agent driving the setup")
 	if err := fs.Parse(args); err != nil {
 		return err

@@ -89,6 +89,28 @@ ettle is pre-production. Two surfaces matter most:
   control. Per-recipient confidentiality would need per-subject ACLs or
   per-recipient encryption — neither exists yet.
 
+## Fixed in v0.6.0 — profile-name path traversal
+
+Between the introduction of named key profiles and this release, a profile name was
+joined onto the config directory without being checked. `filepath.Join` *cleans* `..`
+rather than confining it, so a `profile = ../../../x` line resolved outside
+`<config>/ettle/env.d`, and the loader read whatever it found as `KEY=VALUE` and set it
+in the environment.
+
+That mattered because the room pointer carrying the name was a file in the repository,
+and the Claude Code hooks run in every project on the machine with no output shown — so
+a repository you merely cloned could set environment variables (`HTTPS_PROXY` being the
+obvious one) for the detached `ettle capture` process that then talks to Linear and
+Anthropic with your keys.
+
+Two changes close it. A profile name must now be a single path segment — no separator,
+no leading dot, no `..` — and is refused with a warning otherwise. And the room pointer
+moved out of the repository entirely, into a per-machine directory→room map, so the
+input is no longer attacker-controllable by cloning (see `docs/ADOPTION.md` for why
+that was the right home regardless).
+
+Reachable only where an attacker could get a file committed into a repository you use.
+
 ## Secrets
 
 `ANTHROPIC_API_KEY` and any gemot/NATS credentials live in a local `.env` /

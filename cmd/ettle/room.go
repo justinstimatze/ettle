@@ -142,7 +142,7 @@ func roomStatus(args []string) error {
 		name = fs.Arg(0)
 	}
 	// Any transport, not just a leat room: with no argument this reads the project's
-	// own `.ettle-room`, so `ettle room status` inside a checkout just works.
+	// own recorded room, so `ettle room status` inside a checkout just works.
 	room, transportName := splitRoomSpec(name)
 	room, transportName = applyRoomFile(room, transportName)
 	if room == "" && transportName == "" {
@@ -498,7 +498,7 @@ func roomJoin(args []string) error {
 
 // roomList answers "which rooms am I in" for EVERY bus, not only the git-repo one.
 // Listing just the leat rooms is how someone standing inside a working Linear room
-// gets told they have none: the room is in `.ettle-room` and the identity registry,
+// gets told they have none: the room is in the directory map and the identity registry,
 // not in the rooms directory, which only the no-platform bus ever writes to.
 func roomList() error {
 	var b strings.Builder

@@ -24,7 +24,7 @@ it by hand, merge [`settings.example.json`](settings.example.json) yourself.
 
 Put them in `~/.claude/settings.json`, not a project's `.claude/settings.json` —
 that is what makes them serve every project at once. **The commands name no room.**
-Each project's `.ettle-room` (written by `ettle init`) says which room that tree
+The machine's directory→room map (`~/.config/ettle/rooms.json`, written by `ettle init`) says which room a tree
 belongs to, and every hook walks up from the working directory to find it. A project
 without one makes all four hooks silent no-ops, which is why one global config can
 sit over every repo on the machine, ettle or not.
@@ -39,7 +39,7 @@ for the Linear receive half, `LINEAR_API_KEY` (a member key — reading agent re
 needs no OAuth app token). Put them in `~/.config/ettle/env` rather than a shell
 profile: a hook inherits whatever environment the session was launched with, so a key
 exported in one terminal is invisible to it. If this machine works across more than
-one Linear workspace, the project's `.ettle-room` can name a key profile
+one Linear workspace, a directory's entry can name a key profile
 (`profile = work` → `~/.config/ettle/env.d/work`) and the hooks read that too — a
 member key is workspace-scoped, so one global key cannot serve two. `ettle init`
 reports which of those you have; [`docs/LINEAR_SETUP.md`](../docs/LINEAR_SETUP.md) is
@@ -73,7 +73,7 @@ in the background never stalls a tool call or session exit.
   which fires every turn, collapses a long session to the occasional distill
   instead of one per turn.
 - **Publishes as you.** Same identity chain as above — `ettle init` records who you
-  are per machine, so a shared `.ettle-room` never publishes your atoms under a
+  are per machine, and so is the room map — nothing in the repo publishes your atoms under a
   teammate's name. A session that distills to no atoms publishes nothing (an empty
   envelope would erase your atoms).
 

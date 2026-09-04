@@ -151,10 +151,10 @@ func main() {
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default): it drops collision/duplication/teamwide tangles that bridge people on a shared topic word across independent scopes (producer/consumer, different deliverables, an unscheduled task swept into a deadline). Measured to cut fabrication toward 0 at full real-tangle recall (see ground.go).")
 	groundModel := fs.String("ground-model", "", "verify cross-person tangles with this (stronger) model instead of --model; empty = same as --model")
 	shareInferred := fs.Bool("share-inferred", false, "let INFERRED atoms (your agent's de-novo guesses about a person) cross to the team. OFF by default: an inference is a claim the person never stated, and the pass measurably fabricates sensitive ones, so it is held back and surfaced to its subject first (docs/LEGIBILITY.md stage 0b)")
-	room := fs.String("room", "", "use a configured git-repo room (`ettle room init|join`) as the transport; overrides --transport. On Linear or GitHub the project's .ettle-room answers this and neither flag is needed")
+	room := fs.String("room", "", "use a configured git-repo room (`ettle room init|join`) as the transport; overrides --transport. On Linear or GitHub the room recorded for this directory answers this and neither flag is needed")
 	_ = fs.Parse(os.Args[2:])
 
-	// A project with a `.ettle-room` needs neither flag; an explicit one still wins.
+	// A directory with a recorded room needs neither flag; an explicit one still wins.
 	// --transport defaults to "inproc", so only treat it as set when it isn't that.
 	if *transportName == "inproc" {
 		if r, t := applyRoomFile(*room, ""); r != "" || t != "" {
@@ -1791,14 +1791,14 @@ func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	model := fs.String("model", "claude-haiku-4-5", "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
-	room := fs.String("room", "", "serve the horizon over a configured git-repo room (`ettle room join`); empty = the project's .ettle-room if it has one, else in-process, this process only")
+	room := fs.String("room", "", "serve the horizon over a configured git-repo room (`ettle room join`); empty = the room recorded for this directory if there is one, else in-process, this process only")
 	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to a localhost gemot or NATS")
 	gemotURL := fs.String("gemot", "", "gemot MCP endpoint to deliberate contested tangles against (e.g. https://gemot.example/mcp); empty = the inline either/or, which needs nothing running")
 	gemotTimeout := fs.Duration("gemot-timeout", 180*time.Second, "how long to wait for a gemot deliberation's analysis")
 	_ = fs.Parse(args)
 
-	// A project with a `.ettle-room` needs neither flag, so `claude mcp add ettle --
+	// A directory with a recorded room needs neither flag, so `claude mcp add ettle --
 	// ettle mcp` is the same line in every project. An explicit flag still wins.
 	*room, *transportName = applyRoomFile(*room, *transportName)
 

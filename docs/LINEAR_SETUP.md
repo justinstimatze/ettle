@@ -21,8 +21,11 @@ Choosing is a one-time decision, and the only one your team has to make together
   looking like ettle has nothing to say. Don't retype it: a successful `ettle init`
   prints `tell a teammate: ettle init linear://crew` under **next**, and that
   fully-qualified form resolves to the same room as the bare name. Send that line.
-- **One room can span several repos.** Each repo gets its own `.ettle-room` pointer,
-  and they can all name the same room; the room is about the people, not the code.
+- **One room can span several repos.** Point `ettle init --dir` at a shared parent and
+  every checkout beneath it resolves the same room; the room is about the people, not
+  the code. Nothing is written into any repo — the mapping is per-machine, in
+  `~/.config/ettle/rooms.json`, because a room pointer inside a repo would enrol
+  whoever clones it into a room they never chose.
 - **You are not stuck with it.** Re-running `ettle init <newroom>` repoints the
   project. The atoms already published stay in the old project, so re-point early
   rather than after a week of history you would rather keep.
@@ -145,7 +148,7 @@ A Linear member key is scoped to **one workspace**, so a single global
 ettle init crew --profile work
 ```
 
-That writes `profile = work` into the project's `.ettle-room` and reads its keys from
+That records the profile for this directory alongside its room, and reads its keys from
 `~/.config/ettle/env.d/work` — one file per workspace, however many projects share it.
 The profile is a **name, not a secret**, so the line stays as safe to commit as `room`
 already is; the keys never leave your machine. A project with no `profile` line

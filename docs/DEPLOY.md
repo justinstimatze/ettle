@@ -72,7 +72,7 @@ that is what separates this tier from every one below it: **nothing after setup 
 a command anyone runs.** Sessions publish their own atoms as they end, the tangles
 that involve you arrive at the top of your next session, and a teammate's Linear
 replies are pulled in without that teammate installing anything. The hooks name no
-room — each repo's `.ettle-room` does — so one global settings file serves every
+room — the machine's directory→room map does — so one global settings file serves every
 project on the machine and stays a silent no-op in the ones that aren't ettle
 projects. Drop `--install-hooks` to print the JSON and merge it yourself; add
 `--json` if an agent is driving the setup.

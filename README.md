@@ -192,7 +192,7 @@ Saying *which* is not ceremony: the two are opposite claims about whether the
 detector was right, and they are the only ground truth the calibration loop will
 ever have, so ettle refuses to guess between them.
 
-None takes a `--room` — the `.ettle-room` in the repo answers that, which is also
+None takes a `--room` — the room recorded for that directory answers it, which is also
 why the hooks can be global and still do the right thing per project. To drive it
 from inside a session instead, add the MCP server: `claude mcp add ettle -- ettle
 mcp`. That is the surface ettle is built for, and where a verdict normally gets

@@ -133,7 +133,7 @@ func TestRoomFunnelsLoadTheProjectProfile(t *testing.T) {
 
 			dir := t.TempDir()
 			if err := os.WriteFile(filepath.Join(dir, roomFileName),
-				[]byte(renderRoomFile("linear://crew", "work")), 0o644); err != nil {
+				[]byte("room = linear://crew\nprofile = work\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			t.Chdir(dir)
