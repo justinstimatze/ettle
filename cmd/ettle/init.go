@@ -111,6 +111,11 @@ func runInit(args []string) error {
     ettle init github://<owner>/<repo>[/<room>]   a PRIVATE repo's Discussions
     ettle init <name>                             a Linear room (project ettle-<name>)
 
+  A room is the space a GROUP coordinates in — one per group who should see each
+  other's work, not one per repo and not one per person. Pick a short name the team
+  already uses for itself, and tell teammates the exact string: "crew" and "Crew"
+  are two rooms, and each of you would sit alone in one thinking the other joined.
+
   Either way this verifies the keys, resolves (or creates) the thing that carries
   the atoms, writes .ettle-room here, and wires the Claude Code hooks. Neither
   platform? ` + "`ettle room init <git-url>`" + ` is the plain git-repo bus.

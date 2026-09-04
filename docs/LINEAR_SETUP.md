@@ -5,6 +5,32 @@ is what to do about the ✗ lines. Two of the four are required; the other two e
 unlock one specific thing, so a missing one is a feature that's off, not a broken
 install.
 
+## First: what a room is, and how to pick one
+
+A **room** is the space a group of people coordinate in. One room per group who
+should see each other's work — not one per repo, not one per person, not one per
+session. It maps to a Linear project named `ettle-<room>`, holding one document per
+participant.
+
+Choosing is a one-time decision, and the only one your team has to make together:
+
+- **Pick a short name the team already uses for itself** — `crew`, `platform`,
+  `payments`. It becomes a visible project name in your Linear workspace.
+- **Everyone types the identical string.** `crew` and `Crew` are two different
+  rooms. The failure is quiet — each of you sits in a room seeing only yourself,
+  looking like ettle has nothing to say. Don't retype it: a successful `ettle init`
+  prints `tell a teammate: ettle init linear://crew` under **next**, and that
+  fully-qualified form resolves to the same room as the bare name. Send that line.
+- **One room can span several repos.** Each repo gets its own `.ettle-room` pointer,
+  and they can all name the same room; the room is about the people, not the code.
+- **You are not stuck with it.** Re-running `ettle init <newroom>` repoints the
+  project. The atoms already published stay in the old project, so re-point early
+  rather than after a week of history you would rather keep.
+
+On the **GitHub** path you skip this entirely: run `ettle init` with no argument
+inside a checkout and the room is derived from the `origin` remote, so two teammates
+cannot land in different rooms by typing different names.
+
 | Variable | Who needs it | What it buys |
 |---|---|---|
 | `LINEAR_API_KEY` | everyone running ettle | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |

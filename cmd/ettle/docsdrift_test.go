@@ -113,3 +113,28 @@ func TestProfileIsDiscoverableFromTheTopLevelUsage(t *testing.T) {
 			"line is the only warning a person gets")
 	}
 }
+
+// Choosing a room is the one decision a team has to make together, and getting it
+// wrong fails silently: two people who type `crew` and `Crew` each sit in a room
+// seeing only themselves, which looks like ettle having nothing to say. The guidance
+// has to be in front of a person at all three moments they might be deciding — the
+// pitch, the setup doc, and the usage text they hit when they run init with no room.
+func TestChoosingARoomIsExplainedWhereItIsDecided(t *testing.T) {
+	for _, tc := range []struct{ path, want, why string }{
+		{filepath.Join("..", "..", "README.md"), "is the room, and it is the one thing you have to agree on",
+			"the setup step is where most people meet the word `room` for the first time"},
+		{filepath.Join("..", "..", "docs", "LINEAR_SETUP.md"), "## First: what a room is, and how to pick one",
+			"this is the page init sends people to, and it opened by explaining keys for a room it never defined"},
+		{"init.go", "A room is the space a GROUP coordinates in",
+			"the usage error is what a person sees at the exact moment they have to pick a name"},
+	} {
+		body, err := os.ReadFile(tc.path)
+		if err != nil {
+			t.Fatalf("read %s: %v", tc.path, err)
+		}
+		if !strings.Contains(string(body), tc.want) {
+			t.Errorf("%s no longer explains how to choose a room (looked for %q) — %s",
+				filepath.Base(tc.path), tc.want, tc.why)
+		}
+	}
+}

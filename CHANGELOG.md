@@ -52,6 +52,17 @@
   rooms in another one) while this project names no profile, init says so outright
   rather than leaving the question unasked. `--profile` is in the top-level usage too,
   since it answers a question nobody knows to ask.
+- **The docs say what a room is, and how to choose one.** They defined it only
+  obliquely — "the room is a Linear project (`ettle-crew`)" — and never said what it
+  *should* be, which is the one decision a team makes together and the one that fails
+  silently: `crew` and `Crew` are two rooms, and each person sits in theirs seeing
+  only themselves, looking like ettle has nothing to say. Now stated at all three
+  moments someone is deciding — the README setup step, a new opening section in
+  `docs/LINEAR_SETUP.md`, and the `ettle init` usage text a person hits at the exact
+  moment they have to pick. It also surfaces something that already worked and nobody
+  mentioned: a successful init prints `tell a teammate: ettle init linear://crew`, and
+  that fully-qualified form resolves to the same room as the bare name — so the second
+  person copies a line instead of retyping a string.
 - **An incomplete setup says it is safe to re-run.** Nothing is half-applied — the
   room pointer and identity are written, the hook merge is idempotent — but the report
   never said so, and "setup is incomplete" reads like breakage to someone deciding

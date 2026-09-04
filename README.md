@@ -123,6 +123,17 @@ loop below never asks anyone to. Run this once, in the repo you work in:
 ettle init crew --me alice --install-hooks
 ```
 
+**`crew` is the room, and it is the one thing you have to agree on.** A room is the
+space a group of people coordinate in — one per group who should see each other's
+work, not one per repo and not one per person. Pick a short name your team already
+uses for itself and tell your teammates the exact string: `ettle init crew` and
+`ettle init Crew` are two different rooms, and each of you would sit alone in one
+thinking the other had joined. Don't retype it — a successful run prints
+`tell a teammate: ettle init linear://crew`, which resolves to the same room as the
+bare name. Send them that line. (On the GitHub path you skip this — run `ettle init`
+with no argument in a checkout and the room comes from the `origin` remote, so
+nobody can typo it.)
+
 The room is a Linear project (`ettle-crew`) holding one document per person — the
 atom bus. `ettle init` reports which keys you have and **what each missing one costs
 you** rather than failing on the first, resolves or creates that project, writes a
