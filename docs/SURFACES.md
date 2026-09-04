@@ -108,8 +108,8 @@ The thing a person installs:
   mechanism that makes it session-agnostic, because hooks there fire in every
   session and every project with no per-session instruction,
 - config once: the keys (`LINEAR_API_KEY` + `ANTHROPIC_API_KEY`) in
-  `~/.config/ettle/env` — genuinely once — and the room carried with the project in a
-  `.ettle-room` file at its root, so it is never re-specified. A machine that works
+  `~/.config/ettle/env` — genuinely once — and the room recorded per-machine in
+  `~/.config/ettle/rooms.json`, keyed by directory, so it is never re-specified. A machine that works
   across more than one Linear workspace names a key profile there too
   (`profile = work` → `~/.config/ettle/env.d/work`), because a member key is
   workspace-scoped and one global key cannot serve two ([LINEAR_SETUP.md](LINEAR_SETUP.md)).
@@ -117,9 +117,10 @@ The thing a person installs:
 `ettle init <room>` does all three but the binary, and the room file is what makes
 the global hook config coherent: because the hook commands name no room, the *same*
 four lines serve every repo on the machine, resolve the right room in each, and stay
-silent no-ops in the ones that aren't ettle projects. The file holds the room and,
-optionally, a profile NAME — both facts about the project, safe to commit; the keys a
-profile names stay per-machine. Identity is a fact about the person and is
+silent no-ops in the ones that aren't ettle projects. The mapping is per-machine and
+never committed: a room pointer inside a repo would enrol whoever clones it into a room
+they never chose, which is the enrollment-by-proximity ADOPTION.md calls
+disqualifying. Identity is likewise per-person and is
 kept per-machine, because a committed `me = alice` would publish Bob's atoms as
 Alice's, which is exactly the misattribution the transport works to prevent.
 

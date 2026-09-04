@@ -26,9 +26,20 @@ import (
 // next to the keys and names you can actually see in the app.
 func runTeams(args []string) error {
 	fs := flag.NewFlagSet("teams", flag.ContinueOnError)
+	profile := fs.String("profile", "", "which key set to read (default: the `profile` line in .ettle-room, or ETTLE_PROFILE)")
 	asJSON := fs.Bool("json", false, "emit JSON instead of a table — for an agent driving the setup")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	// Load this project's key profile. Without it the command reads the GLOBAL key and
+	// lists the wrong workspace's teams — in a project with `profile = work`, which is
+	// the only situation the command matters. Worse than an error if both workspaces
+	// happen to have an ENG: no error, wrong team.
+	rf, _ := currentRoomFile()
+	if p := strings.TrimSpace(*profile); p != "" {
+		loadProfileEnv(p)
+	} else {
+		loadProfileEnv(activeProfile(rf))
 	}
 	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
 	if key == "" {

@@ -24,11 +24,13 @@ const roomFileName = ".ettle-room"
 // roomFile is the parsed pointer: a transport spec ("linear://crew") or a configured
 // leat room name, the key profile to read, plus where it was found.
 //
-// Both fields are facts about the PROJECT and safe to commit — a profile is a NAME,
-// never a secret, and the keys it names stay per-machine under <config>/ettle/env.d.
-// Identity is a fact about the PERSON and stays out (see loadIdentity): a committed
-// `me = alice` would publish Bob's atoms as Alice's, which is exactly the
-// misattribution the transport works to prevent.
+// LEGACY. Nothing writes this file any more — the mapping lives per-machine in
+// <config>/ettle/rooms.json (see roomstore.go). It is still READ for one release so an
+// existing install keeps working across the upgrade, and `ettle init` migrates it.
+//
+// It moved because "safe to commit", which this file used to claim, was wrong: a room
+// pointer in a repo enrols whoever clones it into a room they never chose, and
+// ADOPTION.md says state enters the shared layer only from a person's own act.
 type roomFile struct {
 	Spec    string
 	Profile string
@@ -103,13 +105,7 @@ func findRoomFile(dir string) (roomFile, bool) {
 
 // currentRoomFile is findRoomFile anchored at the working directory — what every
 // command's fallback actually calls.
-func currentRoomFile() (roomFile, bool) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return roomFile{}, false
-	}
-	return findRoomFile(cwd)
-}
+func currentRoomFile() (roomFile, bool) { return currentRoom() }
 
 // splitRoomSpec maps a spec onto the (--room, --transport) pair the commands already
 // take: anything with a scheme is a transport, anything else is a configured leat room.

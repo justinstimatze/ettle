@@ -72,7 +72,7 @@ Routing goes by an exact `(type, subject)` slot key. When the **stochastic disti
 
 `ettle mirror --me <name> <prev-dir> <curr-dir>` runs the read side, showing a person what the team's directed models currently believe *about them* and flagging the beliefs that have gone **stale** — the layer that drives how someone gets treated, made legible to the person it's about. Attribution is coarsened by default (`--by-observer` to attribute), and there's no model call beyond the distill.
 
-**The Linear + Claude Code loop closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a `.ettle-room` pointer in the repo, and (with `--install-hooks`) merges the Claude Code hooks into your global settings.
+**The Linear + Claude Code loop closes with no command to run.** `ettle init <room>` sets it up in one go: it verifies the keys and says what each missing one costs you, resolves or creates the Linear project that carries the atoms, writes a room pointer in `~/.config/ettle/rooms.json` (per-machine, never in the repo), and (with `--install-hooks`) merges the Claude Code hooks into your global settings.
 
 After that, four things happen on their own. **Capture** distills each of your sessions locally and publishes *your* atoms to the room (`SessionEnd`/`Stop`). **Pull** ingests replies a teammate posts in Linear's native agent UI, distilled locally under their identity, so someone who never installs ettle still has a voice in reconcile. **Horizon injection** puts the tangles that involve *you* into your next session at `SessionStart` — instantly, from a cache, with a background refresh, because reconcile is a model call and session start has to stay free. **Escalation** (`ettle escalate`, or the `ettle_escalate` MCP tool) posts a firm cross-person tangle onto the room's one dedicated coordination issue: opt-in, never onto your feature tickets, and only ever a bridge to a teammate who isn't running ettle.
 
@@ -137,7 +137,7 @@ nobody can typo it.)
 The room is a Linear project (`ettle-crew`) holding one document per person — the
 atom bus. `ettle init` reports which keys you have and **what each missing one costs
 you** rather than failing on the first, resolves or creates that project, writes a
-`.ettle-room` pointer in the repo, and merges the hooks into
+room pointer in `~/.config/ettle/rooms.json` (per-machine, never in the repo), and merges the hooks into
 `~/.claude/settings.json` — backing up the previous file and skipping anything
 already there. Drop `--install-hooks` to print the JSON and merge it yourself; add
 `--json` if an agent is driving the setup. Every teammate runs the same line with
@@ -145,7 +145,9 @@ their own `--me`. It is safe to re-run as often as you like — nothing is
 half-applied, and a run after you fill in a missing key picks up where it stopped.
 
 **More than one Linear workspace?** Add `--profile work`, and this project reads its
-keys from `~/.config/ettle/env.d/work` instead of the global file. A member key sees
+keys from `~/.config/ettle/env.d/work` instead of the global file. Both the room and
+the profile are recorded per-machine in `~/.config/ettle/rooms.json`, keyed by
+directory — nothing lands in the repo, so cloning it never joins you to a room. A member key sees
 exactly one workspace, so without this every project on the machine shares one — and
 a key that cannot see a room does not fail, it *creates a second one* your teammate
 will never find. `init` names the workspace it resolved on every run, and refuses a

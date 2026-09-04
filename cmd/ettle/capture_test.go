@@ -91,21 +91,22 @@ func TestCaptureIdentity(t *testing.T) {
 func TestDueForCaptureDebounces(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	target := "room-x"
-	due, err := dueForCapture(target, time.Hour)
+	const sess = "/t/room-x-session.jsonl"
+	due, err := dueForCapture(target, sess, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !due {
 		t.Fatal("first call should be due")
 	}
-	due, err = dueForCapture(target, time.Hour)
+	due, err = dueForCapture(target, sess, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if due {
 		t.Fatal("second call inside the window should be debounced")
 	}
-	if due, _ = dueForCapture(target, 0); !due {
+	if due, _ = dueForCapture(target, sess, 0); !due {
 		t.Fatal("zero window should always be due")
 	}
 }
@@ -118,7 +119,30 @@ func TestCaptureAndPullDebounceIndependently(t *testing.T) {
 	if due, _ := dueForPull(room, time.Hour); !due {
 		t.Fatal("pull should be due first")
 	}
-	if due, _ := dueForCapture(room, time.Hour); !due {
+	if due, _ := dueForCapture(room, "/t/sess-a.jsonl", time.Hour); !due {
 		t.Fatal("capture should still be due despite a recent pull on the same room")
+	}
+}
+
+// Several sessions run in parallel here as a matter of course — five worktrees, one
+// room. Keying the debounce on the room alone made four of them silently skip their
+// capture: distinct work, dropped because a sibling captured moments earlier, with no
+// error and only a thin bus to show for it.
+func TestCaptureDebouncesPerSessionNotPerRoom(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	const room = "linear://dumpling"
+
+	if due, _ := dueForCapture(room, "/t/session-a.jsonl", time.Hour); !due {
+		t.Fatal("the first session should be due")
+	}
+	// A sibling session, same room, immediately after. It has its own atoms to
+	// publish and must not be suppressed by the first.
+	if due, _ := dueForCapture(room, "/t/session-b.jsonl", time.Hour); !due {
+		t.Error("a parallel session was silently skipped — its atoms would never reach the bus")
+	}
+	// Within ONE session, Stop firing every turn must still collapse. That is what
+	// the debounce was for, and it has to keep working.
+	if due, _ := dueForCapture(room, "/t/session-a.jsonl", time.Hour); due {
+		t.Error("the same session should still debounce, or a long session pays per turn")
 	}
 }

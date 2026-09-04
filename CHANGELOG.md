@@ -1,7 +1,48 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — 2026-09-03
 
+- **The room moved out of the repo, into `~/.config/ettle/rooms.json`.** `.ettle-room`
+  described itself as "safe to commit". It wasn't, and the reason is ettle's own
+  invariant rather than a general worry: `docs/ADOPTION.md` says state enters the
+  shared layer only from a person's own act and that presence is explicit and
+  revocable, but a committed room pointer means cloning a repo and opening a session
+  publishes your distilled work into a room you never chose — the enrollment-by-
+  proximity that document opens by calling disqualifying. The convention agrees:
+  a file stating what the PROJECT is gets committed, a file recording which external
+  account THIS CHECKOUT is wired to stays local (`.vercel`, `.mcp.json` gitignored;
+  `.linear.json`, `.claude/` committed) — and unlike any of those, a room pointer
+  causes an action on clone. The mapping is now per-machine and keyed by directory,
+  beside the identity that was already per-machine for the same reason. One entry
+  covers every worktree beneath it, a deeper entry still wins over the tree it sits in,
+  and the argument it removes is the one about whether to gitignore it. `.ettle-room`
+  is still READ for one release so no install breaks on upgrade, and `ettle init`
+  migrates it and says so; nothing writes it any more.
+- **Security: a profile name is confined to one path segment.** `.ettle-room` is
+  committed and travels with a repository, and the hooks run in every project on the
+  machine with no report shown — so `profile = ../../../somewhere` in a repo you merely
+  cloned made `loadProfileEnv` read an arbitrary file as `KEY=VALUE` and `os.Setenv`
+  the result into every ettle process, including the detached children that hold real
+  API keys (`HTTPS_PROXY` being the obvious lever). `filepath.Join` cleans `..` rather
+  than confining it, so the join was no defence. Names with a separator, a leading dot,
+  or `..` are now refused with a warning.
+- **The capture debounce is keyed per session, not per room.** Several sessions in
+  parallel is the normal case, and they all resolve the same room — so they shared one
+  marker and every session but the first had its capture silently skipped: distinct
+  work, dropped because a sibling captured moments earlier, with no error and only a
+  thin bus to show for it. Within one session, Stop firing every turn still collapses
+  exactly as before.
+- **`ettle init` fixes from a review of the above.** It no longer writes the
+  per-machine `ETTLE_PROFILE` override into the shared committed file (which would
+  hand a teammate a profile name that exists on one laptop); it reads the room file
+  from the directory it is writing to rather than the cwd, so `--dir` stops erasing
+  another project's `profile =` line; `--team` resolves after the report is armed, so a
+  failure still emits a report instead of a bare error line, and is refused for
+  non-Linear rooms; a recorded workspace is never silently overwritten by a different
+  one; and a failed workspace lookup says so rather than leaving the guard quietly
+  unarmed. `ettle teams` now loads the project's profile — it was reading the global
+  key and listing the wrong workspace's teams, in the one situation the command exists
+  for.
 - **A project can point at its own Linear workspace, via a named key profile.** A
   Linear member key is scoped to one workspace, and ettle had exactly one key slot per
   machine: `linearBusFor` reads `LINEAR_API_KEY` from the process environment, and the
@@ -80,6 +121,9 @@
   room pointer and identity are written, the hook merge is idempotent — but the report
   never said so, and "setup is incomplete" reads like breakage to someone deciding
   whether to touch it again.
+
+- Dependencies: 8 Dependabot bumps merged since v0.5.0 (anthropic-sdk-go, nats-server, nats.go);
+  `make ci` re-run against them before this tag rather than assumed safe.
 
 ## v0.5.0 — 2026-08-05
 

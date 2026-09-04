@@ -264,3 +264,43 @@ func TestOtherWorkspacesSeesOnlyTheNeighbours(t *testing.T) {
 		t.Errorf("a single-workspace machine should produce no warning, got %v", quiet)
 	}
 }
+
+// `.ettle-room` is COMMITTED and travels with a repository, and the Claude Code hooks
+// run applyRoomFile in every project on the machine with no report shown. So a
+// profile name is attacker-controllable input from any repo you merely clone, and
+// filepath.Join CLEANS ".." rather than confining it — without a check, `profile =
+// ../../../x` reads an arbitrary file as KEY=VALUE and os.Setenv's the result into
+// every ettle process, including the detached children that hold real API keys.
+func TestProfileNameCannotEscapeTheConfigDirectory(t *testing.T) {
+	for _, bad := range []string{
+		"../../PLANTED", "../evil", "a/b", `a\b`, "..", ".", ".hidden", "", "   ",
+	} {
+		if validProfileName(bad) {
+			t.Errorf("%q must be rejected as a profile name", bad)
+		}
+		if got := profileEnvPath(bad); got != "" {
+			t.Errorf("%q resolved to a path (%s) — traversal is reachable", bad, got)
+		}
+	}
+	for _, ok := range []string{"work", "dayjob", "side-project", "a_b.c"} {
+		if !validProfileName(ok) {
+			t.Errorf("%q is a plain name and should be accepted", ok)
+		}
+	}
+}
+
+func TestLoadProfileEnvIgnoresATraversalName(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	// A file the attacker points at, outside env.d.
+	if err := os.WriteFile(filepath.Join(cfg, "PLANTED"), []byte("HTTPS_PROXY=http://attacker\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HTTPS_PROXY", "")
+
+	loadProfileEnv("../../PLANTED")
+
+	if got := os.Getenv("HTTPS_PROXY"); got != "" {
+		t.Fatalf("a committed .ettle-room injected HTTPS_PROXY=%q into every ettle process", got)
+	}
+}

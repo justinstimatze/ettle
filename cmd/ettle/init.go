@@ -124,22 +124,30 @@ func runInit(args []string) error {
   (No origin remote found here, which is why you are reading this.)`)
 	}
 
-	// runInit is on neither room funnel — it resolves the room itself, above — so it
-	// has to load the key profile itself too, and BEFORE initTarget, because that is
-	// where envChecks and the live bus verification both read the keys.
-	rf, _ := currentRoomFile()
+	// Resolve the project directory FIRST. The room file has to be read from the
+	// directory being written to, not the cwd: `ettle init --dir other/project` run
+	// from elsewhere would otherwise read no profile, then rewrite that project's
+	// .ettle-room without its `profile =` line — silently repointing every later hook
+	// there at the global key, which is the exact failure profiles exist to prevent.
+	target, err := projectDir(*dir)
+	if err != nil {
+		return err
+	}
+	rf, _ := resolveRoom(target)
+
+	// What gets WRITTEN to the shared file and what this RUN uses are different
+	// things. ETTLE_PROFILE is a per-machine override — the documented way for a
+	// teammate to name their profile differently — so committing it would hand
+	// everyone else a name that exists only on one laptop.
+	writeProf := strings.TrimSpace(*profile)
+	if writeProf == "" {
+		writeProf = rf.Profile
+	}
 	prof := strings.TrimSpace(*profile)
 	if prof == "" {
 		prof = activeProfile(rf)
 	}
 	loadProfileEnv(prof)
-
-	// Resolve --team AFTER the profile loads, so a team named for this project is
-	// looked up with this project's key. LINEAR_TEAM_ID is what the transport reads,
-	// so resolving into it keeps the whole rest of the path unchanged.
-	if err := applyTeamFlag(*team); err != nil {
-		return err
-	}
 
 	spec, label, env, verify := initTarget(room)
 	if derived {
@@ -156,16 +164,25 @@ func runInit(args []string) error {
 	// diagnosis they need.
 	defer func() { fmt.Print(renderInitReport(rep, *asJSON)) }()
 
+	// After the defer, deliberately: a --team failure used to return before the report
+	// existed, contradicting the invariant above and handing --json callers a bare
+	// error line instead of parseable JSON.
+	if err := applyTeamFlag(spec, *team); err != nil {
+		return err
+	}
+
 	busOK, busName, busLine := verify()
 	rep.Bus = []check{{ok: busOK, required: true, name: busName, what: busLine}}
 
-	target, err := projectDir(*dir)
-	if err != nil {
-		return err
+	// The room lives per-machine now, not in the repo: a committed pointer enrolls
+	// whoever clones the repo into a room they never chose, which ADOPTION.md forbids.
+	if err := saveRoomForDir(target, spec, writeProf); err != nil {
+		return fmt.Errorf("record room for %s: %w", target, err)
 	}
-	path := filepath.Join(target, roomFileName)
-	if err := os.WriteFile(path, []byte(renderRoomFile(spec, prof)), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	path := roomStorePath()
+	legacy := ""
+	if _, err := os.Stat(filepath.Join(target, roomFileName)); err == nil {
+		legacy = filepath.Join(target, roomFileName)
 	}
 	if err := saveIdentity(spec, *me); err != nil {
 		return fmt.Errorf("save identity: %w", err)
@@ -174,10 +191,11 @@ func runInit(args []string) error {
 		rep.Workspace, rep.CrossWorkspace = recordWorkspace(spec, prof)
 	}
 	rep.RoomFile = path
-	rep.Project = []check{{
-		ok: true, required: true, name: path,
-		what: fmt.Sprintf("room = %s — every ettle command in this tree reads it, so none need --room. Safe to commit; you are %q on this machine only, so a teammate's atoms are never published as yours", spec, *me),
-	}}
+	what := fmt.Sprintf("%s → %s — every ettle command under that directory reads it, so none need --room. Per-machine and never committed: a room pointer in the repo would enrol whoever clones it into a room they never chose. You are %q here only.", target, spec, *me)
+	if legacy != "" {
+		what += " Migrated from " + legacy + ", which is now unused and safe to delete."
+	}
+	rep.Project = []check{{ok: true, required: true, name: path, what: what}}
 
 	hookLine, hookBody, hookErr := setupHooks(*install, *settings, strings.HasPrefix(spec, "linear://"))
 	rep.HooksInstalled = hookErr == nil && *install
@@ -418,18 +436,32 @@ func profileCheck(name string) check {
 // over, and every other transport has none to read.
 func recordWorkspace(spec, profile string) (workspace, warning string) {
 	org, err := linearOrgOf(spec)
-	if err != nil || org.ID == "" {
+	if err != nil {
+		// Silence here is the worst outcome: no workspace line, no expectation saved,
+		// and every future run for this room back in the unguarded first-run state.
+		return "", "could not confirm which Linear workspace this room is in (" + err.Error() +
+			") — nothing was recorded, so the wrong-workspace guard stays off for this room until a run succeeds"
+	}
+	if org.ID == "" {
 		return "", ""
+	}
+
+	// A room's recorded workspace must not be quietly rewritten. The guard only fires
+	// on the CREATE branch, so a wrong-workspace key that happens to find a same-named
+	// project — the very duplicate this feature exists to prevent — would otherwise
+	// sail through and overwrite the right expectation with the wrong one, forever.
+	if prev := loadOrg(spec); prev.ID != "" && prev.ID != org.ID {
+		return describeWorkspace(org), fmt.Sprintf(
+			"this room was recorded in workspace %s and this key belongs to %s. The recorded workspace was NOT changed. "+
+				"If a project of the same name exists in both, they are different rooms and your teammates are in one of them — "+
+				"check before publishing. %s",
+			describeWorkspace(prev), describeWorkspace(org), docsFor(spec))
 	}
 	// Read the neighbours BEFORE recording this one, or this room's own workspace
 	// counts as evidence of working across several.
 	others := otherWorkspaces(org.ID)
 	_ = saveOrg(spec, org.ID, org.Name)
-
-	workspace = org.Name
-	if workspace == "" {
-		workspace = "id " + org.ID
-	}
+	workspace = describeWorkspace(org)
 	// Warn only on evidence, not on possibility. This machine holds rooms in another
 	// workspace and this project names no profile, so they are sharing one key — which
 	// is the case a first init cannot catch any other way, because there is no prior
@@ -449,9 +481,12 @@ func recordWorkspace(spec, profile string) (workspace, warning string) {
 // applyTeamFlag turns a team KEY or name into the id LINEAR_TEAM_ID carries. Nobody
 // should have to find a uuid Linear shows on no screen, and an existing
 // LINEAR_TEAM_ID is left alone when no flag is passed.
-func applyTeamFlag(team string) error {
+func applyTeamFlag(spec, team string) error {
 	if strings.TrimSpace(team) == "" {
 		return nil
+	}
+	if !strings.HasPrefix(spec, "linear://") {
+		return fmt.Errorf("--team is a Linear concept; %s has no team to resolve", spec)
 	}
 	key := strings.TrimSpace(os.Getenv("LINEAR_API_KEY"))
 	if key == "" {
@@ -464,6 +499,15 @@ func applyTeamFlag(team string) error {
 		return err
 	}
 	return os.Setenv("LINEAR_TEAM_ID", t.ID)
+}
+
+// describeWorkspace prefers the human name and falls back to the id, so a record
+// written before names were stored still reads.
+func describeWorkspace(o orgRef) string {
+	if strings.TrimSpace(o.Name) != "" {
+		return o.Name
+	}
+	return "id " + o.ID
 }
 
 // linearOrgOf resolves the workspace behind a linear:// spec, for recording. Any other

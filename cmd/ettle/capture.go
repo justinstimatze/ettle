@@ -166,7 +166,7 @@ func runCaptureHook(args []string) error {
 	if target == "" {
 		target = *transportName
 	}
-	due, err := dueForCapture(target, *debounce)
+	due, err := dueForCapture(target, payload.TranscriptPath, *debounce)
 	if err != nil {
 		return err
 	}
@@ -201,8 +201,8 @@ func runCaptureHook(args []string) error {
 // dueForCapture reports whether enough time has passed since the last
 // hook-triggered capture for this target, recording "now" when it returns true.
 // A separate marker from pull's (dueForPull) so the two debounce independently.
-func dueForCapture(target string, window time.Duration) (bool, error) {
-	path, err := captureRunPath(target)
+func dueForCapture(target, transcript string, window time.Duration) (bool, error) {
+	path, err := captureRunPath(target, transcript)
 	if err != nil {
 		return false, err
 	}
@@ -222,12 +222,26 @@ func dueForCapture(target string, window time.Duration) (bool, error) {
 	return true, nil
 }
 
-// captureRunPath is the per-target debounce marker, under its own capture/ dir so
-// it never collides with pull's hookrun marker.
-func captureRunPath(target string) (string, error) {
+// captureRunPath is the debounce marker, keyed per (room, SESSION).
+//
+// Keying on the room alone was wrong for anyone running several sessions at once,
+// which is the normal case here: five sessions in five worktrees all resolve the same
+// room, so they shared one marker and four of them had their capture silently
+// skipped — different work, different atoms, dropped because a sibling captured
+// ninety seconds earlier. No error, just a thin bus.
+//
+// The transcript path is the session identity the hook payload already carries, and
+// its basename is the session id, so it is both unique and short. Within one session
+// Stop still collapses per-turn firing exactly as before; across sessions each one
+// now captures on its own clock.
+func captureRunPath(target, transcript string) (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("locate config dir: %w", err)
 	}
-	return filepath.Join(dir, "ettle", "capture", transport.SanitizeID(target)+".hookrun"), nil
+	name := transport.SanitizeID(target)
+	if sess := strings.TrimSuffix(filepath.Base(strings.TrimSpace(transcript)), ".jsonl"); sess != "" && sess != "." {
+		name += "." + transport.SanitizeID(sess)
+	}
+	return filepath.Join(dir, "ettle", "capture", name+".hookrun"), nil
 }

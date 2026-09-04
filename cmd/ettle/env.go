@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +84,10 @@ func loadUserEnv() {
 // behaves exactly as it did before this existed.
 func loadProfileEnv(name string) {
 	name = strings.TrimSpace(name)
-	if name == "" {
+	if !validProfileName(name) {
+		if name != "" {
+			fmt.Fprintf(os.Stderr, "ettle: ignoring profile %q — a profile is one plain name, not a path\n", name)
+		}
 		return
 	}
 	for k, v := range readEnvFile(profileEnvPath(name)) {
@@ -104,9 +108,33 @@ func userEnvPath() string {
 	return filepath.Join(dir, "ettle", "env")
 }
 
+// validProfileName restricts a profile to ONE plain path segment.
+//
+// This is a security boundary, not tidiness. `.ettle-room` is committed and travels
+// with a repository, and the Claude Code hooks run `applyRoomFile` in EVERY project
+// on the machine with no report shown — so without this, a `profile = ../../../x` in
+// a repo you merely cloned would make loadProfileEnv read an attacker-chosen file as
+// KEY=VALUE and os.Setenv the result into every ettle process, including the detached
+// children that then talk to Linear and Anthropic with your keys. filepath.Join
+// CLEANS "..", it does not confine, so the join alone is no defence.
+func validProfileName(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.HasPrefix(name, ".") {
+		return false // no dotfiles, and no leading-dot traversal games
+	}
+	return !strings.ContainsAny(name, `/\`) && !strings.ContainsRune(name, os.PathSeparator)
+}
+
 // profileEnvPath is where a named profile's keys live. Reported by `ettle init` for
 // the same reason userEnvPath is: a path you have to guess is a path you get wrong.
+// Returns "" for a name that is not a single safe segment.
 func profileEnvPath(name string) string {
+	if !validProfileName(name) {
+		return ""
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return ""
