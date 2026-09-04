@@ -5,6 +5,10 @@ is what to do about the ✗ lines. Two of the four are required; the other two e
 unlock one specific thing, so a missing one is a feature that's off, not a broken
 install.
 
+**Joining a room somebody else already set up?** Two of the four below are already
+somebody else's problem, and one of the three paths in needs no key at all. Start at
+[JOINING.md](JOINING.md) and come back here only for the key you are actually missing.
+
 ## First: what a room is, and how to pick one
 
 A **room** is the space a group of people coordinate in. One room per group who

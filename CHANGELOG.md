@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **A page for the person joining, not the person setting up.** `LINEAR_SETUP.md` is
+  organized by key, which is the right axis for the first person in a room and the wrong
+  one for the second: two of the four keys are already somebody else's problem, and one
+  of the three ways into a room needs no key at all. `docs/JOINING.md` is the joiner's
+  path — the three tiers (reply in Linear and install nothing; `ettle mcp` with no
+  Anthropic key; the hooks), what only the room's owner can do, and the three setup
+  steps a joiner can skip. The owner's step is the one that is easy to miss and fails
+  confusingly: ettle sets no visibility when it creates `ettle-<room>`, so a project
+  that inherits a private default reports as MISSING to a teammate rather than as
+  unreadable. A successful `ettle init` now prints that page beside its existing
+  `tell a teammate` line.
+
 ## v0.6.1 — 2026-09-03
 
 - **An offset AT the end no longer re-reads the whole transcript.** Every recorded

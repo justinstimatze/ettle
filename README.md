@@ -95,6 +95,10 @@ Install the binary — it self-describes its version (`ettle version`):
 go install github.com/justinstimatze/ettle/cmd/ettle@latest
 ```
 
+**Someone already sent you a room to join?** [docs/JOINING.md](docs/JOINING.md) is the
+short path for you — including the two things only the room's owner can do, and the
+three setup steps a joiner can skip entirely.
+
 The examples below run from a clone, because they use the bundled `testdata/`
 fixtures. **If you installed the binary, use `ettle` wherever they say
 `go run ./cmd/ettle`.**

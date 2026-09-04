@@ -287,6 +287,10 @@ func parseGitHubRemote(url string) (owner, repo string, ok bool) {
 // Linear API keys turns a setup failure into a dead end.
 const (
 	docsLinearSetup = "https://github.com/justinstimatze/ettle/blob/main/docs/LINEAR_SETUP.md"
+	// The page for the person on the RECEIVING end of the line below. They face a
+	// different problem than the room's first person: everything already exists, so
+	// most of the setup reference is a decision somebody else already made.
+	docsJoining     = "https://github.com/justinstimatze/ettle/blob/main/docs/JOINING.md"
 	docsGitHubSetup = "https://github.com/justinstimatze/ettle#on-github-instead-of-linear"
 )
 
@@ -867,6 +871,8 @@ func renderNextSteps(room, me string, ok bool, docs string) string {
 	fmt.Fprintf(&b, "    ettle horizon --me %s          # what the room already knows that concerns you\n", me)
 	b.WriteString("    claude mcp add ettle -- ettle mcp   # operate it from inside a session\n")
 	fmt.Fprintf(&b, "    tell a teammate:  ettle init %s\n", room)
+	fmt.Fprintf(&b, "      send them %s too — it is\n", docsJoining)
+	b.WriteString("      the joiner's path, and says what only YOU can do (share a private project).\n")
 	b.WriteString("\n    With the hooks in, nothing else is a command you run: your sessions publish\n")
 	b.WriteString("    your atoms, teammates' Linear replies come in, and the tangles that involve you\n")
 	b.WriteString("    surface at the start of your next session. Nothing is posted anywhere shared\n")

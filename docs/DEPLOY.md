@@ -91,7 +91,9 @@ audience than a private one, and the bus carries everyone's intents, commitments
 and assumptions. GitHub has neither `ettle pull` nor `ettle escalate` yet. And the
 receive path polls with a cursor rather than taking a webhook (nothing is hosted,
 by choice), so freshness is last-poll, not live. Which keys buy what, and the ten
-minutes the optional escalation token costs: [LINEAR_SETUP.md](LINEAR_SETUP.md).
+minutes the optional escalation token costs: [LINEAR_SETUP.md](LINEAR_SETUP.md). What
+to send the second person, and what only you can do for them:
+[JOINING.md](JOINING.md).
 Which output lands on which surface, and why "put the tangle in the ticket" is the
 obvious design and the wrong default: [SURFACES.md](SURFACES.md).
 
