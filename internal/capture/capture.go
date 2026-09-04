@@ -65,9 +65,22 @@ type block struct {
 // (subagent) lines, tool-result messages, and harness noise, keeping the
 // human's prompts and the agent's committed actions.
 func Read(path string) (Session, error) {
+	s, _, err := ReadFrom(path, 0)
+	return s, err
+}
+
+// ReadFrom is Read starting at line `from`, returning the session and the total line
+// count of the file. It exists so a long-running session is not re-digested in full
+// every couple of minutes: a capture distills only the turns added since the last one,
+// and `read` is the offset to hand back next time.
+//
+// A `from` past the end means the transcript was replaced or truncated under us — a
+// fresh session reusing a path, say — so the whole file is read rather than silently
+// producing nothing.
+func ReadFrom(path string, from int) (Session, int, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return Session{}, err
+		return Session{}, 0, err
 	}
 	defer f.Close()
 
@@ -75,7 +88,12 @@ func Read(path string) (Session, error) {
 	editSeen, cmdSeen := map[string]bool{}, map[string]bool{}
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 256*1024), 8*1024*1024) // transcript lines can be large
+	total := 0
 	for sc.Scan() {
+		total++
+		if total <= from {
+			continue // already distilled in an earlier capture
+		}
 		line := sc.Bytes()
 		if len(strings.TrimSpace(string(line))) == 0 {
 			continue
@@ -130,7 +148,13 @@ func Read(path string) (Session, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return Session{}, err
+		return Session{}, 0, err
+	}
+	if from > 0 && from >= total {
+		// The file shrank or was replaced — a fresh session reusing the path, say.
+		// Starting over beats silently publishing nothing.
+		s2, n2, err := ReadFrom(path, 0)
+		return s2, n2, err
 	}
 	// Keep the most recent prompts (the live reasoning); truncate each.
 	if len(s.Prompts) > maxPrompts {
@@ -142,7 +166,7 @@ func Read(path string) (Session, error) {
 	if len(s.Cmds) > maxCmds {
 		s.Cmds = s.Cmds[:maxCmds]
 	}
-	return s, nil
+	return s, total, nil
 }
 
 // Digest renders the session as a compact note the detector can distill — the

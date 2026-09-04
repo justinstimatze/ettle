@@ -331,3 +331,59 @@ func (s *MeshState) Snapshot() []DirectedModel {
 	})
 	return out
 }
+
+// mergeJaccardMin is how alike two subjects must be, within one atom type, to count
+// as the same belief slot. Lower than tangleJaccardMin because subjects are short —
+// a handful of salient tokens — so a genuine rewording still shares most of them,
+// while two different beliefs of the same type rarely do.
+const mergeJaccardMin = 0.5
+
+// MergeSelf folds a fresh set of atoms into a previously published one, so an
+// incremental capture can distill only the newest turns and still publish a whole
+// self-model.
+//
+// It exists because Publish is replace-current: distilling just the last few minutes
+// and publishing that would erase everything earlier. The naive merge — append, then
+// Canonical — is not enough either. Canonical keys a slot on the EXACT (type, subject)
+// string, and subjects are stochastic distiller output, so the same belief phrased
+// slightly differently next time lands in a new slot and ACCUMULATES rather than
+// superseding. Under replace-current that never showed; under merge it would corrupt
+// the bus a little more on every capture.
+//
+// So a new atom first looks for an existing atom of the same type whose subject is
+// close enough to be the same belief, and replaces it in place. Exact matches are
+// handled by Canonical either way; this only rescues the reworded case.
+//
+// Later wins, and first-seen order is preserved, matching canonical's contract.
+func MergeSelf(prev, next []Atom) []Atom {
+	out := append([]Atom(nil), Canonical(prev)...)
+	for _, a := range next {
+		if i := nearestSlot(out, a); i >= 0 {
+			out[i] = a
+			continue
+		}
+		out = append(out, a)
+	}
+	return Canonical(out)
+}
+
+// nearestSlot returns the index of the atom `a` should supersede, or -1 for a genuinely
+// new belief. Exact slot first, then the closest subject of the same type above the
+// threshold — closest, not first, so a near-tie does not depend on ordering.
+func nearestSlot(in []Atom, a Atom) int {
+	key := beliefKey(a)
+	best, bestScore := -1, mergeJaccardMin
+	at := tokenSet(a.Subject)
+	for i, b := range in {
+		if beliefKey(b) == key {
+			return i
+		}
+		if b.Typ != a.Typ {
+			continue
+		}
+		if s := jaccard(at, tokenSet(b.Subject)); s >= bestScore {
+			best, bestScore = i, s
+		}
+	}
+	return best
+}

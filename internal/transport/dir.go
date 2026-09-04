@@ -250,3 +250,9 @@ func (d *DirBus) Warnings() []string {
 	}
 	return append([]string(nil), d.warnings...)
 }
+
+// SamePartic reports whether two participant names are the same person as the buses
+// store them. Identity rides a slug on every transport (a document title, a comment
+// marker, a lane filename), so a caller matching its own envelope out of a Collect
+// must compare the same way rather than by raw string.
+func SamePartic(a, b string) bool { return slug(a) == slug(b) }

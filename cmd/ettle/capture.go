@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -42,10 +43,17 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 	// Read + digest each transcript; union the notes so one person's several
 	// transcripts publish as a single envelope (Publish is replace-current).
 	var notes []string
+	consumed := map[string]int{}
+	incremental := false
 	for _, path := range paths {
-		s, err := capture.Read(path)
+		from := captureOffset(room, transportName, path)
+		s, total, err := capture.ReadFrom(path, from)
 		if err != nil {
 			return fmt.Errorf("capture %s: %w", path, err)
+		}
+		consumed[path] = total
+		if from > 0 {
+			incremental = true
 		}
 		if s.Empty() {
 			continue
@@ -53,7 +61,11 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 		notes = append(notes, s.Digest())
 	}
 	if len(notes) == 0 {
-		fmt.Println("ettle: no L1 signal in the session(s) — nothing to publish.")
+		// Nothing new since last time is the NORMAL case on a quiet stretch, and those
+		// lines are still consumed — re-reading them next time would cost a distill for
+		// signal already known to be absent.
+		saveCaptureOffsets(room, transportName, consumed)
+		fmt.Println("ettle: no new L1 signal in the session(s) — nothing to publish.")
 		return nil
 	}
 	note := strings.Join(notes, "\n\n")
@@ -68,10 +80,13 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 	}
 	defer bus.Close()
 
-	n, err := publishCapture(ctx, det, bus, who, note)
+	n, err := publishCaptureMerging(ctx, det, bus, who, note, incremental)
 	if err != nil {
 		return err
 	}
+	// Only after a successful publish: a failed run must re-read the same range rather
+	// than dropping those turns on the floor.
+	saveCaptureOffsets(room, transportName, consumed)
 	if n == 0 {
 		fmt.Println("ettle: session distilled to no atoms — nothing published.")
 		return nil
@@ -87,6 +102,18 @@ func capturePublish(paths []string, room, transportName, me, model string, insec
 // A zero-atom distill publishes NOTHING: an empty envelope would replace the
 // person's current atoms with none, silently erasing them from the bus.
 func publishCapture(ctx context.Context, det distiller, bus transport.Transport, me, note string) (int, error) {
+	return publishCaptureMerging(ctx, det, bus, me, note, false)
+}
+
+// publishCaptureMerging distills `note` and publishes the result. When `merge` is set
+// the note covers only the turns since the last capture, so what is already on the bus
+// for `me` is folded in first — Publish is replace-current, and publishing a slice of
+// the last few minutes on its own would erase the morning.
+//
+// A read failure is not fatal but is NOT silently treated as "nothing there": that
+// would replace a full self-model with a fragment. It aborts instead, leaving the bus
+// as it was and the offset unmoved, so the next capture retries over the same range.
+func publishCaptureMerging(ctx context.Context, det distiller, bus transport.Transport, me, note string, merge bool) (int, error) {
 	if strings.TrimSpace(note) == "" {
 		return 0, nil
 	}
@@ -97,10 +124,32 @@ func publishCapture(ctx context.Context, det distiller, bus transport.Transport,
 	if len(atoms) == 0 {
 		return 0, nil
 	}
+	if merge {
+		prev, rerr := ownAtoms(ctx, bus, me)
+		if rerr != nil {
+			return 0, fmt.Errorf("read own atoms before merging an incremental capture: %w", rerr)
+		}
+		atoms = ettlemesh.MergeSelf(prev, atoms)
+	}
 	if err := bus.Publish(ctx, transport.Envelope{Participant: me, Atoms: atoms}); err != nil {
 		return 0, fmt.Errorf("publish: %w", err)
 	}
 	return len(atoms), nil
+}
+
+// ownAtoms reads back what this participant last published. Identity comes from the
+// transport's own slug rule, so it matches however the bus stored it.
+func ownAtoms(ctx context.Context, bus transport.Transport, me string) ([]ettlemesh.Atom, error) {
+	envs, err := bus.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range envs {
+		if transport.SamePartic(e.Participant, me) {
+			return e.Atoms, nil
+		}
+	}
+	return nil, nil // never published here before — a first capture, not an error
 }
 
 // captureIdentity resolves who the published atoms belong to: an explicit --me
@@ -244,4 +293,62 @@ func captureRunPath(target, transcript string) (string, error) {
 		name += "." + transport.SanitizeID(sess)
 	}
 	return filepath.Join(dir, "ettle", "capture", name+".hookrun"), nil
+}
+
+// The per-(room, transcript) read offset: how many transcript lines a previous capture
+// already distilled.
+//
+// It is what makes a long session affordable. Without it every capture re-digests the
+// whole transcript, so on a session running for hours the cost of each two-minute
+// capture climbs with the session's length — and the fix for the debounce, keying it
+// per session so parallel sessions stop suppressing each other, multiplied that by
+// however many sessions are open.
+//
+// Keyed the same way the debounce marker is, and stored beside it.
+func captureOffsetPath(room, transportName, transcript string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate config dir: %w", err)
+	}
+	target := room
+	if target == "" {
+		target = transportName
+	}
+	name := transport.SanitizeID(target) + "." +
+		transport.SanitizeID(strings.TrimSuffix(filepath.Base(transcript), ".jsonl"))
+	return filepath.Join(dir, "ettle", "capture", name+".offset"), nil
+}
+
+// captureOffset returns where the last capture stopped, or 0 to read the whole
+// transcript. Any problem reading it means 0: re-distilling costs money, but skipping
+// turns loses work, and only one of those is recoverable.
+func captureOffset(room, transportName, transcript string) int {
+	path, err := captureOffsetPath(room, transportName, transcript)
+	if err != nil {
+		return 0
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
+// saveCaptureOffsets records how far each transcript was read. Best-effort: failing to
+// write it costs a re-distill next time, which is not worth failing a capture over.
+func saveCaptureOffsets(room, transportName string, consumed map[string]int) {
+	for transcript, n := range consumed {
+		path, err := captureOffsetPath(room, transportName, transcript)
+		if err != nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			continue
+		}
+		_ = os.WriteFile(path, []byte(strconv.Itoa(n)), 0o644)
+	}
 }

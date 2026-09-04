@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
+	"os"
+	"path/filepath"
 )
 
 // emptyDistiller distills everything to nothing — to prove a zero-atom session
@@ -144,5 +146,50 @@ func TestCaptureDebouncesPerSessionNotPerRoom(t *testing.T) {
 	// the debounce was for, and it has to keep working.
 	if due, _ := dueForCapture(room, "/t/session-a.jsonl", time.Hour); due {
 		t.Error("the same session should still debounce, or a long session pays per turn")
+	}
+}
+
+// Incremental capture: a long session must not be re-digested in full every couple of
+// minutes, and the offset must never run ahead of a successful publish.
+func TestCaptureOffsetRoundTripsPerTranscript(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	const room = "linear://dumpling"
+
+	if got := captureOffset(room, "", "/t/a.jsonl"); got != 0 {
+		t.Fatalf("an unseen transcript must read from the start, got %d", got)
+	}
+	saveCaptureOffsets(room, "", map[string]int{"/t/a.jsonl": 120, "/t/b.jsonl": 7})
+
+	if got := captureOffset(room, "", "/t/a.jsonl"); got != 120 {
+		t.Errorf("offset should round-trip, got %d", got)
+	}
+	// Parallel sessions each keep their own place, exactly as the debounce now does.
+	if got := captureOffset(room, "", "/t/b.jsonl"); got != 7 {
+		t.Errorf("a sibling session has its own offset, got %d", got)
+	}
+	if got := captureOffset("linear://other", "", "/t/a.jsonl"); got != 0 {
+		t.Errorf("a different room must not inherit an offset, got %d", got)
+	}
+}
+
+func TestCaptureOffsetFallsBackToZeroOnJunk(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	path, err := captureOffsetPath("linear://dumpling", "", "/t/a.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Re-distilling costs money; skipping turns loses work. Only one is recoverable,
+	// so anything unreadable means start from the beginning.
+	for _, junk := range []string{"", "  ", "not-a-number", "-4"} {
+		if err := os.WriteFile(path, []byte(junk), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := captureOffset("linear://dumpling", "", "/t/a.jsonl"); got != 0 {
+			t.Errorf("junk offset %q should fall back to 0, got %d", junk, got)
+		}
 	}
 }

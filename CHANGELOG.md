@@ -26,6 +26,25 @@
   API keys (`HTTPS_PROXY` being the obvious lever). `filepath.Join` cleans `..` rather
   than confining it, so the join was no defence. Names with a separator, a leading dot,
   or `..` are now refused with a warning.
+- **Capture is incremental.** It re-digested the whole transcript every time, so on a
+  session running for hours the cost of each two-minute capture climbed with the
+  session's length — and keying the debounce per session (below) multiplied that by
+  however many sessions are open at once. A capture now distills only the turns added
+  since the last one, tracked as a line offset per (room, session) beside the debounce
+  marker, and moved only after a successful publish so a failed run re-reads the same
+  range rather than dropping those turns.
+- **`MergeSelf`, because incremental publishing needed it to be safe.** `Publish` is
+  replace-current, so publishing a slice of the last few minutes on its own would erase
+  the morning — the new atoms have to fold into what is already on the bus. Append-then-
+  `Canonical` is not enough: `beliefKey` matches `(type, subject)` as exact strings and
+  subjects are stochastic distiller output, so the same belief phrased differently next
+  time lands in a NEW slot and accumulates instead of superseding. Replace-current
+  hid that; merging would have made it corrupt the bus a little more every capture. So a
+  new atom now supersedes the closest same-type belief whose subject is near enough
+  (Jaccard over salient tokens, the engine's own fuzzy identity), and only appends when
+  it is genuinely new — which is the wording-independent slot identity CONTRIBUTING
+  lists as an open task, scoped to this use. A bus read that fails aborts the capture
+  rather than being treated as an empty model, so a fragment never replaces a full one.
 - **The capture debounce is keyed per session, not per room.** Several sessions in
   parallel is the normal case, and they all resolve the same room — so they shared one
   marker and every session but the first had its capture silently skipped: distinct
