@@ -84,9 +84,9 @@ What's **deliberately unbuilt** is the part that needs the most care: the longit
 
 ## Quickstart
 
-Requires **Go ≥ 1.25** and an Anthropic API key. Which of you needs one depends on
-the path: everyone running the Claude Code hooks needs their own, because capture and
-horizon both call the model on their own machine; a teammate driving ettle from their
+Requires **Go ≥ 1.25** and an Anthropic API key. Which of you needs one depends on the
+path. Everyone running the Claude Code hooks needs their own, because capture and
+horizon both call the model on their own machine. A teammate driving ettle from their
 own agent (Claude Code, Cursor) distills in-session and needs none at all.
 
 Install the binary — it self-describes its version (`ettle version`):
