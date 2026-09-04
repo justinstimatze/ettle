@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.1 — 2026-09-03
 
 - **An offset AT the end no longer re-reads the whole transcript.** Every recorded
   offset is a file size, so "nothing appended since last time" arrives as
