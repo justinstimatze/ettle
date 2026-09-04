@@ -75,6 +75,39 @@ func (c check) MarshalJSON() ([]byte, error) {
 	}{c.name, c.ok, c.required, c.what})
 }
 
+// resolveTargetAndProfile settles which directory this run governs and which key
+// profile it uses, before anything reads a key.
+//
+// Two subtleties live here, which is why they live together rather than inline in a
+// function that already does six other things.
+//
+// The directory comes first, and the existing room is read FROM it rather than from
+// the cwd: `ettle init --dir other/project` run from elsewhere would otherwise see no
+// profile and rewrite that project's entry without one, silently repointing every
+// later hook there at the global key — the exact failure profiles exist to prevent.
+//
+// And what gets RECORDED differs from what this run USES. ETTLE_PROFILE is a
+// per-machine override, the documented way for a teammate to name their profile
+// differently, so recording it would pin a name that exists on one laptop.
+func resolveTargetAndProfile(dir, flag string) (target, use, record string, err error) {
+	target, err = projectDir(dir)
+	if err != nil {
+		return "", "", "", err
+	}
+	rf, _ := resolveRoom(target)
+
+	record = strings.TrimSpace(flag)
+	if record == "" {
+		record = rf.Profile
+	}
+	use = strings.TrimSpace(flag)
+	if use == "" {
+		use = activeProfile(rf)
+	}
+	loadProfileEnv(use)
+	return target, use, record, nil
+}
+
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	me := fs.String("me", defaultAgent(), "your identity in the room — how your atoms are attributed to you")
@@ -125,30 +158,10 @@ func runInit(args []string) error {
   (No origin remote found here, which is why you are reading this.)`)
 	}
 
-	// Resolve the project directory FIRST. The room file has to be read from the
-	// directory being written to, not the cwd: `ettle init --dir other/project` run
-	// from elsewhere would otherwise read no profile, then rewrite that project's
-	// .ettle-room without its `profile =` line — silently repointing every later hook
-	// there at the global key, which is the exact failure profiles exist to prevent.
-	target, err := projectDir(*dir)
+	target, prof, writeProf, err := resolveTargetAndProfile(*dir, *profile)
 	if err != nil {
 		return err
 	}
-	rf, _ := resolveRoom(target)
-
-	// What gets WRITTEN to the shared file and what this RUN uses are different
-	// things. ETTLE_PROFILE is a per-machine override — the documented way for a
-	// teammate to name their profile differently — so committing it would hand
-	// everyone else a name that exists only on one laptop.
-	writeProf := strings.TrimSpace(*profile)
-	if writeProf == "" {
-		writeProf = rf.Profile
-	}
-	prof := strings.TrimSpace(*profile)
-	if prof == "" {
-		prof = activeProfile(rf)
-	}
-	loadProfileEnv(prof)
 
 	spec, label, env, verify := initTarget(room)
 	if derived {
