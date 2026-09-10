@@ -115,6 +115,9 @@ func main() {
 		case "teams":
 			exitOn(runTeams(os.Args[2:]))
 			return
+		case "linear-doc":
+			exitOn(runLinearDoc(os.Args[2:]))
+			return
 		}
 	}
 	if len(os.Args) < 2 || os.Args[1] != "standup" {
@@ -136,6 +139,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  ettle mute <kind> <person>...      # stop a wrong tangle resurfacing (no args lists them; --clear undoes it)")
 		fmt.Fprintln(os.Stderr, "  ettle confirm <kind> <person>...   # this one is real: keeps surfacing, stops being asked about (--clear withdraws)")
 		fmt.Fprintln(os.Stderr, "  ettle calibrate                    # what the accumulated verdicts do and don't say about the cut points (reads only)")
+		fmt.Fprintln(os.Stderr, "  ettle linear-doc upsert --room <r> --title <t> --content <text|-> # write one Document verbatim — for a SEPARATE project, no ettle import needed")
 		fmt.Fprintln(os.Stderr, "  cost: ~2N+3 model calls per sample for N participants; voting defaults to --samples 5 (set --samples 1 to disable)")
 		os.Exit(2)
 	}

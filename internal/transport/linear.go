@@ -175,6 +175,19 @@ func (b *LinearBus) Collect(ctx context.Context) ([]Envelope, error) {
 
 func (b *LinearBus) Close() error { return b.store.close() }
 
+// PublishDocument writes content verbatim to a document titled `title` —
+// replace-current, no atom-envelope wrapping. Publish's `ettle/` title prefix
+// is what keeps Collect from ever reading these back as atoms (it skips any
+// document without that prefix), so a caller here must not reuse that prefix
+// itself. Exposed for `ettle linear-doc`: a generic escape hatch onto this
+// room's Documents for a caller with its own content schema, not ettle's.
+func (b *LinearBus) PublishDocument(ctx context.Context, title, content string) error {
+	if strings.HasPrefix(title, linearTitlePrefix) {
+		return fmt.Errorf("transport/linear: title %q collides with ettle's own atom prefix %q", title, linearTitlePrefix)
+	}
+	return b.store.upsert(ctx, title, content)
+}
+
 // TeamScope is one team that owns the room's project, with Linear's visibility for
 // it. Linear's "public" means visible to the whole WORKSPACE, not the internet —
 // there is no internet-public Linear project — so this is a disclosure of audience,

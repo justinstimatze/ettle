@@ -173,6 +173,42 @@ func TestLinearLive(t *testing.T) {
 	}
 }
 
+// PublishDocument is the escape hatch a separate project (pennon) uses to write
+// its own content verbatim, with no atom envelope. The one invariant that
+// matters: it cannot collide with ettle's own atom documents, which all live
+// under the "ettle/" prefix Collect filters on.
+func TestPublishDocumentWritesVerbatimNoEnvelope(t *testing.T) {
+	f := newFakeDocStore()
+	b := newLinearBusOn(f)
+	ctx := context.Background()
+	if err := b.PublishDocument(ctx, "pennon/venus", "raw content, not JSON"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.docs["pennon/venus"]; got != "raw content, not JSON" {
+		t.Fatalf("content should be stored verbatim, got %q", got)
+	}
+	// The point of a non-ettle title: Collect must never surface it as an atom.
+	envs, err := b.Collect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(envs) != 0 {
+		t.Fatalf("a non-ettle document leaked into Collect: %+v", envs)
+	}
+}
+
+func TestPublishDocumentRefusesTheEttlePrefix(t *testing.T) {
+	f := newFakeDocStore()
+	b := newLinearBusOn(f)
+	err := b.PublishDocument(context.Background(), "ettle/alice", "trying to overwrite an atom document")
+	if err == nil {
+		t.Fatal("want an error: a caller here must not be able to touch ettle's own atom titles")
+	}
+	if _, ok := f.docs["ettle/alice"]; ok {
+		t.Fatal("the refused write must not have reached the store")
+	}
+}
+
 func keys(m map[string]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
