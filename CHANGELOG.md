@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **A Linear-backed room silently rejected every envelope it was ever sent.** Linear
+  stores a Document's content as markdown and normalizes it on write: it inserts a
+  backslash before each of `* [ ] \` ~` and deletes the backslash from every `\"`.
+  `Publish` wrote bare JSON, so `"atoms":[` came back as `"atoms":\[` and `Collect`
+  rejected the document as unparseable — permanently, for every participant, since the
+  transform is lossy and repair-on-read can't tell an escape Linear inserted from one
+  the payload always had. `horizon` read this as "clear" rather than "broken," because
+  zero atoms ever arriving looks identical to zero atoms being relevant. `Publish` now
+  wraps the marshaled envelope in a ` ```json ` fence, which Linear's normalizer leaves
+  alone and which `Collect` unwraps — falling back to bare parsing for documents written
+  before this fix existed, so nothing already on a bus needs migrating. Found and fixed
+  by a sibling session (aipotluck.org) reading its own room as empty; verified here
+  independently before landing, including reproducing the regression by reverting the
+  fence and confirming the new test fails with the exact production warning string.
+
 ## v0.6.2 — 2026-09-03
 
 - **A page for the person joining, not the person setting up.** `LINEAR_SETUP.md` is

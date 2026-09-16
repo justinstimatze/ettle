@@ -57,7 +57,40 @@ import (
 const (
 	linearEndpoint    = "https://api.linear.app/graphql"
 	linearTitlePrefix = "ettle/"
+	linearFenceOpen   = "```json\n"
+	linearFenceClose  = "\n```"
 )
+
+// Linear stores a Document's content as MARKDOWN and normalizes it on write, so
+// a bare marshaled Envelope does not survive the round trip. Measured against the
+// live API on 2026-09-16 by writing a document and reading it straight back:
+// Linear INSERTS a backslash before each of * [ ] ` ~ , and DELETES the backslash
+// in every \" — so `"atoms":[{...}]` comes back as `"atoms":\[{...}\]`, which is
+// not valid JSON (\[ is not a JSON escape) and every Collect fails to unmarshal.
+//
+// That was live for six participants publishing into one room: each Publish
+// succeeded, each Collect reported `unparseable content`, and the room read as
+// "nobody has published yet" — the horizon was permanently clear because no atom
+// ever arrived, not because nothing was tangled.
+//
+// Repairing on read is not available: the transform deletes backslashes as well
+// as adding them, so a reader cannot tell an escape Linear inserted from one the
+// payload always had. The fix has to be on write. A fenced code block is exempt
+// from the normalizer and round-trips byte-identically (measured the same way),
+// and unlike base64 it leaves the document readable to a person opening it in
+// Linear, which is the reason the bus lives in Documents at all.
+func fenceEnvelope(body string) string { return linearFenceOpen + body + linearFenceClose }
+
+// unfenceEnvelope returns the payload inside a ```json fence. A document without
+// one is returned unchanged: documents written by an ettle older than this fence,
+// and hand-authored ones, still parse on the plain path below.
+func unfenceEnvelope(content string) string {
+	s := strings.TrimSpace(content)
+	if !strings.HasPrefix(s, linearFenceOpen) || !strings.HasSuffix(s, linearFenceClose) {
+		return content
+	}
+	return s[len(linearFenceOpen) : len(s)-len(linearFenceClose)]
+}
 
 // storedDoc is one document as the store hands it back: the ettle title and the
 // raw content (a marshaled Envelope).
@@ -131,7 +164,7 @@ func (b *LinearBus) Publish(ctx context.Context, env Envelope) error {
 		return fmt.Errorf("transport/linear: marshal %s: %w", env.Participant, err)
 	}
 	title := linearTitlePrefix + slug(env.Participant)
-	if err := b.store.upsert(ctx, title, string(body)); err != nil {
+	if err := b.store.upsert(ctx, title, fenceEnvelope(string(body))); err != nil {
 		return fmt.Errorf("transport/linear: upsert %s: %w", env.Participant, err)
 	}
 	return nil
@@ -157,7 +190,7 @@ func (b *LinearBus) Collect(ctx context.Context) ([]Envelope, error) {
 			continue // not an ettle document; leave the team's own docs alone
 		}
 		var env Envelope
-		if err := json.Unmarshal([]byte(d.Content), &env); err != nil {
+		if err := json.Unmarshal([]byte(unfenceEnvelope(d.Content)), &env); err != nil {
 			b.warnings = append(b.warnings, fmt.Sprintf("skipped %q: unparseable content", d.Title))
 			continue
 		}

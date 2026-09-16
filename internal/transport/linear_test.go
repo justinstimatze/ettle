@@ -225,3 +225,117 @@ func mustEnvelope(t *testing.T, participant, subject string) string {
 	}
 	return string(b)
 }
+
+// linearMarkdownDocStore is a fakeDocStore that reproduces what the live Linear API
+// actually does to a Document's content, measured 2026-09-16 by writing a document
+// through documentCreate and reading it back through document(id){content}:
+// a backslash is INSERTED before each of * [ ] ` ~ and DELETED from every \" —
+// except inside a fenced code block, which is passed through untouched.
+//
+// The plain fakeDocStore above stores content verbatim, so every test using it
+// passed while six live participants' envelopes were being rejected in production.
+// A fake that is more faithful than the real backend cannot go red for the one
+// failure this transport actually has.
+type linearMarkdownDocStore struct{ docs map[string]string }
+
+func newLinearMarkdownDocStore() *linearMarkdownDocStore {
+	return &linearMarkdownDocStore{docs: map[string]string{}}
+}
+
+func mangleLikeLinear(content string) string {
+	if strings.HasPrefix(strings.TrimSpace(content), "```") {
+		return content // fenced: the normalizer leaves it alone
+	}
+	var b strings.Builder
+	for i := 0; i < len(content); i++ {
+		c := content[i]
+		if c == '\\' && i+1 < len(content) && content[i+1] == '"' {
+			continue // the \" backslash is dropped
+		}
+		if strings.IndexByte("*[]`~", c) >= 0 {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+func (f *linearMarkdownDocStore) upsert(_ context.Context, title, content string) error {
+	f.docs[title] = mangleLikeLinear(content)
+	return nil
+}
+
+func (f *linearMarkdownDocStore) list(_ context.Context) ([]storedDoc, error) {
+	out := make([]storedDoc, 0, len(f.docs))
+	for t, c := range f.docs {
+		out = append(out, storedDoc{Title: t, Content: c})
+	}
+	return out, nil
+}
+
+func (f *linearMarkdownDocStore) close() error { return nil }
+
+// An envelope must survive Linear's markdown normalization, atoms included. Before
+// the fence, Publish wrote bare JSON whose "atoms":[ came back as "atoms":\[ and
+// Collect rejected every document in the room as unparseable.
+func TestLinearBusEnvelopeSurvivesMarkdownNormalization(t *testing.T) {
+	f := newLinearMarkdownDocStore()
+	b := newLinearBusOn(f)
+	ctx := context.Background()
+	if err := b.Publish(ctx, Envelope{
+		Participant: "saturn@justin",
+		Role:        "backend",
+		Atoms:       []ettlemesh.Atom{atom("a*b [c] `d` ~e~ and a \"quoted\" span")},
+	}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	got, err := b.Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if w := b.Warnings(); len(w) != 0 {
+		t.Fatalf("collect warned on its own published envelope: %v", w)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 envelope back, got %d — the room reads as empty", len(got))
+	}
+	if len(got[0].Atoms) != 1 {
+		t.Fatalf("want 1 atom, got %d", len(got[0].Atoms))
+	}
+	if got[0].Participant != "saturn@justin" {
+		t.Errorf("participant = %q, want saturn@justin", got[0].Participant)
+	}
+}
+
+// The mangling fake has to actually mangle, or the test above proves nothing.
+func TestMangleLikeLinearBreaksBareJSONAndSparesAFence(t *testing.T) {
+	bare := `{"atoms":["x"],"s":"say \"hi\""}`
+	if mangleLikeLinear(bare) == bare {
+		t.Fatal("the fake left bare JSON untouched; it cannot reproduce the defect")
+	}
+	var v any
+	if err := json.Unmarshal([]byte(mangleLikeLinear(bare)), &v); err == nil {
+		t.Fatal("mangled bare JSON still parses; the fake is not faithful to Linear")
+	}
+	fenced := fenceEnvelope(bare)
+	if mangleLikeLinear(fenced) != fenced {
+		t.Fatal("the fake mangled a fenced block; Linear does not")
+	}
+	if unfenceEnvelope(mangleLikeLinear(fenced)) != bare {
+		t.Fatal("fence did not round-trip through the fake")
+	}
+}
+
+// A document written by an ettle older than the fence, or hand-authored, still reads.
+func TestLinearBusReadsUnfencedLegacyContent(t *testing.T) {
+	f := newFakeDocStore()
+	f.docs["ettle/mercury@justin"] = `{"participant":"mercury@justin","atoms":[],"v":1}`
+	b := newLinearBusOn(f)
+	got, err := b.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if len(got) != 1 || got[0].Participant != "mercury@justin" {
+		t.Fatalf("legacy unfenced document did not read back: %+v (warnings %v)", got, b.Warnings())
+	}
+}
