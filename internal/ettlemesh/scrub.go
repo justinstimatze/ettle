@@ -51,15 +51,17 @@ var connCredsRE = regexp.MustCompile(`(://[^/\s:@]*:)[^/\s]+(@)`)
 var pemKeyRE = regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)`)
 
 // A high-entropy span: a long run of base64/hex-ish characters. This is the SOFT
-// catch-all for unprefixed secrets. It is gated on length (>=28) plus a mixed
-// alphabet (must contain BOTH a letter and a digit), which keeps it off ordinary
-// long words (all-letter) and pure-digit IDs/timestamps. NOTE: a string that
-// mixes a-f and digits — including a canonical 40-char git SHA — DOES trip the
+// catch-all for unprefixed secrets. It is gated on length (>=28), a mixed
+// alphabet (must contain BOTH a letter and a digit), and carrying no `- _ /`
+// delimiter (see looksHighEntropy) — which keeps it off ordinary long words
+// (all-letter), pure-digit IDs/timestamps, AND delimited identifiers (branch
+// names, ticket slugs, file paths). NOTE: a string that mixes a-f and digits
+// with no delimiter — including a canonical 40-char git SHA — DOES trip the
 // gate and is redacted. That is deliberate over-redaction, not a miss: a hex-only
 // carve-out to spare SHAs would also wave through hex-encoded secrets, and per
 // this file's bias a commit ref losing its hash span (recoverable) beats leaking
-// a hex key (not). UUIDs (36 chars, hyphen-segmented) fall under the length gate
-// per-segment and are low-entropy, so they survive.
+// a hex key (not). UUIDs (36 chars, hyphen-segmented) are spared by the delimiter
+// rule as well as the length gate per-segment.
 var entropySpanRE = regexp.MustCompile(`[A-Za-z0-9+/=_\-]{28,}`)
 
 // scrubSecret redacts secret-structured spans from s, returning the cleaned
@@ -84,10 +86,26 @@ func scrubSecret(s string) (string, bool) {
 	return out, out != s
 }
 
-// looksHighEntropy gates the soft span matcher: a real secret blob mixes letters
-// and digits. A 28-char run that is all letters (a long word, a path) or all
-// digits (a timestamp, an ID) is not redacted; one that mixes both is.
+// looksHighEntropy gates the soft span matcher. Measured against a live false
+// positive (2026-09-16): a git branch name — an org/ticket-id-description slug —
+// collapsed into one long span and tripped a "mixed letters and digits" check
+// that isn't actually measuring entropy. Character-level Shannon entropy can't
+// fix this: that branch name measures ~4.3 bits/char, ABOVE a canonical hex
+// secret's ~3.9 (hex has only 16 symbols, so even a perfectly random hex string
+// caps below a structured identifier's actual entropy) — a threshold can't
+// separate the two without also creating new false negatives on hex secrets.
+//
+// What does separate them: real unprefixed secrets paste as one opaque blob with
+// no internal word structure, while identifiers — branch names, ticket slugs,
+// file paths — are near-universally `- _ /` delimited. So a span carrying any of
+// those delimiters is spared here as an identifier, regardless of length or
+// mixed alphabet. A 28-char run that is all letters (a
+// long word), all digits (a timestamp, an ID), or delimited (a slug or path) is
+// not redacted; an undelimited run mixing letters and digits is.
 func looksHighEntropy(s string) bool {
+	if strings.ContainsAny(s, "-_/") {
+		return false
+	}
 	var hasLetter, hasDigit bool
 	for _, r := range s {
 		switch {

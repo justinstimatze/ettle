@@ -16,6 +16,19 @@
   by a sibling session (aipotluck.org) reading its own room as empty; verified here
   independently before landing, including reproducing the regression by reverting the
   fence and confirming the new test fails with the exact production warning string.
+- **The secret redactor was eating branch names.** `looksHighEntropy` never measured
+  entropy — it only checked "has a letter and a digit" over a run of 28+ characters,
+  and the run's own character class allows `- _ /`, so a whole
+  `org/ticket-id-description` branch name collapsed into one span and tripped the same
+  gate as a real secret. A straight entropy-threshold swap doesn't fix this: measured,
+  a structured branch name (~4.3 bits/char) sits ABOVE a canonical hex secret (~3.9,
+  capped by hex's 16-symbol alphabet), so a threshold can't separate the two without
+  creating new false negatives on hex-shaped secrets. Real unprefixed secrets paste as
+  one opaque blob with no internal word structure; identifiers are near-universally
+  delimited — so a candidate span carrying `- _ /` is now spared as an identifier
+  regardless of length or mixed alphabet. Named-prefix tokens, connection strings, PEM
+  blocks, and the deliberate git-SHA over-redaction are unaffected. Reported by the same
+  sibling session as the markdown-fence fix above.
 
 ## v0.6.2 — 2026-09-03
 

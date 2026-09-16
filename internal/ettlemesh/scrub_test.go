@@ -122,6 +122,17 @@ func TestScrubSecretHighEntropySpan(t *testing.T) {
 	}
 }
 
+func TestScrubSecretBranchNameFalsePositive(t *testing.T) {
+	// A branch name is a delimited, structured identifier, not an opaque secret
+	// blob — see looksHighEntropy — so it must survive even though it is long and
+	// mixes letters and digits.
+	in := "actively working on marsjustin/cur-1403-fix-something-longer-than-it-needs-to-be"
+	out, changed := scrubSecret(in)
+	if changed {
+		t.Errorf("branch name false-positive: %q was redacted to %q", in, out)
+	}
+}
+
 func TestScrubSecretCleanPassthrough(t *testing.T) {
 	// Ordinary coordination clauses, including a long all-letter word and a
 	// hyphenated identifier, must survive untouched.
