@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -230,6 +231,15 @@ func TestNewGitHubBusRejectsMissingPieces(t *testing.T) {
 // the same "more faithful than the real backend" shape that let the Linear bug ship
 // unnoticed — so nothing in the existing suite could have caught this either way.
 //
+// Two separate claims, both checked: (1) a fenced envelope round-trips through
+// GitHub Discussions — proves Publish/Collect work end to end, but NOT that GitHub
+// leaves markdown alone, since every real write goes through the fence. (2) an
+// UNFENCED write of the same probe, bypassing renderCommentBody entirely, measures
+// GitHub's own transform directly — the same write-then-read-back methodology used
+// to originally measure Linear's. A sibling session (aipotluck.org) ran (1) and
+// named this exact gap before (2) existed: "what passed is 'a fenced envelope
+// survives GitHub Discussions,' not 'GitHub does not mangle.'"
+//
 // Skipped unless ETTLE_GITHUB_LIVE=1 plus GITHUB_TOKEN (repo scope),
 // ETTLE_GITHUB_OWNER, ETTLE_GITHUB_REPO (a PRIVATE repo with Discussions enabled)
 // are set, so `make ci` never hits the network.
@@ -284,5 +294,42 @@ func TestGitHubLive(t *testing.T) {
 	}
 	if got := envs[0].Atoms[0].Subject; got != markdownProbe {
 		t.Fatalf("markdown probe did not round-trip byte-identical against the live API:\nwant %q\ngot  %q", markdownProbe, got)
+	}
+
+	// The actual measurement: write the SAME probe raw, bypassing renderCommentBody's
+	// fence entirely, and read it back. This is what separates "the fence protects
+	// against a real transform" from "the fence is redundant-but-harmless here."
+	rawBody := fmt.Sprintf(githubMarkerFmt, "measure-probe") + "\n" + markdownProbe
+	var addM struct {
+		AddDiscussionComment struct {
+			Comment struct {
+				ID string `json:"id"`
+			} `json:"comment"`
+		} `json:"addDiscussionComment"`
+	}
+	const add = `mutation($d:ID!,$b:String!){ addDiscussionComment(input:{discussionId:$d, body:$b}){ comment{ id } } }`
+	if err := store.do(ctx, add, map[string]any{"d": store.discussionID, "b": rawBody}, &addM); err != nil {
+		t.Fatal(err)
+	}
+	comments, err := store.list(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	found := false
+	for _, c := range comments {
+		if c.Participant == "measure-probe" {
+			raw = c.Content
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("raw unfenced probe comment did not come back at all")
+	}
+	if raw == markdownProbe {
+		t.Log("MEASURED: GitHub does NOT mangle unfenced markdown metacharacters — renderCommentBody's fence is redundant-but-harmless on this backend")
+	} else {
+		t.Errorf("MEASURED: GitHub mangles unfenced content the way Linear did — the fence in renderCommentBody is doing real work, not decoration\nwant %q\ngot  %q", markdownProbe, raw)
 	}
 }

@@ -23,13 +23,16 @@
   path, so nothing there can mangle content the way Linear's Document API does.
   `github.go` is the open question: `renderCommentBody` already wraps every envelope
   in a ` ```json ` fence, but whether GitHub's Discussion-comment API normalizes
-  markdown on write is unmeasured, and `fakeCommentStore` stores content verbatim —
+  markdown on write was unmeasured, and `fakeCommentStore` stores content verbatim —
   the same "more faithful than the real backend" shape that let the Linear bug ship
   unnoticed. New `TestGitHubLive` (`ETTLE_GITHUB_LIVE=1` + `GITHUB_TOKEN` +
-  `ETTLE_GITHUB_OWNER`/`ETTLE_GITHUB_REPO`) mirrors `TestLinearLive`'s markdown probe
-  against the real GitHub API — write-only for now, stays skipped in `make ci` exactly
-  like `TestLinearLive` does. Its result decides whether `github.go` needs the same
-  fence treatment or the existing one already covers it.
+  `ETTLE_GITHUB_OWNER`/`ETTLE_GITHUB_REPO`) checks two separate claims: a fenced
+  envelope round-trips through Discussions (proves `Publish`/`Collect` work), and — the
+  actual measurement, added after a sibling session named the gap between the two — an
+  UNFENCED write of the same probe, bypassing `renderCommentBody` entirely, to see
+  whether GitHub's transform exists at all. Write-only for now, stays skipped in
+  `make ci` exactly like `TestLinearLive` does; its result decides whether the fence is
+  doing real work on this backend or is redundant-but-harmless.
 
 - **A Linear-backed room silently rejected every envelope it was ever sent.** Linear
   stores a Document's content as markdown and normalizes it on write: it inserts a
