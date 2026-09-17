@@ -26,7 +26,7 @@ func TestClassifyHorizonSplitsAndFiltersByMe(t *testing.T) {
 		firmT("teamwide-divergence", "Alice", "Eve"), // alice: held
 		firmT("collision", "Frank", "Gina"),          // not alice: dropped
 	}
-	res := classifyHorizon(kept, suppressed, []string{"Alice", "Bob"}, 2, "Alice")
+	res := classifyHorizon(kept, suppressed, []string{"Alice", "Bob"}, 2, nil, "Alice")
 	if len(res.firm) != 1 || len(res.soft) != 1 {
 		t.Fatalf("firm=%d soft=%d, want 1/1", len(res.firm), len(res.soft))
 	}
@@ -40,7 +40,7 @@ func TestClassifyHorizonSplitsAndFiltersByMe(t *testing.T) {
 
 func TestClassifyHorizonWholeTeam(t *testing.T) {
 	kept := []ettlemesh.Tangle{firmT("collision", "Carol", "Dave"), softT("duplication", "Eve", "Frank")}
-	res := classifyHorizon(kept, nil, nil, 0, "") // empty me = whole team, no filter
+	res := classifyHorizon(kept, nil, nil, 0, nil, "") // empty me = whole team, no filter
 	if len(res.firm) != 1 || len(res.soft) != 1 {
 		t.Fatalf("whole-team view should keep all: firm=%d soft=%d", len(res.firm), len(res.soft))
 	}
@@ -54,6 +54,49 @@ func TestRenderHorizonBlockClear(t *testing.T) {
 	}
 	if !strings.Contains(got, "2 participants") {
 		t.Errorf("clear horizon should note who's on the bus:\n%s", got)
+	}
+}
+
+// A genuinely quiet room (participants on the bus, nothing relevant to surface) and a
+// broken/new one (nobody on the bus at all) must read as different sentences — the gap
+// that let ettle-dumpling report "clear" for six participants it had actually rejected.
+func TestRenderHorizonBlockEmptyVsClear(t *testing.T) {
+	empty := renderHorizonBlock(horizonResult{}, "alice", time.Now().UTC())
+	if !strings.Contains(empty, "Horizon empty") {
+		t.Errorf("zero participants should read as empty, not clear:\n%s", empty)
+	}
+	if strings.Contains(empty, "Horizon clear") {
+		t.Errorf("empty horizon must not also say clear:\n%s", empty)
+	}
+
+	clear := renderHorizonBlock(horizonResult{participants: []string{"alice", "bob"}}, "alice", time.Now().UTC())
+	if !strings.Contains(clear, "Horizon clear") || !strings.Contains(clear, "2 participants") {
+		t.Errorf("participants present, nothing relevant, should stay 'clear': %s", clear)
+	}
+	if strings.Contains(clear, "Horizon empty") {
+		t.Errorf("a clear horizon with participants must not also say empty:\n%s", clear)
+	}
+}
+
+// A partial or corrupted collection makes any verdict below it suspect, so warnings
+// print regardless of whether the horizon is otherwise clear or has tangles.
+func TestRenderHorizonBlockSurfacesWarnings(t *testing.T) {
+	warn := []string{`skipped "ettle/saturn@justin": unparseable content`}
+
+	empty := renderHorizonBlock(horizonResult{warnings: warn}, "alice", time.Now().UTC())
+	if !strings.Contains(empty, warn[0]) {
+		t.Errorf("warning should surface on an otherwise-empty horizon:\n%s", empty)
+	}
+
+	withTangles := renderHorizonBlock(horizonResult{
+		firm:     []ettlemesh.Tangle{firmT("collision", "alice", "bob")},
+		warnings: warn,
+	}, "alice", time.Now().UTC())
+	if !strings.Contains(withTangles, warn[0]) {
+		t.Errorf("warning should surface alongside real tangles too:\n%s", withTangles)
+	}
+	if strings.Index(withTangles, warn[0]) > strings.Index(withTangles, "Firm (worth a look)") {
+		t.Errorf("warnings should come before the firm/soft sections, not after:\n%s", withTangles)
 	}
 }
 

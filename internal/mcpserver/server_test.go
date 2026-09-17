@@ -418,6 +418,53 @@ func TestHorizonEmptyGuardSkipsModel(t *testing.T) {
 	}
 }
 
+// fakeWarningBus wraps transport.NewInProcess() and injects a fixed Warnings()
+// result, so the test can prove ettle_horizon surfaces a partial/corrupted
+// collection without needing a real backend to actually corrupt anything.
+type fakeWarningBus struct {
+	transport.Transport
+	warnings []string
+}
+
+func (f *fakeWarningBus) Warnings() []string { return f.warnings }
+
+// A partial or corrupted collection must be visible on BOTH the empty-horizon path
+// (zero atoms survived, same shape as ettle-dumpling's six rejected documents) and
+// the has-tangles path — parity with cmd/ettle/horizon.go's CLI rendering.
+func TestHorizonSurfacesWarnings(t *testing.T) {
+	warn := []string{`skipped "ettle/saturn@justin": unparseable content`}
+	bus := &fakeWarningBus{Transport: transport.NewInProcess(), warnings: warn}
+
+	empty := &server{det: &fakeReconciler{}, h: newHorizonOn(bus)}
+	textOut, out, err := empty.horizon(context.Background(), nil, horizonIn{})
+	if err != nil {
+		t.Fatalf("horizon: %v", err)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0] != warn[0] {
+		t.Errorf("Warnings should carry through on the empty path, got %+v", out.Warnings)
+	}
+	if !strings.Contains(renderedText(t, textOut), "warning") {
+		t.Errorf("empty-horizon text should mention the warning: %q", renderedText(t, textOut))
+	}
+
+	f := &fakeReconciler{
+		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Dependency, Subject: "x", Confidence: 1}},
+		voted: []ettlemesh.Tangle{{Kind: ettlemesh.KindCollision, Parties: []string{"alice", "bob"}, Confidence: 0.6}},
+	}
+	withTangles := &server{det: f, h: newHorizonOn(bus)}
+	_ = bus.Publish(context.Background(), transport.Envelope{Participant: "alice", Atoms: f.atoms})
+	textOut2, out2, err := withTangles.horizon(context.Background(), nil, horizonIn{})
+	if err != nil {
+		t.Fatalf("horizon: %v", err)
+	}
+	if len(out2.Warnings) != 1 {
+		t.Errorf("Warnings should carry through alongside real tangles too, got %+v", out2.Warnings)
+	}
+	if !strings.Contains(renderedText(t, textOut2), "warning") {
+		t.Errorf("summary text should mention the warning even with tangles present: %q", renderedText(t, textOut2))
+	}
+}
+
 func TestSelfCheckSinglePartyAndStateless(t *testing.T) {
 	f := &fakeReconciler{
 		atoms: []ettlemesh.Atom{{Typ: ettlemesh.Assumption, Subject: "timeline", Confidence: 1}},

@@ -107,6 +107,16 @@ func (h *horizon) snapshot(ctx context.Context) ([]transport.Envelope, error) {
 	return out, nil
 }
 
+// warnings surfaces the bus's own non-fatal issues from the last Collect (an
+// unparseable document, a spoofed-identity correction). Localized here, on the type
+// that owns the bus field, rather than type-asserting h.bus from the handler.
+func (h *horizon) warnings() []string {
+	if w, ok := h.bus.(interface{ Warnings() []string }); ok {
+		return w.Warnings()
+	}
+	return nil
+}
+
 func (h *horizon) close() error { return h.bus.Close() }
 
 type server struct {
@@ -385,6 +395,10 @@ type horizonOut struct {
 	// handled/not-real via ettle_respond — kept as a count so a horizon that is clear
 	// only because tangles were muted stays honest.
 	Muted int `json:"muted,omitempty"`
+	// Warnings: bus.Collect's own non-fatal issues (an unparseable document, a
+	// spoofed-identity correction) — surfaced so a partial or corrupted collection is
+	// never silently indistinguishable from a genuinely empty or clear horizon.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizonIn) (*mcp.CallToolResult, horizonOut, error) {
@@ -392,18 +406,22 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if err != nil {
 		return nil, horizonOut{}, fmt.Errorf("collect: %w", err)
 	}
+	// Captured before either return path below: a bus that dropped documents as
+	// unparseable still needs its warnings surfaced even when that drop left zero
+	// atoms to reconcile — see CLI parity in cmd/ettle/horizon.go.
+	warnings := s.h.warnings()
 	parts := make([]string, 0, len(envs))
 	for _, e := range envs {
 		parts = append(parts, e.Participant)
 	}
 	sort.Strings(parts)
 
-	out := horizonOut{Participants: parts, Firm: []tangleView{}, Soft: []tangleView{}}
+	out := horizonOut{Participants: parts, Firm: []tangleView{}, Soft: []tangleView{}, Warnings: warnings}
 
 	atoms := transport.Atoms(envs)
 	if len(atoms) == 0 {
 		// Empty-horizon guard: nothing emitted → no model call.
-		return text("the horizon is empty — no atoms emitted yet (call ettle_emit first)."), out, nil
+		return text("the horizon is empty — no atoms emitted yet (call ettle_emit first)." + warningsNote(len(warnings))), out, nil
 	}
 
 	samples := in.Samples
@@ -467,8 +485,8 @@ func (s *server) horizon(ctx context.Context, _ *mcp.CallToolRequest, in horizon
 	if in.Me != "" {
 		scope = in.Me
 	}
-	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft tangle(s) across %d participant(s)%s.",
-		scope, len(out.Firm), len(out.Soft), len(parts), heldBackNote(len(out.HeldBack), floorHeld))), out, nil
+	return text(fmt.Sprintf("horizon (%s): %d firm, %d soft tangle(s) across %d participant(s)%s.%s",
+		scope, len(out.Firm), len(out.Soft), len(parts), heldBackNote(len(out.HeldBack), floorHeld), warningsNote(len(warnings)))), out, nil
 }
 
 // resolve pre-stages a contested tangle as the either/or a human picks between,
@@ -499,6 +517,16 @@ func (s *server) resolve(ctx context.Context, k ettlemesh.Tangle, atoms []ettlem
 		Proposal: res.Proposal, Branches: res.Branches,
 		Note: "this is a values call, not a bindable one; offer the branches and let the human pick — never choose for them",
 	}
+}
+
+// warningsNote is a loud, separate sentence rather than a woven-in clause — a partial
+// or corrupted collection makes every count in the summary line suspect, so it can't
+// share heldBackNote's quieter "; N held back" placement.
+func warningsNote(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" ⚠ %d warning(s) during collection — this horizon may be missing atoms.", n)
 }
 
 // heldBackNote renders the optional suppression tail on the horizon summary so a

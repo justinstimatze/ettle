@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`horizon` now distinguishes an empty or broken bus from a genuinely clear one, on
+  both the CLI/hook and MCP surfaces.** `bus.Collect`'s own `Warnings()` — unparseable
+  documents, a spoofed-identity correction — already carried this signal; neither
+  `ettle horizon`/`horizon-hook` (the SessionStart-injected block every session sees)
+  nor the `ettle_horizon` MCP tool ever read it. A room where six participants'
+  envelopes were all silently rejected read the same as a room nobody had touched yet:
+  "Horizon clear." Warnings now print unconditionally, before the firm/soft sections,
+  on both surfaces; a genuinely empty bus (zero participants, zero warnings) now says
+  "Horizon empty" rather than a bare "Horizon clear" with no count attached.
+
 - **A Linear-backed room silently rejected every envelope it was ever sent.** Linear
   stores a Document's content as markdown and normalizes it on write: it inserts a
   backslash before each of `* [ ] \` ~` and deletes the backslash from every `\"`.

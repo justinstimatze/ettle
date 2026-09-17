@@ -40,7 +40,7 @@ func runHorizon(args []string) error {
 	fs := flag.NewFlagSet("horizon", flag.ContinueOnError)
 	room := fs.String("room", "", "reconcile this git-repo room's horizon (`ettle room init|join`); a linear:// or github:// room comes from --transport or the room recorded for this directory")
 	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
-	me := fs.String("me", "", "surface only tangles involving this participant (default: the room's agent, else the identity `ettle init` saved, else $USER)")
+	me := fs.String("me", "", "surface only tangles involving this participant (default: $ETTLE_ME, else the room's agent, else the identity `ettle init` saved, else $USER)")
 	all := fs.Bool("all", false, "surface the WHOLE team's tangles instead of only yours — the unfiltered view. Needed because --me now falls back to your saved identity when unset, so passing it empty can no longer mean \"no filter\"")
 	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
 	samples := fs.Int("samples", 5, "independent reconcile samples to vote across; recurrence ranks tangles firm vs soft (1 disables voting)")
@@ -118,8 +118,13 @@ type horizonResult struct {
 	firm, soft, held []ettlemesh.Tangle
 	floorHeld        int
 	participants     []string
-	escalated        map[string]bool
-	muted            int
+	// warnings are bus.Collect's own non-fatal issues (unparseable documents, a
+	// spoofed-identity correction) — captured so a partial or corrupted collection
+	// is never silently indistinguishable from a genuinely quiet room. See
+	// reconcileHorizon and renderHorizonBlock.
+	warnings  []string
+	escalated map[string]bool
+	muted     int
 	// confirmed is the set of tangle keys the human already judged `real`. Unlike
 	// muted these are NOT dropped — a confirmed tangle is a live conflict and hiding
 	// it would be the opposite of what confirming means. They are marked, and the
@@ -183,6 +188,12 @@ func reconcileHorizon(ctx context.Context, det *ettlemesh.Detector, bus transpor
 		res.participants = append(res.participants, e.Participant)
 	}
 	sort.Strings(res.participants)
+	// Capture before either return path below: a bus that dropped documents as
+	// unparseable still needs its warnings surfaced even when that drop left zero
+	// atoms to reconcile.
+	if w, ok := bus.(interface{ Warnings() []string }); ok {
+		res.warnings = w.Warnings()
+	}
 
 	atoms := transport.Atoms(envs)
 	if len(atoms) == 0 {
@@ -199,15 +210,15 @@ func reconcileHorizon(ctx context.Context, det *ettlemesh.Detector, bus transpor
 	if err != nil {
 		return horizonResult{}, err
 	}
-	return classifyHorizon(kept, suppressed, res.participants, floorHeld, me), nil
+	return classifyHorizon(kept, suppressed, res.participants, floorHeld, res.warnings, me), nil
 }
 
 // classifyHorizon is the pure post-reconcile step: split kept tangles into
 // firm/soft, collect the suppressed ones, and filter everything to `me` (your
 // agent surfaces only your tangles, never a shared feed). Split out so it is
 // unit-tested without a live detector.
-func classifyHorizon(kept, suppressed []ettlemesh.Tangle, participants []string, floorHeld int, me string) horizonResult {
-	res := horizonResult{participants: participants, floorHeld: floorHeld}
+func classifyHorizon(kept, suppressed []ettlemesh.Tangle, participants []string, floorHeld int, warnings []string, me string) horizonResult {
+	res := horizonResult{participants: participants, floorHeld: floorHeld, warnings: warnings}
 	for _, k := range kept {
 		if me != "" && !partiesIncludeMe(k.Parties, me) {
 			continue
@@ -289,10 +300,23 @@ func renderHorizonBlock(res horizonResult, me string, now time.Time) string {
 		who = "the team"
 	}
 	fmt.Fprintf(&b, "# ettle horizon for %s — coordination tangles (as of %s)\n\n", who, now.Format("2006-01-02 15:04 MST"))
+	// Unconditional, before the clear/firm/soft branch below: a partial or corrupted
+	// collection makes every verdict that follows suspect, whether the horizon reads
+	// clear or has tangles. This is what would have caught the room silently rejecting
+	// six participants' envelopes instead of six sessions reading "clear" for days.
+	if len(res.warnings) > 0 {
+		fmt.Fprintf(&b, "⚠ %s during collection — the horizon below may be missing atoms:\n", plural(len(res.warnings), "warning", "warnings"))
+		for _, w := range res.warnings {
+			fmt.Fprintf(&b, "- %s\n", w)
+		}
+		b.WriteString("\n")
+	}
 	if len(res.firm) == 0 && len(res.soft) == 0 {
-		fmt.Fprintf(&b, "Horizon clear — no cross-person coordination tangles involving %s right now", who)
-		if n := len(res.participants); n > 0 {
-			fmt.Fprintf(&b, " (%s on the bus)", plural(n, "participant", "participants"))
+		if len(res.participants) == 0 {
+			b.WriteString("Horizon empty — nobody has published to this room yet")
+		} else {
+			fmt.Fprintf(&b, "Horizon clear — no cross-person coordination tangles involving %s right now (%s on the bus)",
+				who, plural(len(res.participants), "participant", "participants"))
 		}
 		b.WriteString(".")
 		if res.muted > 0 {
@@ -489,7 +513,7 @@ func runHorizonHook(args []string) error {
 	fs := flag.NewFlagSet("horizon-hook", flag.ContinueOnError)
 	room := fs.String("room", "", "the room whose horizon to inject")
 	transportName := fs.String("transport", "", "transport whose horizon to inject when --room is not used")
-	me := fs.String("me", "", "your identity (default: the room's agent, else $USER)")
+	me := fs.String("me", "", "your identity (default: $ETTLE_ME, else the room's agent, else $USER)")
 	debounce := fs.Duration("debounce", 5*time.Minute, "skip the background refresh if one ran within this window")
 	if err := fs.Parse(args); err != nil {
 		return err
