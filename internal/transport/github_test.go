@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/justinstimatze/ettle/internal/ettlemesh"
 )
@@ -216,5 +218,71 @@ func TestNewGitHubBusRejectsMissingPieces(t *testing.T) {
 	}
 	if _, err := NewGitHubBus("tok", "", "widgets", "crew", "test"); err == nil {
 		t.Error("a missing owner should be refused before any network call")
+	}
+}
+
+// TestGitHubLive is TestLinearLive's sibling (internal/transport/linear_test.go):
+// this is the audit item from 06565fd/a952474 — does github.go share Linear's
+// backend-rewrites-content shape? renderCommentBody already wraps every envelope in
+// a ```json fence, but whether GitHub's Discussion-comment API normalizes markdown
+// on write, and whether a fenced block is exempt the way Linear's apparently is, was
+// UNMEASURED before this test existed. fakeCommentStore stores content verbatim —
+// the same "more faithful than the real backend" shape that let the Linear bug ship
+// unnoticed — so nothing in the existing suite could have caught this either way.
+//
+// Skipped unless ETTLE_GITHUB_LIVE=1 plus GITHUB_TOKEN (repo scope),
+// ETTLE_GITHUB_OWNER, ETTLE_GITHUB_REPO (a PRIVATE repo with Discussions enabled)
+// are set, so `make ci` never hits the network.
+func TestGitHubLive(t *testing.T) {
+	if os.Getenv("ETTLE_GITHUB_LIVE") != "1" {
+		t.Skip("set ETTLE_GITHUB_LIVE=1 (plus GITHUB_TOKEN, ETTLE_GITHUB_OWNER, ETTLE_GITHUB_REPO) to run the live GitHub test")
+	}
+	token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
+	owner := strings.TrimSpace(os.Getenv("ETTLE_GITHUB_OWNER"))
+	repo := strings.TrimSpace(os.Getenv("ETTLE_GITHUB_REPO"))
+	if token == "" || owner == "" || repo == "" {
+		t.Fatal("live test needs GITHUB_TOKEN, ETTLE_GITHUB_OWNER, ETTLE_GITHUB_REPO")
+	}
+	room := "livetest-" + time.Now().UTC().Format("150405")
+	b, err := NewGitHubBus(token, owner, repo, room, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := b.store.(*githubCommentStore)
+	ctx := context.Background()
+	// Clean up the throwaway discussion no matter how the test ends.
+	defer func() {
+		var m struct {
+			DeleteDiscussion struct {
+				Discussion struct {
+					ID string `json:"id"`
+				} `json:"discussion"`
+			} `json:"deleteDiscussion"`
+		}
+		if err := store.do(ctx, `mutation($id:ID!){ deleteDiscussion(input:{id:$id}){ discussion{ id } } }`,
+			map[string]any{"id": store.discussionID}, &m); err != nil {
+			t.Logf("cleanup: deleteDiscussion failed (delete discussion %q by hand): %v", room, err)
+		}
+	}()
+
+	// The markdown-metacharacter round-trip guard — same probe string as
+	// TestLinearLive, so a divergence between the two backends is directly
+	// comparable.
+	markdownProbe := "branch marsjustin/cur-1403 *bold* [link] `code` ~tilde~ and a \"quoted\" span"
+	if err := b.Publish(ctx, Envelope{Participant: "carol", Atoms: []ettlemesh.Atom{atom(markdownProbe)}}); err != nil {
+		t.Fatal(err)
+	}
+	envs, err := b.Collect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := b.Warnings(); len(w) != 0 {
+		t.Fatalf("live collect warned — a markdown-mangled envelope failed to parse: %v", w)
+	}
+	if len(envs) != 1 || len(envs[0].Atoms) == 0 {
+		t.Fatalf("live round trip wrong: %+v", envs)
+	}
+	if got := envs[0].Atoms[0].Subject; got != markdownProbe {
+		t.Fatalf("markdown probe did not round-trip byte-identical against the live API:\nwant %q\ngot  %q", markdownProbe, got)
 	}
 }
