@@ -17,22 +17,20 @@
   embedded quote — and asserts it comes back byte-identical with no warnings. If Linear
   ever changes what its normalizer does to a fenced block, this goes red against the
   real API instead of a room quietly emptying again.
-- **Audited `github.go` and `leat.go` for the same shape as the Linear bug.** `leat.go`
-  is structurally immune — `Publish` hands leat a `[]byte` that leat commits as a raw
-  git object, with no markdown-rendering or text-normalizing layer anywhere in that
-  path, so nothing there can mangle content the way Linear's Document API does.
-  `github.go` is the open question: `renderCommentBody` already wraps every envelope
-  in a ` ```json ` fence, but whether GitHub's Discussion-comment API normalizes
-  markdown on write was unmeasured, and `fakeCommentStore` stores content verbatim —
-  the same "more faithful than the real backend" shape that let the Linear bug ship
-  unnoticed. New `TestGitHubLive` (`ETTLE_GITHUB_LIVE=1` + `GITHUB_TOKEN` +
-  `ETTLE_GITHUB_OWNER`/`ETTLE_GITHUB_REPO`) checks two separate claims: a fenced
-  envelope round-trips through Discussions (proves `Publish`/`Collect` work), and — the
-  actual measurement, added after a sibling session named the gap between the two — an
-  UNFENCED write of the same probe, bypassing `renderCommentBody` entirely, to see
-  whether GitHub's transform exists at all. Write-only for now, stays skipped in
-  `make ci` exactly like `TestLinearLive` does; its result decides whether the fence is
-  doing real work on this backend or is redundant-but-harmless.
+- **Audited `github.go` and `leat.go` for the same shape as the Linear bug — settled,
+  not left open.** `leat.go` is structurally immune — `Publish` hands leat a `[]byte`
+  that leat commits as a raw git object, with no markdown-rendering or text-normalizing
+  layer anywhere in that path. `github.go`: measured against the live API
+  (`TestGitHubLive`, `ETTLE_GITHUB_LIVE=1`), GitHub's Discussion-comment body does NOT
+  mangle markdown metacharacters even unfenced — Linear's normalizer is the exception
+  among the transports measured so far. `renderCommentBody`'s ` ```json ` fence isn't
+  doing real work on this backend,
+  but stays anyway: it costs nothing, it's uniform across transports, and today's
+  measurement isn't a guarantee about GitHub's normalizer next quarter. The test itself
+  checks two separate claims rather than one — a fenced envelope round-trips through
+  Discussions (proves `Publish`/`Collect` work), and a raw write of the same probe,
+  bypassing `renderCommentBody` entirely, is the actual measurement — after a sibling
+  session (aipotluck.org) caught that the first alone doesn't prove the second.
 
 - **A Linear-backed room silently rejected every envelope it was ever sent.** Linear
   stores a Document's content as markdown and normalizes it on write: it inserts a

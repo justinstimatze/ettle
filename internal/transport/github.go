@@ -188,7 +188,12 @@ func (b *GitHubBus) Warnings() []string {
 
 // renderCommentBody wraps an envelope in its identity marker and a fenced json
 // block, so the Discussion stays readable to a human who opens it and the body
-// still round-trips exactly.
+// still round-trips exactly. Measured against the live API, 2026-09-16
+// (TestGitHubLive): unlike Linear, GitHub's Discussion-comment body does not
+// mangle markdown metacharacters even unfenced, so the fence isn't doing real work
+// on this backend. Kept anyway — it costs nothing, stays uniform across
+// transports, and today's measurement is not a guarantee about GitHub's future
+// behavior.
 func renderCommentBody(participant, content string) string {
 	return fmt.Sprintf(githubMarkerFmt, participant) + "\n```json\n" + content + "\n```"
 }
