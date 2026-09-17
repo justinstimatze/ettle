@@ -158,9 +158,20 @@ func TestLinearLive(t *testing.T) {
 	if err := b.Publish(ctx, Envelope{Participant: "alice", Atoms: []ettlemesh.Atom{atom("cache-v2")}}); err != nil {
 		t.Fatal(err)
 	}
+	// The markdown-metacharacter round-trip guard: the exact shape that silently
+	// rejected every ettle-dumpling participant before the ```json fence (06565fd).
+	// If Linear ever changes what its normalizer does to a fenced block, this goes
+	// red against the LIVE API instead of a room quietly emptying again.
+	markdownProbe := "branch marsjustin/cur-1403 *bold* [link] `code` ~tilde~ and a \"quoted\" span"
+	if err := b.Publish(ctx, Envelope{Participant: "carol", Atoms: []ettlemesh.Atom{atom(markdownProbe)}}); err != nil {
+		t.Fatal(err)
+	}
 	envs, err := b.Collect(ctx)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if w := b.Warnings(); len(w) != 0 {
+		t.Fatalf("live collect warned — a markdown-mangled envelope failed to parse: %v", w)
 	}
 	byWho := map[string]string{}
 	for _, e := range envs {
@@ -168,8 +179,11 @@ func TestLinearLive(t *testing.T) {
 			byWho[e.Participant] = e.Atoms[0].Subject
 		}
 	}
-	if len(byWho) != 2 || byWho["alice"] != "cache-v2" || byWho["bob"] != "auth" {
+	if len(byWho) != 3 || byWho["alice"] != "cache-v2" || byWho["bob"] != "auth" {
 		t.Fatalf("live round trip wrong: %+v", byWho)
+	}
+	if byWho["carol"] != markdownProbe {
+		t.Fatalf("markdown probe did not round-trip byte-identical against the live API:\nwant %q\ngot  %q", markdownProbe, byWho["carol"])
 	}
 }
 

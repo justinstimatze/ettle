@@ -11,6 +11,12 @@
   "Horizon clear." Warnings now print unconditionally, before the firm/soft sections,
   on both surfaces; a genuinely empty bus (zero participants, zero warnings) now says
   "Horizon empty" rather than a bare "Horizon clear" with no count attached.
+- **`TestLinearLive` now proves the markdown fence survives the live API, not just the
+  fake mangler.** The existing three-participant live round trip publishes a fourth
+  atom carrying every metacharacter the fence protects against — `* [ ] \` ~` plus an
+  embedded quote — and asserts it comes back byte-identical with no warnings. If Linear
+  ever changes what its normalizer does to a fenced block, this goes red against the
+  real API instead of a room quietly emptying again.
 
 - **A Linear-backed room silently rejected every envelope it was ever sent.** Linear
   stores a Document's content as markdown and normalizes it on write: it inserts a
