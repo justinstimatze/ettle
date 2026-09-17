@@ -2,8 +2,8 @@
 
 `ettle init <room>` tells you which of these you have and which you don't. This page
 is what to do about the ✗ lines. Two of the four are required; the other two each
-unlock one specific thing, so a missing one is a feature that's off, not a broken
-install.
+unlock one specific thing, so a missing one just means that feature is off — the
+install itself isn't broken.
 
 **Joining a room somebody else already set up?** Two of the four below are already
 somebody else's problem, and one of the three paths in needs no key at all. Start at
@@ -26,8 +26,8 @@ Choosing is a one-time decision, and the only one your team has to make together
   prints `tell a teammate: ettle init linear://crew` under **next**, and that
   fully-qualified form resolves to the same room as the bare name. Send that line.
 - **One room can span several repos.** Point `ettle init --dir` at a shared parent and
-  every checkout beneath it resolves the same room; the room is about the people, not
-  the code. Nothing is written into any repo — the mapping is per-machine, in
+  every checkout beneath it resolves the same room; the room tracks the people —
+  the code is incidental to it. Nothing is written into any repo — the mapping is per-machine, in
   `~/.config/ettle/rooms.json`, because a room pointer inside a repo would enrol
   whoever clones it into a room they never chose.
 - **You are not stuck with it.** Re-running `ettle init <newroom>` repoints the
@@ -43,7 +43,7 @@ cannot land in different rooms by typing different names.
 | `LINEAR_API_KEY` | everyone running ettle | The atom bus (a Linear project's documents) and reading teammates' replies. A personal member key. |
 | `ANTHROPIC_API_KEY` | everyone on the hook path — see below | Distilling your notes into typed atoms and reconciling the room. Both run **on your machine** — your raw prose never leaves it. |
 | `LINEAR_TEAM_ID` | the first person in the room | Creating the room's project. Ignored once the project exists. |
-| `LINEAR_AGENT_TOKEN` | nobody, until you escalate | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. One person holds it, not one per teammate. |
+| `LINEAR_AGENT_TOKEN` | nobody, until you escalate | Posting a tangle onto the coordination issue so a teammate who doesn't run ettle can see it. An OAuth **app-actor** token; the member key cannot post agent activities. One person holds it — never one per teammate. |
 
 **Where to put them: `~/.config/ettle/env`**, one `KEY=VALUE` per line, `chmod 600`.
 (Working across more than one Linear workspace? See [More than one
@@ -96,7 +96,7 @@ issue for teammates who never installed ettle. If everyone on the team runs ettl
 you never need this token.
 
 It has to be an app-actor token because Linear's agent activities are posted *by an
-application*, not by a person. A member key authenticates as you, and Linear will
+application* — a person can't be the actor there. A member key authenticates as you, and Linear will
 not let you write an agent activity as yourself.
 
 **1. Create an OAuth application.** Linear → Settings → API → OAuth applications →
@@ -141,7 +141,7 @@ curl -s https://api.linear.app/graphql -H "Authorization: Bearer $LINEAR_AGENT_T
   -H 'Content-Type: application/json' --data '{"query":"query{ viewer{ name } }"}'
 ```
 
-The name should be your application's, not yours.
+The name belongs to your application, never to you personally.
 
 ## More than one workspace
 
@@ -154,7 +154,7 @@ ettle init crew --profile work
 
 That records the profile for this directory alongside its room, and reads its keys from
 `~/.config/ettle/env.d/work` — one file per workspace, however many projects share it.
-The profile is a **name, not a secret**, so the line stays as safe to commit as `room`
+The profile is **just a name — it carries no secret**, so the line stays as safe to commit as `room`
 already is; the keys never leave your machine. A project with no `profile` line
 behaves exactly as before.
 
@@ -191,6 +191,6 @@ Worth knowing before you point this at a real workspace:
   never your raw notes.
 - **One issue per room**, titled `ettle coordination`, and only if you escalate.
   Tangles are posted there as agent activities. **Never onto your feature tickets** —
-  that separation is a design commitment, not a default (`docs/SURFACES.md`).
+  that separation is a design commitment, enforced rather than merely defaulted to (`docs/SURFACES.md`).
 - **Nothing else.** No webhooks, no server, no background daemon. The receive path
   polls with a cursor; there is nothing hosted anywhere.

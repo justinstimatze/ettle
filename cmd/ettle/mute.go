@@ -29,7 +29,7 @@ func runMute(args []string) error {
 	fs := flag.NewFlagSet("mute", flag.ContinueOnError)
 	room := fs.String("room", "", "the room whose tangles to mute (default: the room recorded for this directory)")
 	transportName := fs.String("transport", "", "transport spec, when not using --room")
-	me := fs.String("me", "", "who is judging (default: the room's identity, else $USER)")
+	me := fs.String("me", "", "who is judging (default: $ETTLE_ME, else the room's identity, else $USER)")
 	clear := fs.Bool("clear", false, "unmute instead of mute — the named tangle, or all of them with no name")
 	wrong := fs.Bool("wrong", false, "the tangle is a false alarm: ettle was wrong to raise it")
 	handled := fs.Bool("handled", false, "the tangle was real and is now dealt with")

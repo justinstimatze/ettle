@@ -1752,7 +1752,7 @@ func runCapture(args []string) error {
 	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
 	room := fs.String("room", "", "publish the distilled atoms to this git-repo room (`ettle room init|join`) instead of printing the digest; use --transport for a linear:// or github:// room")
 	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
-	me := fs.String("me", "", "your identity for the published atoms (default: the room's agent, else $USER)")
+	me := fs.String("me", "", "your identity for the published atoms (default: $ETTLE_ME, else the room's agent, else $USER)")
 	model := fs.String("model", "claude-haiku-4-5", "model id for distilling the session")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	if err := fs.Parse(args); err != nil {

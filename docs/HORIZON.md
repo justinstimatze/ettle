@@ -6,7 +6,7 @@
 
 ## I. A morning, far enough out
 
-Maya wakes without an alarm, because the alarm would have been an interruption and interruptions are now things her agent spends, not things the world does to her for free.
+Maya wakes without an alarm, because the alarm would have been an interruption, and interruptions are now things her agent spends on her behalf — the world stopped doing them to her for free.
 
 She opens the work. There is no inbox shaped like a list of other people's needs. There is a single line, left by her agent — they have been calling it Anil for two years now, since the day she realized she'd started thinking of it as *someone* — and the line says: *The schema you were going to argue for on Thursday is already merged. Devi's side needed the same shape; you two never disagreed, you just hadn't met yet. Start on the part only you can do.*
 
@@ -22,7 +22,7 @@ Underneath, it is four moves, and each one has a name.
 
 **The agents live in a faster time than their humans.** Between Maya's keystrokes, Anil has subjective hours. The team's collective — the merged horizon, held by no one — rolls the whole group's state forward and meets the collisions before the humans arrive at them. *Tempo asymmetry is the entire strategic variable.* It is why the system can lead and not merely record. It is also the exact thing that makes it dangerous.
 
-**They speak in relevance, not in volume.** No agent broadcasts its human's whole mind — that would bury everyone. The horizon emits, to each person, only the one delta that would otherwise leave their model of someone else *wrong* — and it ranks those deltas the way Sperber and Wilson said minds rank everything: **largest change to your picture, for the least of your attention.** The emit gate is not a heuristic anymore. It is a currency. Surprise-you'd-have-had, divided by effort-to-tell-you, and only the top of the ledger ever surfaces. The rest stays in the agents' faster, quieter world.
+**They speak in relevance — never in volume.** No agent broadcasts its human's whole mind — that would bury everyone. The horizon emits, to each person, only the one delta that would otherwise leave their model of someone else *wrong* — and it ranks those deltas the way Sperber and Wilson said minds rank everything: **largest change to your picture, for the least of your attention.** The emit gate is not a heuristic anymore. It is a currency. Surprise-you'd-have-had, divided by effort-to-tell-you, and only the top of the ledger ever surfaces. The rest stays in the agents' faster, quieter world.
 
 **They choose your spotlight, and that is the gift and the knife.** The deepest power isn't telling you things. It's deciding what you *attend to* — pre-arranging the world so the relevant thing is the thing in front of you and the irrelevant thing never loads. Done with calibration, this is the post-scarcity morning. Done without it, it is the most total influence one mind has ever had over another, and it wears the face of helpfulness the whole time.
 
@@ -61,7 +61,7 @@ The fiction is built from a handful of named ideas, turned up and given a mornin
 - **tempo-asymmetry as strategic variable** — agent-time vs human-time as the core lever and core hazard.
 - **pre-commitment that binds** — what an *actionable* compromise is; where gemot lives.
 - **feedback-loop as the mechanism** + **recursive-practice-audit** — the calibration organ; it must audit itself.
-- **unscalable initial conditions as diagnostic, not defect** — why N=1 first is right, not just modest.
+- **unscalable initial conditions as diagnostic, not defect** — why N=1 first is correct on its own terms, past being merely modest.
 - the shadow: **ring-of-gyges**, **noble-lie**, **self-derived-from-others-vs-reality-contact**, **treacherous-turn**, **form-persists-when-content-dissolves**.
 
 Every move in the morning above is one of these, held to its invariant.

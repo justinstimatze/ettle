@@ -51,7 +51,7 @@ pollutes my tickets" sound true when it isn't.
 
 3. **Escalation-emit — surfacing a tangle onto an issue.** The *only* role that
    writes onto Linear, and therefore the only one the pollution worry is about.
-   It is an **opt-in escalation**, not a default: `ettle escalate --room <room>`
+   It is an **opt-in escalation** — never the default: `ettle escalate --room <room>`
    is the deliberate move you make to reach a teammate who isn't running ettle.
    Two guards keep it from being noise — it posts to **one dedicated coordination
    issue per room ("ettle coordination" in `ettle-<room>`), never onto feature
@@ -73,7 +73,7 @@ new secret — the credential `gh auth login` already stored is enough — and t
 the whole reason it exists next to the git-repo bus, which needs a separate repo
 created, cloned, and seeded first. **Built.**
 
-Two differences from Linear, both deliberate. **Private repositories only, enforced
+Two deliberate differences from Linear. **Private repositories only, enforced
 at construction and with no override flag.** A public repo's Discussions are readable
 by anyone on the internet; a Linear project is workspace-scoped and a private repo's
 Discussion is collaborator-scoped, which are comparable audiences, so this is a

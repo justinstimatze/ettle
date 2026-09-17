@@ -54,8 +54,8 @@ decision/action-item extraction is a close cousin of tangle detection, and RADAR
 "learn from observed work, confirm the consequential" is exactly the
 mixed-initiative posture ettle takes. **But both modeled one user.** Neither built
 a *directed model of other specific people* held by each person's agent, nor a
-privacy-bounded collective that reconciles those models. They are the L1 ceiling,
-not the L2/L3 thing ettle is reaching for.
+privacy-bounded collective that reconciles those models. They cap out at L1 —
+the L2/L3 thing ettle is reaching for is a step past either.
 
 ## 3. The proxy-pool ancestor — and the cautionary tale
 
@@ -69,7 +69,7 @@ shape ettle proposes — built and *deployed*, 25 years ago.
 
 Two things make it the most instructive entry in this review:
 
-1. **It coordinated logistics, not models-of-each-other.** Friday agents
+1. **It coordinated logistics — models-of-each-other weren't the target.** Friday agents
    negotiated *when and where* (scheduling), not *what each person believes,
    assumes, or is about to change*. There was no directed metaperception (a
    private model of a teammate's reasoning), no contextual-privacy boundary on
@@ -83,8 +83,8 @@ Two things make it the most instructive entry in this review:
    *calibration before speed*, *humans remain the deciders*, *friction at the
    cruxes*. A pool of proxy agents acting on models of people, without a tight
    correction loop, has already been tried and has already failed in exactly the
-   way [CONCEPT.md](CONCEPT.md) and [HORIZON.md](HORIZON.md) warn about. That is
-   corroboration, not coincidence.
+   way [CONCEPT.md](CONCEPT.md) and [HORIZON.md](HORIZON.md) warn about. That's
+   corroboration — too specific a match to wave off as coincidence.
 
 ## 4. What ettle inherits vs. what it extends
 
@@ -104,13 +104,13 @@ Two things make it the most instructive entry in this review:
 - a **per-human calibration loop** as the thing that makes speed safe — the
   Electric Elves failure is the argument for why this carries the design, not the finish;
 - **reasoning-in-progress as the signal** rather than calendar/email artifacts;
-- **resolve-and-apply, not detect-and-announce.** The lineage's assistants stop
+- **resolve-and-apply, past where detect-and-announce stops.** The lineage's assistants stop
   at extracting a decision or action-item and handing it to a human (CALO-MA, and
   every modern meeting tool); a plain tangle detector likewise *stops and announces
   the conflict*. ettle's bindable subset is instead **deliberated to an actionable
   conclusion by the agents themselves** — they enter a gemot, reach a concrete
   decision, and fold it back into each human's workflow **ambiently**, surfacing
-  only the genuine cruxes. The honest qualifier: autonomous agent action with
+  only the genuine cruxes. One qualifier, stated plainly: autonomous agent action with
   write-back is *not* itself novel in 2026, and Electric Elves (EE) already did it
   (Fridays rescheduled meetings and volunteered presenters on their own) — which
   is exactly why its post-mortem exists. The novelty that carries ettle is therefore not
@@ -123,8 +123,8 @@ Two things make it the most instructive entry in this review:
 was funded at nine figures. The novelty, if any, is the specific multi-principal
 assembly (directed metaperception + privacy boundary + calibration), and the most
 relevant prior attempt at a proxy-agent pool (Electric Elves) failed in precisely
-the way ettle's invariants are written to prevent. The honest framing for the
-project is therefore not "no one has tried this" but "the single-user half is
+the way ettle's invariants are written to prevent. Framed plainly, the project's
+claim is not "no one has tried this" but "the single-user half is
 mature prior art; the multi-principal half was tried once, instructively, and the
 lesson is baked into the invariants." See [PRIOR_ART.md](PRIOR_ART.md) for the
 contemporary (2025–26) landscape, and §5 below for where CALO's mission actually
@@ -142,7 +142,7 @@ reaching for.
 **Done / shipped.** The single-user learning assistant (Maes → CAP → CALO) is no
 longer research. CALO spun out Siri directly; the broad LLM-assistant wave (and
 per-user "memory" features) is the mature descendant. "Learns your preferences
-from observation" is table stakes, not a contribution.
+from observation" is table stakes now, no longer a contribution on its own.
 
 **Commoditized.** CALO-MA's meeting capture — dialogue-act tagging, action-item
 recognition, **decision extraction**, summarization — now ships in every

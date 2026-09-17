@@ -44,7 +44,7 @@ Deterministic detection, LLM judgment at the one consequential fork, typed outco
 
 ## Atom schemas
 
-Two atoms. The first is a *view* over the predecessor's existing cells; the second is new and is where did-it-help gets recorded.
+There are two: the first is a *view* over the predecessor's existing cells; the second is new and is where did-it-help gets recorded.
 
 **`ClosedDecision`** — a cell where `Source ∈ {user-closed, user-corrected-claude}`, `Status = closed`, `Confidence ≥ θ_high`.
 
@@ -74,7 +74,7 @@ This resolves open question #1 (decision-delta atom schema), in its N=1 form. Th
 When the guard fires, the user's next reply is classified into exactly one of three outcomes. The discipline is that two of these are *not* failures — only one is.
 
 - **`helped`** — the reopen was unintended; the user confirms / drops it / thanks. → reinforce the closed cell. **Counts as a true positive.**
-- **`overridden`** — the user is re-opening it *on purpose* ("changed my mind", "different now"). The model was right that it *had been* closed; the user's intent legitimately moved. → **retire or down-weight the cell.** This is the calibration loop closing, not a miss. Excluded from precision; it is the healthy update path.
+- **`overridden`** — the user is re-opening it *on purpose* ("changed my mind", "different now"). The model was right that it *had been* closed; the user's intent legitimately moved. → **retire or down-weight the cell.** This is the calibration loop closing successfully, and shouldn't count as a miss. Excluded from precision; it is the healthy update path.
 - **`false_interrupt`** — it was never a real reopen, or the question was noise. → **penalized hard.** This is the confabulation-amplifier failure the whole category risks.
 
 **Primary metric — guard precision:**

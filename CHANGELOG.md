@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.6.3 — 2026-09-17
 
+- **`$ETTLE_ME` overrides the room-derived identity, ranking below an explicit `--me`
+  but above every other default.** A hook command is one fixed string shared by every
+  project it fires in — Claude Code merges hook lists across settings files rather
+  than letting a project override one, so a per-project `--me` on the hook invocation
+  would add a second, duplicate publish instead of replacing the global one. A
+  project's own `settings.local.json` `env` block, by contrast, is a plain key-level
+  override, so `$ETTLE_ME` set there reaches the hook subprocess without touching the
+  global hook command or firing it twice. Wired through `captureIdentity`, the one
+  place `capture`, `confirm`, and `mute` all resolve `--me` from.
 - **`horizon` now distinguishes an empty or broken bus from a genuinely clear one, on
   both the CLI/hook and MCP surfaces.** `bus.Collect`'s own `Warnings()` — unparseable
   documents, a spoofed-identity correction — already carried this signal; neither
@@ -62,7 +71,7 @@
 
 ## v0.6.2 — 2026-09-03
 
-- **A page for the person joining, not the person setting up.** `LINEAR_SETUP.md` is
+- **A page for the person joining, distinct from the person setting up.** `LINEAR_SETUP.md` is
   organized by key, which is the right axis for the first person in a room and the wrong
   one for the second: two of the four keys are already somebody else's problem, and one
   of the three ways into a room needs no key at all. `docs/JOINING.md` is the joiner's
@@ -117,7 +126,7 @@
   session that is running, so a transcript from a session that ended last month can
   never reach capture and seeding it protects against nothing. Only recently-written
   ones are marked — 8 of 823 on the machine this was built on.
-- **The capture offset is a byte offset, not a line count.** Skipping N lines still
+- **The capture offset is a byte offset, never a line count.** Skipping N lines still
   meant reading and discarding N lines off disk, so a session running for hours
   re-read its whole transcript on every capture even while distilling only the tail.
   Seeking makes both the read and the seed proportional to what is new: seeding a live
@@ -169,7 +178,7 @@
   it is genuinely new — which is the wording-independent slot identity CONTRIBUTING
   lists as an open task, scoped to this use. A bus read that fails aborts the capture
   rather than being treated as an empty model, so a fragment never replaces a full one.
-- **The capture debounce is keyed per session, not per room.** Several sessions in
+- **The capture debounce is keyed per session — per-room isn't the scope.** Several sessions in
   parallel is the normal case, and they all resolve the same room — so they shared one
   marker and every session but the first had its capture silently skipped: distinct
   work, dropped because a sibling captured moments earlier, with no error and only a
@@ -325,7 +334,7 @@
   answered.** It used to invite only `not_real` and `handled` — which is where the
   bias came from — and it asked again every session regardless. `ettle_respond`'s
   `clear` now withdraws a confirmation as well as a mute, because a human taking back
-  an answer means the answer, not the store it happened to land in.
+  an answer means the answer itself, regardless of which store it happened to land in.
 - **`ettle calibrate` reads the verdict log and says what it does not support.** The
   cut points have been hand-set from the `eval --separability` batch since they were
   introduced, with a note that a loop would learn them from accumulated human
@@ -386,7 +395,7 @@
   `map[person][]Atom` per round — so the two rounds are the atoms the bus held when the
   session first read it against what it holds now, and `ettle_mirror`/`ettle_drift`
   make no model call at all (`internal/mcpserver/reflect.go`). The baseline is captured
-  lazily on the first bus read, not at startup (a Linear round-trip in front of session
+  lazily on the first bus read rather than at startup (a Linear round-trip in front of session
   start is exactly what the horizon cache exists to avoid), and never rewritten — a
   baseline that chased the current state would report every mirror clean.
 - **`ettle init` stays the one shell-only command**, because it creates the room the
@@ -398,8 +407,8 @@
   there, with the folder and git tiers at 1b/1c.
 - **`docs/ADOPTION.md` was making three claims the code no longer supports.**
   Requirement 3 said nothing enters the shared layer but a participant's own session,
-  which `ettle pull` contradicts: the consenting act is writing in the room, not running
-  the binary, and the inference that buys is now stated where it can be argued with.
+  which `ettle pull` contradicts: the consenting act is writing in the room; running
+  the binary alone doesn't grant it, and the inference that buys is now stated where it can be argued with.
   Requirement 4 said the L2 model was unreadable by its subject, which `ettle mirror`
   fixed. Requirement 6 promised a clean exit the append-only git bus cannot give — the
   property that makes that tier's identity non-spoofable is the one that keeps what you
@@ -544,7 +553,7 @@ GitHub bus, and the project room file.
     bus and the in-session whisper, and reaching a non-adopter is unbuilt.
 - **`ettle init` reports the room's audience on Linear.** Linear has no
   internet-public project — `Team.visibility` has `public`/`restricted`/`private`,
-  where "public" means the whole *workspace*, not the world — so unlike the GitHub
+  where "public" means the whole *workspace* rather than the world at large — so unlike the GitHub
   path there is nothing to refuse. What there is, is a reader who should know which
   colleagues can see what they are about to publish, so init now names the owning
   teams and their visibility in plain words (`LinearBus.Audience`).
@@ -685,15 +694,15 @@ GitHub bus, and the project room file.
   footprint is N documents for N people — bounded like `DirBus`, with no per-emit
   accumulation. Measured, not assumed: API `documentUpdate` accrued zero visible
   revision-history snapshots over 12 rapid writes, so no doc-rotation is needed.
-  Honest limit: one room token means Linear's actor is the token owner, not the
-  participant, so identity rides the document title (`ettle/<slug>`, authoritative
+  Honest limit: one room token means Linear's actor shows as the token owner rather
+  than the participant, so identity rides the document title (`ettle/<slug>`, authoritative
   on read) and the envelope, without Linear-actor corroboration — leat's git-author
   check stays strictly stronger. As a guest on their platform the client sends a
   `User-Agent` identifying ettle and surfaces a 429 as a distinct rate-limit error.
 
 ## v0.2.1 — 2026-07-22
 
-The onboarding release. v0.2.0 shipped a key-free teammate path that could not
+This is the onboarding release: v0.2.0 shipped a key-free teammate path that could not
 actually be reached by a teammate without a key — anyone installing `@latest`
 before this tag gets that build, so this is the version to point a new coworker at.
 
@@ -781,10 +790,10 @@ was also renamed `tangle` → `tangle`.
   search pass — the clearest public statement of ettle's single-player→multiplayer
   diagnosis by a team shipping the *opposite* answer: pooled shared state (a shared
   filesystem across humans, agents, and sessions) instead of bounded per-person state
-  with cross-person reconciliation. Records the load-bearing disagreement (coordination
-  failure is caused by distributed private information, not long task horizons — which
-  is why *useful at N=1* holds), the two self-refutations in the interview
-  (filesystem-concurrency → reaching for git; anthropomorphic-tools → building
+  with cross-person reconciliation. Records the disagreement the whole comparison turns
+  on (coordination failure is caused by distributed private information, not long task
+  horizons — which is why *useful at N=1* holds), the two self-refutations in the
+  interview (filesystem-concurrency → reaching for git; anthropomorphic-tools → building
   agent-native infra anyway), and two things worth taking (bidirectional access as an
   explicit invariant; the "fog of AI" three-month-direction planning posture).
 
@@ -857,7 +866,7 @@ was also renamed `tangle` → `tangle`.
   confirm before it travels." `--share-inferred` opts back into the old flow-to-team
   behavior; the eval path recombines stated+inferred so detection measurement is
   unchanged. This is the enforcement the 1a-1 measurement justified — the de-novo claim
-  is held before crossing, not flagged after. Held-back inferred atoms stay **legible**
+  is held before crossing — stopped there, rather than merely flagged after. Held-back inferred atoms stay **legible**
   (no silent drops, the stage-0a discipline): `--me` shows the subject their own to keep
   or kill; **team view** (no `--me`, no single subject) shows a *count only* — never
   whose or what, which would leak the very claims being gated; and `--show-atoms` labels
@@ -895,8 +904,8 @@ was also renamed `tangle` → `tangle`.
   were extracted so the two commands can't drift apart — and renders the subject-
   centric view: the union of every teammate's beliefs about you, deduped on the
   engine's slot identity (new exported `ettlemesh.Canonical`), staleness from
-  `StaleBeliefs`. **Attribution is coarsened by default** (the belief, not which
-  teammate holds it — naming a believer surfaces *their* private model, a flow that
+  `StaleBeliefs`. **Attribution is coarsened by default** (only the belief shows —
+  which teammate holds it stays hidden, since naming a believer surfaces *their* private model, a flow that
   touches them); `--by-observer` opts into attribution. Read-only, no correction
   propagation yet (that's stage 2); no model call beyond drift's distill. Tested
   deterministically (`TestMirror`: beliefs shown, drift flagged stale, coarsen-by-
@@ -915,10 +924,10 @@ was also renamed `tangle` → `tangle`.
   an interface (file by default; tests inject memory). Tested:
   `TestRespondCapturesLabel` (capture + verdict/field validation, no-capture on
   reject), `TestTangleKeyStableAndCrossCallMatch` (order/case-stable key).
-- **Interrogative register (stage 0c) — cross-person tangles are posed as questions,
-  not asserted** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The detector has no
-  ground truth for a cross-person conflict, and recurrence is test-retest *stability*,
-  not validity — so it has no standing to assert one. The CLI `surface` now routes
+- **Interrogative register (stage 0c) — cross-person tangles are posed as questions
+  rather than asserted** ([docs/LEGIBILITY.md](docs/LEGIBILITY.md)). The detector has no
+  ground truth for a cross-person conflict, and recurrence is test-retest *stability* —
+  short of validity — so it has no standing to assert one. The CLI `surface` now routes
   **self tangles** (a person's own drift, which they can verify) to an asserted "worth a
   look" lane and **every cross-person tangle** to a "worth checking together (a question,
   not a claim)" lane — "[possible collision] … Real, or already handled?" — ordered
@@ -976,9 +985,10 @@ was also renamed `tangle` → `tangle`.
   self/decision-rights tangle preceded a groundable one (fail-open kept it).
   Re-smoke-tested after the split: userservice-vs-infra FIRM still **0.00**, real
   teamwide (calendar K1) and real duplication (duplicate-util K1) recall held **1.00**.
-  **Caveat:** the pass is a *single probabilistic judge call*, not a deterministic
-  gate — it lowers fabrication probability but a borderline fab still flickers firm
-  run-to-run (frontend-vs-data's mabel/opal collision, calendar's "review" D1); n=5
+  **Caveat:** the pass runs as a *single probabilistic judge call* rather than a
+  deterministic gate — it lowers fabrication probability but a borderline fab still
+  flickers firm run-to-run (frontend-vs-data's mabel/opal collision, calendar's
+  "review" D1); n=5
   can't claim a stable per-corpus rate, and that flicker (finding #5) is accepted for
   now. Default ON across `standup`, `eval`, and the **MCP horizon**; disable with
   `--no-ground`.
@@ -1006,8 +1016,8 @@ was also renamed `tangle` → `tangle`.
   `internal/ettlemesh/mesh.go`, applied in `voteTangles`) closes the bulk of the
   cross-group fabrication the robustness battery surfaced. A voted tangle recurring
   below the floor (0.25 of samples — strictly under the lowest per-kind firm bar, so
-  it can never drop a tangle the firm bar would assert) is dropped entirely: not
-  asserted, not asked. It catches the fabrication *tail* (separability: fabricated
+  it can never drop a tangle the firm bar would assert) is dropped entirely — neither
+  asserted nor asked. It catches the fabrication *tail* (separability: fabricated
   cross-group tangles recur ≤~0.17 of runs), which is most fabrications, at **zero
   clear-tangle recall cost**. Measured (haiku, `--samples 5`): on the worst corpus
   `superposition-frontend-vs-data` FIRM (asserted) cross-boundary fabrication fell
@@ -1086,10 +1096,10 @@ First runnable cut of the multiplayer coordination PoC.
   assumptions), and the calibration loop; docs flipped accordingly.
 - **Adversarial-review hardening** — an adversarial expert panel pressure-tested the
   whole repo (find → independent refutation → synthesis); the surviving findings drove
-  this pass. The load-bearing fix closes a **dual path** in the privacy boundary: atoms
-  cross via two producers (`Distill` for stated atoms, `InferImplicit` for inferred
-  ones), and the structural secret-scanner was wired into `Distill` only — so a token
-  or DSN folded into an *inferred* assumption (or the question rendered from one)
+  this pass, which closes the **dual path** in the privacy boundary that mattered most:
+  atoms cross via two producers (`Distill` for stated atoms, `InferImplicit` for
+  inferred ones), and the structural secret-scanner was wired into `Distill` only — so
+  a token or DSN folded into an *inferred* assumption (or the question rendered from one)
   crossed unredacted. Both producers now funnel through one chokepoint (`sealAtom`), so
   the secret scanner and the per-person override cannot be present on one path and
   absent on the other.
@@ -1131,9 +1141,10 @@ First runnable cut of the multiplayer coordination PoC.
 - **Boundary transparency + structural caps** — `ettle standup --show-atoms`
   prints exactly the typed atoms that cross (the privacy surface) before
   surfacing tangles; atoms are now structurally capped (subject/content length,
-  whitespace collapsed to one clause) so the boundary is partly enforced, not
-  only trusted. Per-person distillation runs in parallel (latency is the "no
-  meeting" competitor), and the Anthropic client retries 429/5xx (SDK-native,
+  whitespace collapsed to one clause) so the boundary gets some structural
+  enforcement, instead of relying on trust alone. Per-person distillation runs in
+  parallel (latency is the "no meeting" competitor), and the Anthropic client retries
+  429/5xx (SDK-native,
   `WithMaxRetries(4)`) so a transient rate-limit doesn't abort a whole run.
 
 - **Cause-vs-consequence boundary rule** — the `Distill` system prompt now encodes
@@ -1208,9 +1219,9 @@ First runnable cut of the multiplayer coordination PoC.
   small to test — *not* a sample-count problem but a sign the conditions agree on
   clear-cut duplicates, where voting's noise-damping has nothing to fix. (An
   earlier single-corpus run where voting dropped a real duplication did not
-  replicate at scale — it was one stochastic draw, not an effect.) Honest framing
-  kept loud: these are artifacts, not reasoning-in-progress — a retrospective
-  detector test, not thesis validation.
+  replicate at scale — it was one stochastic draw rather than a real effect.) Honest
+  framing kept loud: these are artifacts of a retrospective detector test, distinct
+  from reasoning-in-progress or thesis validation.
 
 - **Privacy-boundary leak eval** (`ettle eval --leak`, `internal/eval/leak.go`) —
   the orthogonal harness: it measures whether the typed-atom boundary *leaks*,
@@ -1228,7 +1239,8 @@ First runnable cut of the multiplayer coordination PoC.
 
 - **Calibration harness** (`internal/eval`, `ettle eval`) — scores the detector's
   precision/recall against a **committed synthetic corpus** (`testdata/eval/*.json`)
-  so the accuracy claim is inspectable, not gitignored. The corpus now carries
+  so the accuracy claim is inspectable — the corpus is checked into the repo instead
+  of gitignored. The corpus now carries
   **plausible-but-wrong distractors** (`Real=false` — single-person open questions
   like "which payment provider?" that a miscalibrated detector might wrongly assert
   as a cross-person tangle); a FIRM tangle that matches one is reported as a **named

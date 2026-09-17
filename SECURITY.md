@@ -42,10 +42,10 @@ ettle is pre-production. Two surfaces matter most:
     transfer urgency) but not its private *cause* (health, attrition, family,
     finances, morale, opinions about colleagues), and a personal fact merely
     appearing in a private note is not consent to broadcast it. This is the layer
-    that catches leaks with no fixed structure. It is *judgment, not verified
-    redaction*: the leak eval (`ettle eval --leak`) measures it at 0% on a
-    synthetic corpus, but a measured rate on synthetic cases is evidence, not a
-    proof, and the rate is only as good as the corpus.
+    that catches leaks with no fixed structure. It is judgment rather than a
+    verified redaction: the leak eval (`ettle eval --leak`) measures it at 0% on a
+    synthetic corpus, but a measured rate on synthetic cases is evidence toward
+    that, short of proof, and the rate is only as good as the corpus.
 
   Both layers are bounded by the structural caps (subject ≤ 80 chars, content ≤
   ~220 chars, single clause) and inspectable via `ettle standup --show-atoms`,
@@ -67,7 +67,7 @@ ettle is pre-production. Two surfaces matter most:
   atom ever stated. "Out Tuesday", then "pairing Wednesday to hand off the auth
   service", then "won't pick up the Q3 roadmap" each pass the per-atom check and
   together reconstruct an attrition the boundary was supposed to hold. This is the
-  genuinely unsolved property; it is **named, not defended**. Building a
+  genuinely unsolved property — **named here, still undefended**. Building a
   longitudinal-inference defense is deliberately unbuilt (it lives with the
   unbuilt calibration loop — see [docs/CONCEPT.md](docs/CONCEPT.md) status), and
   the metric that would measure it is a stub in
@@ -83,11 +83,11 @@ ettle is pre-production. Two surfaces matter most:
   don't trust" is a weak defense — until atom shape is structurally constrained and
   outputs aren't auto-acted-upon, safety rests on a human reading what surfaces.
 
-- **The atom bus is a shared stream, not per-recipient confidential.** Any team
-  credential that can publish can also subscribe and replay every teammate's atoms
-  (NATS JetStream retains them). The `--me` filter is presentation, not access
-  control. Per-recipient confidentiality would need per-subject ACLs or
-  per-recipient encryption — neither exists yet.
+- **The atom bus is a shared stream. It is not per-recipient confidential.** Any
+  team credential that can publish can also subscribe and replay every teammate's
+  atoms (NATS JetStream retains them). The `--me` filter is presentation only —
+  it enforces no access control. Per-recipient confidentiality would need
+  per-subject ACLs or per-recipient encryption — neither exists yet.
 
 ## Fixed in v0.6.0 — profile-name path traversal
 

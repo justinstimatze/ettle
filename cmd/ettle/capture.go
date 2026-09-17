@@ -157,11 +157,24 @@ func ownAtoms(ctx context.Context, bus transport.Transport, me string) ([]ettlem
 }
 
 // captureIdentity resolves who the published atoms belong to: an explicit --me
-// wins; otherwise a leat room's configured agent; otherwise $USER. This keeps
-// the hook config to just --room in the common case (the room already knows you).
+// wins; then $ETTLE_ME; otherwise a leat room's configured agent; otherwise
+// $USER. This keeps the hook config to just --room in the common case (the
+// room already knows you).
+//
+// $ETTLE_ME exists for the case a flag can't reach: a hook command is one
+// fixed string shared by every directory it fires in (Claude Code merges
+// hook lists across settings files rather than letting a project override
+// one, so a per-project --me on the hook invocation would just add a second,
+// duplicate publish instead of replacing the global one). A project's own
+// settings.local.json `env` block, by contrast, is a plain key-level
+// override — so ETTLE_ME set there reaches the hook subprocess without
+// touching the global hook command or firing it twice.
 func captureIdentity(me, room, transportName string) string {
 	if strings.TrimSpace(me) != "" {
 		return me
+	}
+	if v := strings.TrimSpace(os.Getenv("ETTLE_ME")); v != "" {
+		return v
 	}
 	if room != "" {
 		if rc, err := loadRoom(room); err == nil && rc.Agent != "" {
@@ -190,7 +203,7 @@ func runCaptureHook(args []string) error {
 	fs := flag.NewFlagSet("capture-hook", flag.ContinueOnError)
 	room := fs.String("room", "", "the room to publish this session's atoms into")
 	transportName := fs.String("transport", "", "transport to publish to when --room is not used")
-	me := fs.String("me", "", "your identity for the published atoms (default: the room's agent, else $USER)")
+	me := fs.String("me", "", "your identity for the published atoms (default: $ETTLE_ME, else the room's agent, else $USER)")
 	debounce := fs.Duration("debounce", 2*time.Minute, "skip if a capture already ran within this window (matters when wired to Stop, which fires each turn)")
 	if err := fs.Parse(args); err != nil {
 		return err

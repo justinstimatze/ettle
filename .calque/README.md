@@ -1,10 +1,10 @@
 # .calque — the prose vocabulary gate
 
 `make ci` runs [`calque vocab-check`](https://github.com/justinstimatze/calque),
-which fails when a compound term appears often enough to be load-bearing but is not
-in `vocab-allowlist.txt`.
+which fails when a compound term appears often enough to be real house vocabulary but
+is not in `vocab-allowlist.txt`.
 
-A warning is a question, not a verdict: either the term is real house vocabulary, in
+A warning asks a question; it doesn't hand down a verdict: either the term is real house vocabulary, in
 which case add the slug to the list, or it is drift — a second word for something
 already named — in which case fix the prose. Don't add a slug to silence a gate you
 haven't read.

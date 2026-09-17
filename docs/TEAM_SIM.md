@@ -1,13 +1,13 @@
 # ettle — the team simulation (the "no meetings" demo)
 
-Motto: **no meetings** (honestly: the sync meeting dies, the decision meeting gets shorter — not literal abolition; see [CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)). This is the multiplayer payoff made visible — three humans, each with an agent, the agents coordinating *ahead* of the humans so the friction never lands. The intended feel is the Culture-Minds bright pole (SF_LINEAGE.md): everything just comes together and nobody had to plan. It runs locally, on cheap Haiku, with agents standing in for the humans: a local sim.
+Motto: **no meetings** (honestly: the sync meeting dies, the decision meeting gets shorter — not literal abolition; see [CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)). It's the multiplayer payoff made visible — three humans, each with an agent, the agents coordinating *ahead* of the humans so the friction never lands. The intended feel is the Culture-Minds bright pole (SF_LINEAGE.md): everything just comes together and nobody had to plan. It runs locally, on cheap Haiku, with agents standing in for the humans: a local sim.
 
-This is downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's worth simulating now to see what the end-state would *feel* like. Caveat up front: the sim is built with the frictions planted, so it shows the intended *shape* of the payoff — it is not evidence the detection works on real, un-seeded team state (see the honesty note below).
+It sits downstream of the N=1 wedge (N1_WEDGE.md) in the build order, but it's worth simulating now to see what the end-state would *feel* like. Caveat up front: the sim is built with the frictions planted, so it shows the intended *shape* of the payoff — it is not evidence the detection works on real, un-seeded team state (see the honesty note below).
 
 ## What it shows, mapped onto L1/L2/L3
 
 - **L1** — each human (a Haiku persona with hidden in-progress reasoning) thinks out loud to their own agent. The raw reasoning is private and **never crosses the boundary**.
-- **emit** — each agent distills that into typed **decision-delta atoms** (`intent` / `assumption` / `commitment` / `dependency`). Only the atoms cross. This is the contextual-privacy invariant in its cheap form — the answer to "modeling people without a panopticon."
+- **emit** — each agent distills that into typed **decision-delta atoms** (`intent` / `assumption` / `commitment` / `dependency`). Only the atoms cross — the contextual-privacy invariant in its cheap form, the answer to "modeling people without a panopticon."
 - **L3** — the collective layer reconciles the atoms and detects **tangles** ahead of time: collisions, duplicated work, stale assumptions. Optionally it **names the operative pattern from a private pattern substrate** (see below).
 - **deliberate (gemot-shaped: positions → crux → bind or surface)** — the agents have names (Ada, Banks, Cass) and they take positions, then the layer decides **where friction belongs**:
   - **Bindable coordination** (sequencing, interface contract, ownership handoff — anything positive-sum) → the agents **hash it out agent-to-agent** to a concrete, final decision and the humans never need to know. The toil is gone. The privacy boundary holds *during* coordination: each agent sees its own human's full context but only the other's typed atoms.
@@ -20,7 +20,7 @@ Then the payoff: nobody holds or attends anything, the routine decisions are alr
 
 The motto isn't "frictionless." Bogdana (Bobbi) Rakova's work is the corrective: **frictionless is both impossible and undesirable wherever there's a plurality of stakeholders holding different views** — friction is contestability, consent, and repair, not bad design ([speculativefriction.org](https://speculativefriction.org/about), [reimagining consent and contestability](https://bobi-rakova.medium.com/reimagining-consent-and-contestability-in-ai-56979a88a7fb)). So ettle's real goal is **friction in the right spots**:
 
-- **Remove** friction from coordination/information-sync — the bullshit-meeting parts. This is the toil; it collapses to zero.
+- **Remove** friction from coordination/information-sync — the bullshit-meeting parts, the toil that collapses to zero.
 - **Keep** (even manufacture) friction at the **cruxes** — the genuine values choices where a person should stay the decider. The agents pre-stage the branches so it's a clean choice, not a 40-minute meeting, but the choice stays the human's.
 
 This is exactly the premise's split ([CONCEPT.md](CONCEPT.md#the-premise-which-parts-of-a-meeting-actually-die)) — information-sync dies; preference-aggregation/commitment/conflict is a speech-act that stays — now with **gemot's crux-detection as the mechanism that finds the boundary** (the felt result is the README's pitch: the mesh held the meeting for you, on everyone's behalf).

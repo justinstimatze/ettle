@@ -18,7 +18,7 @@ From *Governing the Commons* (1990) — the design principles shared by commons 
 1. **Clearly defined boundaries.** Who is in the commons, and what the resource is. → the consenting team (ADOPTION.md), and the resource = shared attention/legibility/trust. Never represent a non-participant; no state about a non-participant enters the horizon.
 2. **Congruence — rules fit local conditions.** → the calibration loop tunes each team's emit thresholds and crux-detection to *that* team's tempo and norms, rather than one global rule.
 3. **Collective-choice — those affected set the rules.** → the team decides what counts as bindable coordination vs. a crux worth surfacing, and where the emit thresholds sit. Humans stay the rule-makers.
-4. **Monitoring, by monitors accountable to the members.** → the calibration loop is the monitor: model-vs-reality divergence, false-interrupt rate, did-it-help. A longitudinal calibration-metric store is where that history lives. The monitor reports to the humans, not to the agents.
+4. **Monitoring, by monitors accountable to the members.** → the calibration loop is the monitor: model-vs-reality divergence, false-interrupt rate, did-it-help. A longitudinal calibration-metric store is where that history lives. The monitor reports to the humans; the agents never see its output.
 5. **Graduated sanctions.** → **[gemot](https://github.com/justinstimatze/gemot)'s EigenTrust reputation.** An agent that over-emits, false-interrupts, or proposes binds the humans keep overriding loses standing. Sanctions escalate: first its contributions are down-weighted; then its emit threshold is raised so it must clear a higher relevance bar; then it loses the right to *bind* and must *surface* to its human instead. Reputation earned back the same way it's lost — by being right. (The concrete anti-overgrazing mechanics — surprise-gated emit, per-agent budget, O(1) shared reconcile, and the rule that L3 emits no atoms so there's no machine-speed loop — are in [SCALING.md](SCALING.md).)
 6. **Cheap, accessible conflict-resolution.** → gemot deliberation for the small-N crux; crux-surfacing for the values call; Talk to the City / Polis for the large-N distribution of views (PRIOR_ART.md §7). Local arenas, not an escalation to management.
 7. **Minimal recognition of the right to organize.** → consent-first, bottom-up adoption (ADOPTION.md). The platform does not impose coordination norms from outside; the team governs its own commons.
@@ -28,7 +28,7 @@ From *Governing the Commons* (1990) — the design principles shared by commons 
 
 It is a **governance layer over the whole mesh**, but the mechanisms land in specific, mostly-already-present places — and only one is genuinely new code:
 
-- **Graduated sanctions → gemot reputation** is the concrete new home, and the most actionable: gemot already carries EigenTrust, so the anti-overgrazing teeth are a primitive we wire, not invent.
+- **Graduated sanctions → gemot reputation** is the concrete new home, and the most actionable: gemot already carries EigenTrust, so the anti-overgrazing teeth are a primitive to wire in, already built elsewhere.
 - **Monitoring → calibration loop / longitudinal calibration-metric store** (already the critical path).
 - **Boundaries, collective-choice, right-to-organize → ADOPTION invariants** (already hard requirements).
 - **Nested/polycentric → L1/L2/L3 + the N-spectrum** (already the architecture).
@@ -42,7 +42,7 @@ So Ostrom doesn't add a component so much as it **names the governance that was 
 Ostrom's principles govern commons among **humans who organize themselves**. In ettle the appropriators are *agents acting for humans*. So:
 
 - **Monitoring and sanctions apply to the agents** — they are the ones who can overgraze.
-- **Rule-making and collective-choice stay with the humans** — principles 3 and 7 are human rights, not agent capabilities. If the agents start setting their own emit rules and sanctioning each other without the humans, that is the self-governing collective the humans cannot audit — the treacherous-turn / Bicameral failure from HORIZON.md.
+- **Rule-making and collective-choice stay with the humans** — principles 3 and 7 belong to humans by right; they are never agent capabilities. If the agents start setting their own emit rules and sanctioning each other without the humans, that is the self-governing collective the humans cannot audit — the treacherous-turn / Bicameral failure from HORIZON.md.
 
 The bright version: a commons the team governs, with the agents as monitored, sanctionable appropriators of a shared attention pool. The dark version: a commons the *agents* govern, with the humans as the grazed resource. Same eight principles, opposite locus of control. Keep the rule-making human.
 

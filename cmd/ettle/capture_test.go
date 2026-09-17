@@ -66,7 +66,8 @@ func TestPublishCaptureEmptyNoteNoPublish(t *testing.T) {
 func TestCaptureIdentity(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("USER", "zoe")
-	t.Chdir(t.TempDir()) // no project pointer above us, so the fallbacks are the only input
+	t.Setenv("ETTLE_ME", "") // hermetic: don't inherit the ambient shell's value
+	t.Chdir(t.TempDir())     // no project pointer above us, so the fallbacks are the only input
 
 	if got := captureIdentity("bob", "anyroom", ""); got != "bob" {
 		t.Errorf("explicit --me should win: got %q, want bob", got)
@@ -87,6 +88,21 @@ func TestCaptureIdentity(t *testing.T) {
 	}
 	if got := captureIdentity("", "", "linear://crew"); got != "dana" {
 		t.Errorf("a Linear room should use the saved identity: got %q, want dana", got)
+	}
+	// $ETTLE_ME exists specifically because a hook command can't carry a
+	// per-project --me without double-firing (Claude Code merges hook lists
+	// instead of letting a project override one) — so it must outrank every
+	// room-derived default, same as it outranks $USER, and only an explicit
+	// --me flag beats it.
+	t.Setenv("ETTLE_ME", "mercury@justin")
+	if got := captureIdentity("", "", "linear://crew"); got != "mercury@justin" {
+		t.Errorf("$ETTLE_ME should outrank the room's saved identity: got %q, want mercury@justin", got)
+	}
+	if got := captureIdentity("", "crew", ""); got != "mercury@justin" {
+		t.Errorf("$ETTLE_ME should outrank the room's configured agent: got %q, want mercury@justin", got)
+	}
+	if got := captureIdentity("bob", "crew", ""); got != "bob" {
+		t.Errorf("explicit --me should still outrank $ETTLE_ME: got %q, want bob", got)
 	}
 }
 

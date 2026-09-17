@@ -40,9 +40,9 @@ hardest of them (firewall 1's single shared reconciler) is also an unsolved
 distributed-systems problem in its own right (leader election, failover, and a
 reconciler that necessarily sees every atom — a privacy-concentration point).
 
-### 1. Atoms flow up, tangles flow down — reconcile is O(1)/tick, not O(M)
+### 1. Atoms flow up, tangles flow down — reconcile is O(1)/tick, well under O(M)
 
-The single biggest lever. Do **not** have every agent independently re-reconcile
+This is the single biggest lever: do **not** have every agent independently re-reconcile
 the shared atom set (that's O(M) identical LLM calls for one answer — and it's
 the one redundancy the current multi-process path actually exhibits). Instead:
 one reconcile per tick (a designated reconciler — leader-elected, or a small

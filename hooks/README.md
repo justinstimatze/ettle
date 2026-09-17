@@ -86,7 +86,7 @@ in the background never stalls a tool call or session exit.
 - **Is incremental.** It keeps a per-room cursor, so each run fetches only replies
   newer than the last.
 
-Prefer the smallest wiring? Each works as a single backgrounded line without the
+For the smallest wiring, run each as a single backgrounded line without the
 `-hook` subcommand — you lose only the debounce:
 
 - `nohup ettle capture --room YOUR_ROOM "$transcript_path" >/dev/null 2>&1 &`

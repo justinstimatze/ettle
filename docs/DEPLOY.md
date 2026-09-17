@@ -15,7 +15,7 @@ runs; the **calibration loop** that keeps each model correctable, and the
 [README status](../README.md#status) and the
 [design invariants](CONCEPT.md#design-invariants-non-negotiable)).
 
-Two of those invariants are operational constraints, not slogans:
+Two of those invariants are operational constraints that hold in the code itself, never mere slogans on the page:
 
 - **Calibration before speed.** Until the calibration loop exists, the emit-gate
   is uncalibrated — and we have measured what that means: on an independent-work
@@ -27,7 +27,7 @@ Two of those invariants are operational constraints, not slogans:
   mode — each person sees their own horizon, on demand — not as an always-on
   firehose, until calibration lands.
 - **No machine-speed feedback loop.** L3 emits no atoms; the reconcile is O(1)
-  shared work, not a per-message fan-out ([SCALING.md](SCALING.md)). Don't wire
+  shared work rather than a per-message fan-out ([SCALING.md](SCALING.md)). Don't wire
   ettle's output back into an automated actor.
 
 So "deploying in your org" today means **each person's own session publishing its
@@ -40,9 +40,9 @@ of them is not built.
 
 ## Tier 0 — one team, no infrastructure (the default)
 
-Nothing to deploy. The transport defaults to in-process and contested tangles fall
-back to an inline either/or, so a single run reads everyone's notes locally and
-prints each person's horizon:
+There's nothing to deploy: the transport defaults to in-process and contested
+tangles fall back to an inline either/or, so a single run reads everyone's notes
+locally and prints each person's horizon:
 
 ```sh
 go run ./cmd/ettle standup --me alice path/to/notes/*.md
@@ -90,7 +90,7 @@ repository outright**, with no override flag — a public Discussion is a differ
 audience than a private one, and the bus carries everyone's intents, commitments
 and assumptions. GitHub has neither `ettle pull` nor `ettle escalate` yet. And the
 receive path polls with a cursor rather than taking a webhook (nothing is hosted,
-by choice), so freshness is last-poll, not live. Which keys buy what, and the ten
+by choice), so freshness is last-poll rather than live. Which keys buy what, and the ten
 minutes the optional escalation token costs: [LINEAR_SETUP.md](LINEAR_SETUP.md). What
 to send the second person, and what only you can do for them:
 [JOINING.md](JOINING.md).
@@ -102,7 +102,7 @@ obvious design and the wrong default: [SURFACES.md](SURFACES.md).
 For a team on neither Linear nor GitHub. When agents run on different machines but
 the team already shares a folder (Dropbox / Google Drive / git / Syncthing), point
 each at it with `--transport file://<path>` — multiplayer with **no server to
-run**, and no hooks: this tier is on-demand `standup`, not the closed loop. Each
+run**, and no hooks: this tier stays on-demand `standup` — short of the closed loop. Each
 participant's agent writes only its own file under `<path>/.ettle/`; reconcile
 reads the folder. Securing and replicating the folder is the sync tool's job, and
 only boundary-distilled atoms cross — never the raw notes.
@@ -115,7 +115,7 @@ go run ./cmd/ettle standup --me alice --transport file://$HOME/Dropbox/team-x no
 | Property | Behavior |
 |---|---|
 | Storage | replace-current — each file holds that person's latest atoms (clean exit = delete your file; no history pile-up, so the longitudinal-leak surface isn't amplified) |
-| Identity | the filename is authoritative; that a file is really its owner's rests on the folder's access control — a convention, **not** structurally enforced (per-envelope signing is reserved, not built) |
+| Identity | the filename is authoritative; that a file is really its owner's rests on the folder's access control — a convention, **not** structurally enforced (per-envelope signing is reserved for later, still unbuilt) |
 | Freshness | every run prints a roster + per-member staleness, so a partially-synced horizon is never read as a bare "all clear" |
 | Conflicts | sync conflict-copies (Dropbox/Syncthing markers) are skipped; an undetected one (OneDrive/Drive numbering) surfaces as a visible extra roster member, not silent corruption |
 
@@ -123,8 +123,8 @@ go run ./cmd/ettle standup --me alice --transport file://$HOME/Dropbox/team-x no
 synced. Eventual-consistency lag (seconds–minutes) is fine here; it would only bite
 a continuous live-emit loop, which is deliberately unbuilt ([SCALING.md](SCALING.md)).
 **Honest limit:** a teammate whose file never reached your copy of the folder is
-invisible — coverage reports who/how-stale among files *present*, not against an
-out-of-band roster. For real identity + an audit trail with the same no-server
+invisible — coverage reports who/how-stale only among files *present*, with no
+out-of-band roster to check against. For real identity + an audit trail with the same no-server
 model, use the leat git-repo bus below; for low-latency exchange or a hard
 membership guarantee, use the NATS bus.
 
@@ -230,7 +230,7 @@ Empty `--gemot` keeps the inline either/or (no external service). A contested
 tangle can spend minutes in deliberation, hence the generous default timeout.
 gemot's EigenTrust reputation is also where the commons' **graduated sanctions**
 land ([COMMONS.md](COMMONS.md) principle 5) — the anti-overgrazing teeth — but
-that wiring is roadmap, not shipped.
+that wiring is still roadmap — unshipped.
 
 ## Security posture (what protects the team)
 

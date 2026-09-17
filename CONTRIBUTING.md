@@ -91,8 +91,9 @@ notes, and bug fixes in the transport/crux seams.
   org data. Real/local eval material stays gitignored.
 - Keep diffs small and the commit message explaining *why*, matching the existing
   history. Open an issue first for anything touching an invariant or a seam.
-- Be honest about what a change does and doesn't verify — "this is a smoke test,
-  not a precision measurement" is the register the whole repo is written in.
+- Be honest about what a change does and doesn't verify — call a smoke test a smoke
+  test rather than dressing it up as a precision measurement; that's the register the
+  whole repo is written in.
 
 ## Contact
 

@@ -7,8 +7,8 @@ make them obvious:
 1. **Your raw notes are never transmitted verbatim.** Only *typed atoms* cross —
    short, structured deltas (an intent, an assumption, a commitment, a
    dependency). The panopticon version streams transcripts; ettle distills first.
-   Caveat worth stating plainly: distillation is a model judgment, not a verified
-   redaction — a sensitive sentence *can* be distilled into a coordination-relevant
+   Caveat worth stating plainly: distillation is a model judgment rather than a
+   verified redaction — a sensitive sentence *can* be distilled into a coordination-relevant
    atom. The atom contents are the privacy surface, and (roadmap) a `--show-atoms`
    preview + structural caps are how that surface gets enforced rather than trusted.
 2. **There is no shared channel humans read.** The collective layer is for the
@@ -46,7 +46,7 @@ place so the two can't drift). This page is its reading guide.
   standup is its degenerate case (everyone learns everyone); the layer earns its
   keep across rounds, where it sends a couple of deltas instead of the whole state.
 - **FIRM vs SOFT** is confidence propagation: a tangle resting on an *inferred*
-  (uncertain) atom is SOFT — surfaced as a question, not asserted as fact.
+  (uncertain) atom is SOFT — surfaced as a question rather than asserted as fact.
 - **gemot only sees contested tangles.** Most coordination is bindable and never
   reaches it. When a real values choice is at stake, gemot finds the crux and
   proposes a binding compromise; the human still makes the call. The crux is the

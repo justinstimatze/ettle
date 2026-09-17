@@ -26,7 +26,7 @@ func runConfirm(args []string) error {
 	fs := flag.NewFlagSet("confirm", flag.ContinueOnError)
 	room := fs.String("room", "", "the room whose tangles to confirm (default: the room recorded for this directory)")
 	transportName := fs.String("transport", "", "transport spec, when not using --room")
-	me := fs.String("me", "", "who is judging (default: the room's identity, else $USER)")
+	me := fs.String("me", "", "who is judging (default: $ETTLE_ME, else the room's identity, else $USER)")
 	clear := fs.Bool("clear", false, "withdraw a confirmation — the named tangle, or all of them with no name")
 	if err := fs.Parse(args); err != nil {
 		return err

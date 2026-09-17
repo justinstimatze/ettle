@@ -6,7 +6,7 @@ status). That is enough to sanity-check the detector and nothing more. Real
 validation needs **logged human coordination** — situations where people
 coordinated (or failed to), recorded for research. This page catalogs the
 candidates, how each maps to ettle's tangle kinds, and the honest caveats. None of
-the *detection* corpora below is wired up yet; this is a research note, not a claim.
+the *detection* corpora below is wired up yet; this is a research note rather than a claim.
 
 > **One benchmark of a different kind is already built.** The *privacy-boundary*
 > claim — that distillation does not leak — is measured today by
@@ -34,8 +34,8 @@ the *detection* corpora below is wired up yet; this is a research note, not a cl
 
 ## The core mismatch (read this first)
 
-ettle's whole thesis is that the signal is **reasoning-in-progress**, not
-after-the-fact artifacts. But almost every public coordination dataset *is* an
+ettle's whole thesis is that the signal is **reasoning-in-progress**, captured
+before the fact rather than reconstructed after it. But almost every public coordination dataset *is* an
 artifact — an email thread, a resolved issue, a meeting transcript. So a real
 benchmark is necessarily **retrospective**:
 
@@ -108,7 +108,7 @@ the save dialog") — exactly what a verbatim matcher misses. Precision is high
 (one extra firm coordination tangle that isn't one of the curated *duplication*
 labels — the honest cost of a duplication-focused label set, not a detector
 error), and the distractor stays out of the firm duplication. These are **counts
-on a tiny corpus, not a precision/recall measurement**: at 8 positive labels a
+on a tiny corpus — short of a precision/recall measurement**: at 8 positive labels a
 Wilson 95% interval on recall=1.0 has a lower bound near 0.63, so "8/8" is an
 encouraging anecdote with a wide true-rate band, not a benchmarked accuracy
 number (the banner's "not validated" caveat is the operative framing).
@@ -118,15 +118,15 @@ the 8 labels, single-shot (8/8) and 3-sample voting (7/8) disagree on only one,
 so the McNemar discordance (N=1) is too small to test — `p=1.000, no claim`.
 That is *not* a sample-count problem. There is also a **structural ceiling**:
 single-shot already scores 8/8, so voting's recall can only match or fall below
-it — the "voted-only win" cell of the McNemar table is pinned at zero by the data,
-not by chance. The test can therefore detect *voting hurts* but is blind to
+it — the "voted-only win" cell of the McNemar table is pinned at zero structurally,
+by the data itself rather than by chance. The test can therefore detect *voting hurts* but is blind to
 *voting helps*, which is the direction the A/B most wants to probe. Showing that
 would take a corpus with headroom — single-shot scoring below the ceiling, i.e.
 the borderline corpus noted below. Voting exists to damp the detector's
 run-to-run noise; on clear-cut duplications the detector is already confident, so
 both conditions recover the same tangles and there is nothing for voting to fix. An
 earlier single-corpus run where voting dropped a real duplication did **not**
-replicate at this scale — it was one stochastic draw, not an effect. Voting would
+replicate at this scale — one stochastic draw, no effect behind it. Voting would
 only earn its cost on *borderline* tangles where the detector wobbles. This corpus
 deliberately holds none, so measuring it is what the next corpus is for.
 This remains a **retrospective artifact test** (see the caveat above), not
