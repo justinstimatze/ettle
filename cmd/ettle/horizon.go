@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -42,8 +43,9 @@ func runHorizon(args []string) error {
 	transportName := fs.String("transport", "", "reconcile this transport's horizon when --room is not used: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "surface only tangles involving this participant (default: $ETTLE_ME, else the room's agent, else the identity `ettle init` saved, else $USER)")
 	all := fs.Bool("all", false, "surface the WHOLE team's tangles instead of only yours — the unfiltered view. Needed because --me now falls back to your saved identity when unset, so passing it empty can no longer mean \"no filter\"")
-	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
+	model := fs.String("model", defaultModel, "model id for the reconcile")
 	samples := fs.Int("samples", 5, "independent reconcile samples to vote across; recurrence ranks tangles firm vs soft (1 disables voting)")
+	staleAfter := fs.Duration("stale-after", defaultStaleAfter, "leave out participants whose envelope is older than this (0 keeps everyone)")
 	cache := fs.Bool("cache", false, "write the rendered horizon to the local cache instead of printing it (used by the hook's background refresh)")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	if err := fs.Parse(args); err != nil {
@@ -73,7 +75,7 @@ func runHorizon(args []string) error {
 	}
 	defer bus.Close()
 
-	res, err := reconcileHorizon(ctx, det, bus, who, *samples)
+	res, err := reconcileHorizon(ctx, det, bus, who, *samples, *staleAfter)
 	if err != nil {
 		return err
 	}
@@ -176,12 +178,12 @@ func dropMuted(ks []ettlemesh.Tangle, muted map[string]bool, count *int) []ettle
 // and runs the same reconcile the MCP horizon does (ReconcileVoted → GroundTangles),
 // filtered to `me`. The reconcile primitives live in ettlemesh (single-sourced); this
 // only orchestrates them, so it can't drift from the engine's behavior.
-func reconcileHorizon(ctx context.Context, det *ettlemesh.Detector, bus transport.Transport, me string, samples int) (horizonResult, error) {
+func reconcileHorizon(ctx context.Context, det *ettlemesh.Detector, bus transport.Transport, me string, samples int, staleAfter time.Duration) (horizonResult, error) {
 	envs, err := bus.Collect(ctx)
 	if err != nil {
 		return horizonResult{}, fmt.Errorf("collect: %w", err)
 	}
-	envs = foldLatest(envs)
+	envs = capAtoms(dropStale(foldLatest(envs), staleAfter, time.Now()), maxReadAtoms)
 
 	var res horizonResult
 	for _, e := range envs {
@@ -241,6 +243,49 @@ func classifyHorizon(kept, suppressed []ettlemesh.Tangle, participants []string,
 // foldLatest keeps one envelope per participant, last-writer-wins. LWW buses
 // (file/leat/linear) already return one per author, but the in-process bus is
 // append-only, so folding here makes the reconcile correct on any transport.
+// defaultModel is the model every ettle command calls unless --model says otherwise.
+// Haiku 5.5 bills input at a tenth of Haiku 4.5 for prompts up to 100K tokens.
+const defaultModel = "claude-haiku-5-5"
+
+// defaultStaleAfter is how old an envelope can be before the reconcile leaves its
+// participant out. A teammate silent for two weeks is not someone a tangle can be
+// resolved with, and every reconcile sample pays to read their atoms again.
+const defaultStaleAfter = 14 * 24 * time.Hour
+
+// dropStale removes envelopes emitted more than `after` before `now`. An envelope with
+// no or unparseable EmittedAt is kept, since its age is unknown. after <= 0 keeps all.
+func dropStale(envs []transport.Envelope, after time.Duration, now time.Time) []transport.Envelope {
+	if after <= 0 {
+		return envs
+	}
+	out := envs[:0:0]
+	for _, e := range envs {
+		if t, err := time.Parse(time.RFC3339, e.EmittedAt); err == nil && now.Sub(t) > after {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// maxReadAtoms bounds how many of one participant's atoms a reconcile reads. Capture
+// merges into the envelope for the life of the room, so without it every reconcile
+// pays for the whole history. The bus keeps everything; only the read is capped.
+const maxReadAtoms = 200
+
+// capAtoms keeps the last n atoms of each envelope. MergeSelf orders an envelope
+// oldest to most recently restated, so the tail is the live working set.
+func capAtoms(envs []transport.Envelope, n int) []transport.Envelope {
+	out := make([]transport.Envelope, len(envs))
+	for i, e := range envs {
+		if n > 0 && len(e.Atoms) > n {
+			e.Atoms = e.Atoms[len(e.Atoms)-n:]
+		}
+		out[i] = e
+	}
+	return out
+}
+
 func foldLatest(envs []transport.Envelope) []transport.Envelope {
 	at := map[string]int{}
 	out := make([]transport.Envelope, 0, len(envs))
@@ -514,7 +559,8 @@ func runHorizonHook(args []string) error {
 	room := fs.String("room", "", "the room whose horizon to inject")
 	transportName := fs.String("transport", "", "transport whose horizon to inject when --room is not used")
 	me := fs.String("me", "", "your identity (default: $ETTLE_ME, else the room's agent, else $USER)")
-	debounce := fs.Duration("debounce", 5*time.Minute, "skip the background refresh if one ran within this window")
+	debounce := fs.Duration("debounce", 6*time.Hour, "skip the background refresh if one ran within this window")
+	samples := fs.Int("samples", 1, "reconcile samples for the background refresh (each one re-reads the whole room; `ettle horizon` by hand still defaults to 5)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -555,7 +601,7 @@ func runHorizonHook(args []string) error {
 	if err != nil {
 		return err
 	}
-	cargs := []string{"horizon", "--cache", "--me", who}
+	cargs := []string{"horizon", "--cache", "--me", who, "--samples", strconv.Itoa(*samples)}
 	if *room != "" {
 		cargs = append(cargs, "--room", *room)
 	}

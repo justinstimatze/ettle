@@ -264,7 +264,7 @@ func hookRunPath(room string) (string, error) {
 func runPull(args []string) error {
 	fs := flag.NewFlagSet("pull", flag.ContinueOnError)
 	room := fs.String("room", "", "the Linear room to pull teammate replies into (maps to project ettle-<room>)")
-	model := fs.String("model", "claude-haiku-4-5", "model id for distilling replies")
+	model := fs.String("model", defaultModel, "model id for distilling replies")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

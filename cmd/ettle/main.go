@@ -145,7 +145,7 @@ func main() {
 	}
 	fs := flag.NewFlagSet("standup", flag.ExitOnError)
 	me := fs.String("me", "", "surface tangles relevant to this participant (their agent's view); empty = full team view")
-	model := fs.String("model", "claude-haiku-4-5", "model id")
+	model := fs.String("model", defaultModel, "model id")
 	gemotURL := fs.String("gemot", "", "gemot MCP endpoint for contested tangles (e.g. https://gemot.example/mcp); empty = inline either/or")
 	transportName := fs.String("transport", "inproc", "atom transport: inproc | file://<shared-folder> (zero-infra, each agent writes its own file) | linear://<room> (a Linear project as the bus; needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats (needs -tags nats)")
 	insecureLocal := fs.Bool("insecure-local", false, "dev only: allow plaintext/tokenless connections to localhost gemot + NATS (e.g. local docker)")
@@ -688,7 +688,7 @@ func detectFor(ctx context.Context, det *ettlemesh.Detector, people []participan
 // single-shot-vs-voted comparison with a McNemar significance test.
 func runEval(args []string) error {
 	fs := flag.NewFlagSet("eval", flag.ExitOnError)
-	model := fs.String("model", "claude-haiku-4-5", "model id")
+	model := fs.String("model", defaultModel, "model id")
 	samples := fs.Int("samples", 3, "voting samples for the --ab voted condition")
 	ab := fs.Bool("ab", false, "also run the voted condition and compare with McNemar")
 	leak := fs.Bool("leak", false, "privacy-boundary mode: distill a leak corpus and measure the secret leak rate (not tangle detection)")
@@ -1329,7 +1329,7 @@ func buildMesh(ctx context.Context, det *ettlemesh.Detector, prev, curr []partic
 func runDrift(args []string) error {
 	fs := flag.NewFlagSet("drift", flag.ExitOnError)
 	me := fs.String("me", "", "show the directed view for this participant; empty = whole team")
-	model := fs.String("model", "claude-haiku-4-5", "model id")
+	model := fs.String("model", defaultModel, "model id")
 	_ = fs.Parse(args)
 	rest := fs.Args()
 	if len(rest) != 2 {
@@ -1359,7 +1359,7 @@ func runDrift(args []string) error {
 func runMirror(args []string) error {
 	fs := flag.NewFlagSet("mirror", flag.ExitOnError)
 	me := fs.String("me", "", "whose mirror — the person the beliefs are ABOUT (required)")
-	model := fs.String("model", "claude-haiku-4-5", "model id")
+	model := fs.String("model", defaultModel, "model id")
 	byObserver := fs.Bool("by-observer", false, "attribute each belief to the teammate holding it (default: coarsened — the belief, not who holds it; see docs/LEGIBILITY.md)")
 	_ = fs.Parse(args)
 	rest := fs.Args()
@@ -1753,7 +1753,7 @@ func runCapture(args []string) error {
 	room := fs.String("room", "", "publish the distilled atoms to this git-repo room (`ettle room init|join`) instead of printing the digest; use --transport for a linear:// or github:// room")
 	transportName := fs.String("transport", "", "publish to this transport instead of a --room: inproc | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")
 	me := fs.String("me", "", "your identity for the published atoms (default: $ETTLE_ME, else the room's agent, else $USER)")
-	model := fs.String("model", "claude-haiku-4-5", "model id for distilling the session")
+	model := fs.String("model", defaultModel, "model id for distilling the session")
 	insecureLocal := fs.Bool("insecure-local", false, "allow a plaintext local NATS connection (development only)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1804,7 +1804,7 @@ func runCapture(args []string) error {
 // internal/mcpserver and docs/ADOPTION.md.
 func runMCP(args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
-	model := fs.String("model", "claude-haiku-4-5", "model id")
+	model := fs.String("model", defaultModel, "model id")
 	noGround := fs.Bool("no-ground", false, "disable the cross-person coupling check (ON by default — see ground.go)")
 	room := fs.String("room", "", "serve the horizon over a configured git-repo room (`ettle room join`); empty = the room recorded for this directory if there is one, else in-process, this process only")
 	transportName := fs.String("transport", "", "transport for the horizon when --room is not used: inproc (default) | file://<path> | leat://<repoDir> | linear://<room> (needs LINEAR_API_KEY) | github://<owner>/<repo>[/<room>] (a PRIVATE repo's Discussions) | nats")

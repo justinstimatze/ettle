@@ -61,3 +61,18 @@ func TestMergeSelfIsIdempotent(t *testing.T) {
 		t.Errorf("re-merging the same atoms must not grow the model: %d then %d", len(once), len(twice))
 	}
 }
+
+// The reconcile reads only the tail of an envelope, so a restated belief must move to
+// the tail or it would age out while still current.
+func TestMergeSelfMovesARestatedBeliefToTheEnd(t *testing.T) {
+	prev := []Atom{
+		atom("me", Intent, "the retry wrapper in the parser", "adding a retry"),
+		atom("me", Intent, "the Linear transport audience check", "auditing who can read the room"),
+	}
+	next := []Atom{atom("me", Intent, "retry wrapper for the parser", "retry now catches timeouts only")}
+
+	got := MergeSelf(prev, next)
+	if len(got) != 2 || got[1].Content != "retry now catches timeouts only" {
+		t.Fatalf("the restated belief should be last, got %+v", got)
+	}
+}

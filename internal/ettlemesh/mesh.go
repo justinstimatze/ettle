@@ -703,7 +703,7 @@ func (d *Detector) callToolOnce(ctx context.Context, system, user, tool, desc st
 	}
 	cctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
-	resp, err := d.msgs.New(cctx, anthropic.MessageNewParams{
+	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(d.Model),
 		MaxTokens: 1500,
 		System: []anthropic.TextBlockParam{{
@@ -713,9 +713,21 @@ func (d *Detector) callToolOnce(ctx context.Context, system, user, tool, desc st
 		Messages:   []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(user))},
 		Tools:      []anthropic.ToolUnionParam{{OfTool: &anthropic.ToolParam{Name: tool, Description: anthropic.String(desc), InputSchema: schema}}},
 		ToolChoice: anthropic.ToolChoiceParamOfTool(tool),
-	})
+	}
+	// Haiku 5.5 thinks by default, and thinking cannot run under a forced tool_choice.
+	// Haiku accepts an explicit disable at its default effort; the Opus/Sonnet 5.5
+	// family rejects it, so only Haiku gets it.
+	if strings.HasPrefix(d.Model, "claude-haiku") {
+		params.Thinking = anthropic.ThinkingConfigParamUnion{OfDisabled: &anthropic.ThinkingConfigDisabledParam{}}
+	}
+	resp, err := d.msgs.New(cctx, params)
 	if err != nil {
 		return err
+	}
+	if os.Getenv("ETTLE_USAGE") != "" {
+		u := resp.Usage
+		fmt.Fprintf(os.Stderr, "ettle usage: tool=%s model=%s in=%d cache_write=%d cache_read=%d out=%d\n",
+			tool, d.Model, u.InputTokens, u.CacheCreationInputTokens, u.CacheReadInputTokens, u.OutputTokens)
 	}
 	for _, block := range resp.Content {
 		if block.Type == "tool_use" {

@@ -130,7 +130,7 @@ func resolveTeamID(flagValue string) string {
 func runEscalate(args []string) error {
 	fs := flag.NewFlagSet("escalate", flag.ContinueOnError)
 	room := fs.String("room", "", "the Linear room whose firm tangles to escalate (maps to project ettle-<room>)")
-	model := fs.String("model", "claude-haiku-4-5", "model id for the reconcile")
+	model := fs.String("model", defaultModel, "model id for the reconcile")
 	samples := fs.Int("samples", 5, "reconcile samples to vote across; only firm tangles (majority recurrence) are escalated")
 	// Deliberately NOT defaulted from the environment here: a flag default is
 	// evaluated before linearRoomFor runs, and linearRoomFor is what loads this
@@ -169,7 +169,7 @@ func runEscalate(args []string) error {
 	}
 	defer bus.Close()
 
-	res, err := reconcileHorizon(ctx, det, bus, "", *samples) // whole-team firm tangles
+	res, err := reconcileHorizon(ctx, det, bus, "", *samples, defaultStaleAfter) // whole-team firm tangles
 	if err != nil {
 		return err
 	}

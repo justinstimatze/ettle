@@ -354,13 +354,14 @@ const mergeJaccardMin = 0.5
 // close enough to be the same belief, and replaces it in place. Exact matches are
 // handled by Canonical either way; this only rescues the reworded case.
 //
-// Later wins, and first-seen order is preserved, matching canonical's contract.
+// Later wins, and a superseded belief moves to the end, so the slice runs oldest to
+// most recently restated. The reconcile's per-participant read cap relies on that
+// order to keep the live working set.
 func MergeSelf(prev, next []Atom) []Atom {
 	out := append([]Atom(nil), Canonical(prev)...)
 	for _, a := range next {
 		if i := nearestSlot(out, a); i >= 0 {
-			out[i] = a
-			continue
+			out = append(out[:i], out[i+1:]...)
 		}
 		out = append(out, a)
 	}
